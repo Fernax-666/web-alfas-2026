@@ -1,0 +1,54 @@
+name: "Refactor and Security Audit Pipeline"
+id: "refactor-audit-pipeline"
+trigger: "manual"
+
+steps:
+  - id: "step_plan"
+    name: "Descomposición y Planificación"
+    agent: "orchestrator"
+    input:
+      prompt: "Analiza el archivo {{target_file}} y define las mejoras necesarias."
+    output_variable: "refactor_plan"
+
+  - id: "step_refactor"
+    name: "Refactorización"
+    agent: "refactor-agent"
+    depends_on: ["step_plan"]
+    input:
+      context: "{{refactor_plan}}"
+      target: "{{target_file}}"
+      instruction: "Aplica clean code manteniendo interfaces públicas intactas."
+    output_variable: "code_diff"
+
+  - id: "step_readability"
+    name: "Mejora de Legibilidad y Tipado"
+    agent: "readability-agent"
+    depends_on: ["step_refactor"]
+    input:
+      diff: "{{code_diff}}"
+      instruction: "Mejora los nombres de variables y agrega documentación JSDoc/TSDoc."
+    output_variable: "documented_diff"
+
+  - id: "step_review"
+    name: "Revisión de Robustez y Calidad"
+    agent: "code-reviewer"
+    depends_on: ["step_readability"]
+    input:
+      diff: "{{documented_diff}}"
+      rules: ["Type-Safety", "Input-Validation", "Error-Handling"]
+
+  - id: "step_audit"
+    name: "Auditoría de Seguridad"
+    agent: "security-auditor"
+    depends_on: ["step_review"]
+    input:
+      diff: "{{documented_diff}}"
+      rules: ["OWASP-Top-10", "Secret-Detection", "Apps-Script-Security"]
+
+  - id: "step_qa"
+    name: "Certificación de Pruebas"
+    agent: "qa-engineer"
+    depends_on: ["step_audit"]
+    input:
+      diff: "{{documented_diff}}"
+      instruction: "Crea y ejecuta suites de prueba verificando cobertura al 100%."

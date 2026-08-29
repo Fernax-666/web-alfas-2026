@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planilla Mensual | Gestión de Servicios</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .planilla-controls {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .planilla-controls select, .planilla-controls input {
+      width: auto;
+      min-width: 160px;
+    }
+    .planilla-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .planilla-table th {
+      background: var(--primary);
+      color: white;
+      padding: 10px 8px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+    }
+    .planilla-table td {
+      padding: 5px;
+      border: 1px solid var(--border);
+      text-align: center;
+      vertical-align: middle;
+    }
+    .planilla-table tr:nth-child(even) { background: #f8fafc; }
+    .planilla-table tr.finde { background: #fef8f0; }
+    .planilla-table tr.finde td:first-child { color: #b45309; font-weight: 700; }
+    .planilla-table td:first-child, .planilla-table td:nth-child(2) {
+      font-weight: 600;
+      background: var(--bg-main);
+      white-space: nowrap;
+    }
+    .planilla-table select {
+      width: 100%;
+      padding: 5px 4px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-family: inherit;
+      font-size: 0.8rem;
+      background: white;
+    }
+    .planilla-table select:focus { border-color: var(--primary); outline: none; }
+    .planilla-table select.asignado { background: #eff6ff; border-color: #93c5fd; font-weight: 600; }
+    
+    /* Colores para diferenciar turnos */
+    .turno-col-0 { background-color: #f0fdf4; } /* Verde claro */
+    .turno-col-1 { background-color: #eff6ff; } /* Azul claro */
+    .turno-col-2 { background-color: #fffbeb; } /* Ambar claro */
+    .turno-col-3 { background-color: #f5f3ff; } /* Violeta claro */
+    .turno-col-4 { background-color: #fff1f2; } /* Rosado claro */
+    
+    .planilla-table th.turno-header-0 { background-color: #16a34a; }
+    .planilla-table th.turno-header-1 { background-color: #2563eb; }
+    .planilla-table th.turno-header-2 { background-color: #d97706; }
+    .planilla-table th.turno-header-3 { background-color: #7c3aed; }
+    .planilla-table th.turno-header-4 { background-color: #e11d48; }
+    
+    .nav-btn {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .nav-btn:hover { color: var(--primary); }
+
+    @media print {
+      .no-print { display: none !important; }
+      .card { box-shadow: none; border: 1px solid #ccc; }
+      .planilla-table select { border: none; appearance: none; background: transparent; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div>
+      <h1 style="font-size: 1.5rem; margin-bottom: 3px;">Planilla Mensual de Turnos</h1>
+      <p class="subtitle" id="subtitulo">Cargando...</p>
+      <!-- Bloque de datos de empresa -->
+      <div id="infoEmpresa" style="margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.7; display:none;">
+        <span id="infoEmpNroSrv"></span>
+        <span id="infoEmpDomicilio"></span>
+        <span id="infoEmpBarrio"></span>
+        <span id="infoEmpTel"></span>
+        <br id="brRef" style="display:none">
+        <span id="infoEmpRef"></span>
+        <span id="infoEmpTelRef"></span>
+        <br id="brPol" style="display:none">
+        <span id="infoEmpPol"></span>
+        <span id="infoEmpTelPol"></span>
+      </div>
+    </div>
+    <div class="no-print" style="display: flex; gap: 10px;">
+      <a href="index.html" class="nav-btn">← Volver al Sistema</a>
+      <button class="btn-outline no-print" onclick="window.print()">🖨 Imprimir</button>
+      <button class="btn-primary no-print" onclick="guardarPlanilla()">💾 Guardar</button>
+    </div>
+  </header>
+
+  <div class="card no-print">
+    <div class="planilla-controls">
+      <div class="form-group" style="margin: 0;">
+        <label>Empresa</label>
+        <select id="selEmpresa" onchange="generarPlanilla()"></select>
+      </div>
+      <div class="form-group" style="margin: 0;">
+        <label>Mes</label>
+        <select id="selMes" onchange="generarPlanilla()">
+          <option value="0">Enero</option><option value="1">Febrero</option>
+          <option value="2">Marzo</option><option value="3">Abril</option>
+          <option value="4">Mayo</option><option value="5">Junio</option>
+          <option value="6">Julio</option><option value="7">Agosto</option>
+          <option value="8">Septiembre</option><option value="9">Octubre</option>
+          <option value="10">Noviembre</option><option value="11">Diciembre</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin: 0;">
+        <label>Año</label>
+        <input type="number" id="selAnio" value="2026" min="2020" max="2040" onchange="generarPlanilla()" style="width: 100px;">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-container">
+      <table class="planilla-table" id="tablaPlanilla">
+        <thead id="cabeceraPlanilla"></thead>
+        <tbody id="cuerpoPlanilla"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  function safeParse(key, fallback) {
+    try { let d = localStorage.getItem(key); return d ? JSON.parse(d) : fallback; }
+    catch(e) { return fallback; }
+  }
+
+  let defaultPolicias = [
+    { nombre: "Orellano Roberto", jerarquia: "" },
+    { nombre: "Orellano Andres", jerarquia: "" },
+    { nombre: "Guzman Yael", jerarquia: "" },
+    { nombre: "Casalegno Gabriela", jerarquia: "" },
+    { nombre: "Castro Roque", jerarquia: "" },
+    { nombre: "Vivas Lucas", jerarquia: "" },
+    { nombre: "Silva Cesar", jerarquia: "" },
+    { nombre: "Durbano Martin", jerarquia: "" },
+    { nombre: "Olivera Fernando", jerarquia: "" },
+    { nombre: "Maldonado Mercedes", jerarquia: "" }
+  ];
+  let defaultEmpresas = {
+    "PALADINI": { turnos: ["06-14", "14-22", "22-06", "07:30-15:30"], catSemana: "A", catFinde: "AP" },
+    "SIGLO21 (P1)": { turnos: ["07-15", "15-23"], catSemana: "A", catFinde: "AP" },
+    "SIGLO21 (P2)": { turnos: ["07-15", "15-23"], catSemana: "A", catFinde: "AP" },
+    "SIGLO21 (P3)": { turnos: ["07-15", "15-23", "23-07"], catSemana: "A", catFinde: "AP" }
+  };
+
+  let policias = safeParse("policias", defaultPolicias);
+  // Migrar formato antiguo: string[] -> {nombre, jerarquia}[]
+  policias = policias.map(p => typeof p === "string" ? { nombre: p, jerarquia: "" } : p);
+  let empresas = safeParse("empresas", defaultEmpresas);
+  // Migrar formato antiguo de empresas (array -> objeto) al igual que en scripts.js
+  Object.keys(empresas).forEach(nombre => {
+      if (Array.isArray(empresas[nombre])) {
+          empresas[nombre] = { turnos: empresas[nombre], catSemana: "A", catFinde: "AP" };
+      }
+  });
+  let config = safeParse("config_alfas", {
+    A: 14993, AP: 16983.75, B: 16983.75, BP: 18736.5, E: 10638.75, HE: 5500, HO: 5800
+  });
+  let coloresPolicia = safeParse("colores_policia", {});
+
+  // Inicializar selects de empresa
+  function initEmpresas() {
+    const sel = document.getElementById("selEmpresa");
+    sel.innerHTML = "";
+    Object.keys(empresas).forEach(e => {
+      let op = document.createElement("option");
+      op.value = e; op.text = e;
+      sel.appendChild(op);
+    });
+  }
+
+  function clavePlanilla(empresa, mes, anio) {
+    return `planilla_${empresa}_${anio}_${mes}`;
+  }
+
+  function mostrarDatosEmpresa(empresa) {
+    const emp = empresas[empresa] || {};
+    const bloque = document.getElementById("infoEmpresa");
+    // helpers
+    function set(id, label, val) {
+      const el = document.getElementById(id);
+      el.innerHTML = val ? `<b>${label}:</b> ${val} &nbsp;` : "";
+    }
+    set("infoEmpNroSrv",   "N° Servicio",       emp.nroServicio);
+    set("infoEmpDomicilio","Domicilio",          emp.domicilio);
+    set("infoEmpBarrio",   "Barrio",             emp.barrio);
+    set("infoEmpTel",      "Teléfono",           emp.telefono);
+    set("infoEmpRef",      "Referente",          emp.referente);
+    set("infoEmpTelRef",   "Tel. Referente",     emp.telReferente);
+    set("infoEmpPol",      "Policía Encargado",  emp.policiaEnc);
+    set("infoEmpTelPol",   "Tel. Policía Enc.",  emp.telPoliciaEnc);
+    // Mostrar separadores de línea solo si hay datos en esa fila
+    document.getElementById("brRef").style.display = (emp.referente || emp.telReferente) ? "" : "none";
+    document.getElementById("brPol").style.display = (emp.policiaEnc || emp.telPoliciaEnc) ? "" : "none";
+    const hayAlgo = emp.nroServicio || emp.domicilio || emp.barrio || emp.telefono ||
+                    emp.referente || emp.telReferente || emp.policiaEnc || emp.telPoliciaEnc;
+    bloque.style.display = hayAlgo ? "" : "none";
+  }
+
+  function generarPlanilla() {
+    const empresa = document.getElementById("selEmpresa").value;
+    const mes = parseInt(document.getElementById("selMes").value);
+    const anio = parseInt(document.getElementById("selAnio").value);
+    const turnos = (empresas[empresa] || {}).turnos || [];
+    const clave = clavePlanilla(empresa, mes, anio);
+    const guardado = safeParse(clave, {});
+
+    // Subtítulo + datos de empresa
+    document.getElementById("subtitulo").textContent = `${empresa} — ${MESES[mes]} ${anio}`;
+    mostrarDatosEmpresa(empresa);
+
+    // Cabecera
+    const thead = document.getElementById("cabeceraPlanilla");
+    thead.innerHTML = `<tr>
+      <th>Día</th><th>Fecha</th>
+      ${turnos.map((t, i) => `<th class="turno-header-${i % 5}">${formatearTurno(t)}</th>`).join("")}
+    </tr>`;
+
+    // Cargar eventos del calendario principal para esta empresa/mes/año
+    const eventos = safeParse("eventos", []);
+    const mesStr = (mes + 1).toString().padStart(2, '0');
+    const prefijoFecha = `${anio}-${mesStr}-`; // Ej: 2026-03-
+
+    // Cuerpo
+    const tbody = document.getElementById("cuerpoPlanilla");
+    tbody.innerHTML = "";
+    const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+
+    for (let dia = 1; dia <= diasEnMes; dia++) {
+      const fecha = new Date(anio, mes, dia);
+      const diaSemana = fecha.getDay();
+      const esFinde = diaSemana === 0 || diaSemana === 6;
+      const tr = document.createElement("tr");
+      if (esFinde) tr.className = "finde";
+
+      tr.innerHTML = `<td>${DIAS[diaSemana]}</td><td>${dia}</td>`;
+
+      const fechaIso = `${prefijoFecha}${dia.toString().padStart(2, '0')}`;
+      
+      turnos.forEach((turno, idx) => {
+        const cellKey = `${dia}_${idx}`;
+        let valorGuardado = guardado[cellKey] || "";
+
+        // Buscar si existe un evento en el calendario principal para este día, empresa y turno
+        if (!valorGuardado) {
+          const evRel = eventos.find(e => 
+            e.start === fechaIso && 
+            e.extendedProps && 
+            e.extendedProps.empresa === empresa && 
+            e.extendedProps.turno === turno
+          );
+          if (evRel) valorGuardado = evRel.extendedProps.policia;
+        }
+
+        const td = document.createElement("td");
+        td.className = `turno-col-${idx % 5}`;
+        td.innerHTML = generarSelect(cellKey, valorGuardado, empresa, mes, anio);
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    }
+
+    // Marcar selects con valor
+    document.querySelectorAll(".planilla-table select").forEach(sel => {
+      if (sel.value) sel.classList.add("asignado");
+    });
+  }
+
+  function generarSelect(cellKey, valorActual, empresa, mes, anio) {
+    let opts = `<option value="">—</option>`;
+    policias.forEach(p => {
+      const nombre = typeof p === "object" ? p.nombre : p;
+      const jerarquia = (typeof p === "object" && p.jerarquia) ? `[${p.jerarquia}] ` : "";
+      const etiqueta = `${jerarquia}${nombre}`;
+      opts += `<option value="${nombre}" ${nombre === valorActual ? 'selected' : ''}>${etiqueta}</option>`;
+    });
+    opts += `<option value="Feriado" ${valorActual === 'Feriado' ? 'selected' : ''}>Feriado</option>`;
+    return `<select data-key="${cellKey}" onchange="onCambioSelect(this)">${opts}</select>`;
+  }
+
+  function formatearTurno(t) {
+    if (!t || !t.includes("-")) return t || "";
+    const parts = t.split("-");
+    return `${parts[0]}hs - ${parts[1]}hs`;
+  }
+
+  function onCambioSelect(sel) {
+    if (sel.value) sel.classList.add("asignado");
+    else sel.classList.remove("asignado");
+  }
+
+  function guardarPlanilla() {
+    const empresa = document.getElementById("selEmpresa").value;
+    const mes = parseInt(document.getElementById("selMes").value);
+    const anio = parseInt(document.getElementById("selAnio").value);
+    const clave = clavePlanilla(empresa, mes, anio);
+    const datosPreservar = {}; // Para el formato local de la planilla
+    
+    // Sincronización con el calendario principal (eventos)
+    let eventos = safeParse("eventos", []);
+    const mesStr = (mes + 1).toString().padStart(2, '0');
+    const prefijoFecha = `${anio}-${mesStr}-`;
+    
+    // 1. Quitar eventos previos de esta empresa y mes en el calendario global
+    eventos = eventos.filter(ev => {
+      const enEsteMes = ev.start && ev.start.startsWith(prefijoFecha);
+      const deEstaEmpresa = ev.extendedProps && ev.extendedProps.empresa === empresa;
+      return !(enEsteMes && deEstaEmpresa);
+    });
+
+    // 2. Recorrer la tabla y agregar los nuevos eventos
+    const empData = empresas[empresa] || {};
+    const selects = document.querySelectorAll(".planilla-table select[data-key]");
+    
+    selects.forEach(sel => {
+      const valor = sel.value;
+      if (valor) {
+        datosPreservar[sel.dataset.key] = valor;
+        
+        // Si es un policía (no "Feriado"), lo agregamos al calendario global
+        if (valor !== "Feriado") {
+          const [dia, turnoIdx] = sel.dataset.key.split("_");
+          const fechaIso = `${prefijoFecha}${dia.padStart(2, '0')}`;
+          const turnosEmpresa = empData.turnos || [];
+          const turnoStr = turnosEmpresa[parseInt(turnoIdx)];
+          
+          if (turnoStr) {
+            const infoCosto = calcularCostoTurno(turnoStr, fechaIso, empData);
+            const nuevoEv = {
+              title: `${valor}\n${empresa} (${formatearTurno(turnoStr)})`,
+              start: fechaIso,
+              allDay: true,
+              backgroundColor: coloresPolicia[valor] || '#2563eb',
+              borderColor: 'transparent',
+              extendedProps: {
+                policia: valor, empresa: empresa, turno: turnoStr,
+                cat: infoCosto.cat, cost: infoCosto.cost, h: infoCosto.h, vh: infoCosto.vh,
+                detail: infoCosto.detail
+              }
+            };
+            eventos.push(nuevoEv);
+          }
+        }
+      }
+    });
+
+    // Guardar ambos y sincronizar lista de policías con Google Sheets (solapa POLICIA)
+    localStorage.setItem(clave, JSON.stringify(datosPreservar));
+    localStorage.setItem("eventos", JSON.stringify(eventos));
+    sincronizarPoliciasCloud();
+
+    // Generar archivo alfas.json como solicitaste
+    descargarAlfasJSON(eventos);
+
+    // Notificación simple
+    const btn = document.querySelector("button[onclick='guardarPlanilla()']");
+    btn.textContent = "✅ Guardado y Sincronizado";
+    setTimeout(() => btn.textContent = "💾 Guardar", 2000);
+  }
+
+  // Helper para generar y descargar alfas.json
+  function descargarAlfasJSON(datos) {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(datos, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "alfas.json");
+    document.body.appendChild(downloadAnchorNode); // required for firefox
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  }
+
+  // Helper de cálculo de costo (portado de scripts.js para consistencia)
+  function calcularCostoTurno(turno, fechaStr, empData) {
+    const fallback = { cat: "A", cost: 0, h: 8, vh: 0, detail: [], catLabel: "A" };
+    if (!turno || !turno.includes("-") || !empData) return fallback;
+    const parts = turno.split("-");
+    const startH = parseInt(parts[0]);
+    const endH = parseInt(parts[1]);
+    const totalH = endH > startH ? (endH - startH) : (24 - startH + endH);
+    const isOvernight = endH < startH || (endH === 0 && startH > 0);
+    const startDate = new Date(fechaStr + "T00:00:00");
+    const startDay = startDate.getDay();
+    const isStartFinde = (startDay === 0 || startDay === 6);
+    const catStart = isStartFinde ? empData.catFinde : empData.catSemana;
+    if (!isOvernight) {
+      const vh = config[catStart] || 0;
+      return { cat: catStart, cost: vh * totalH, h: totalH, vh, detail: [{ cat: catStart, h: totalH, vh, cost: vh * totalH }], catLabel: catStart };
+    }
+    const nextDate = new Date(startDate);
+    nextDate.setDate(nextDate.getDate() + 1);
+    const nextDay = nextDate.getDay();
+    const isNextFinde = (nextDay === 0 || nextDay === 6);
+    const catNext = isNextFinde ? empData.catFinde : empData.catSemana;
+    if (catStart === catNext) {
+      const vh = config[catStart] || 0;
+      return { cat: catStart, cost: vh * totalH, h: totalH, vh, detail: [{ cat: catStart, h: totalH, vh, cost: vh * totalH }], catLabel: catStart };
+    }
+    const hStartPart = 24 - startH;
+    const hNextPart = endH;
+    const vh1 = config[catStart] || 0;
+    const vh2 = config[catNext] || 0;
+    const totalCost = (vh1 * hStartPart) + (vh2 * hNextPart);
+    return {
+      cat: `${catStart}+${catNext}`, cost: totalCost, h: totalH, vh: totalH > 0 ? totalCost / totalH : 0,
+      detail: [{ cat: catStart, h: hStartPart, vh: vh1, cost: vh1 * hStartPart }, { cat: catNext, h: hNextPart, vh: vh2, cost: vh2 * hNextPart }],
+      catLabel: `${catStart}+${catNext}`
+    };
+  }
+
+  const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzIc0RqibgvDtP8gK_G_B9d37DGNXJ-1_bctDGsZwAXT9AE2cjmPEnynFI54UmBJ2xy_w/exec";
+
+  function sincronizarPoliciasCloud() {
+    try {
+      const polData = policias.map(p => ({
+        nombre: typeof p === 'object' ? (p.nombre || '') : String(p),
+        jerarquia: typeof p === 'object' ? (p.jerarquia || '') : ''
+      }));
+      const payload = encodeURIComponent(JSON.stringify({ action: "syncPolicias", policias: polData }));
+      fetch(`${GOOGLE_SHEET_URL}?data=${payload}`, { mode: "no-cors" })
+        .then(() => console.log("Policías con Jerarquía sincronizados en la solapa POLICIA de Google Sheets"))
+        .catch(err => console.error("Error al sincronizar policías en la nube:", err));
+    } catch(e) { console.error("Error en sincronizarPoliciasCloud:", e); }
+  }
+
+  // Inicializar con el mes actual
+  function init() {
+    const hoy = new Date();
+    document.getElementById("selMes").value = hoy.getMonth();
+    document.getElementById("selAnio").value = hoy.getFullYear();
+    initEmpresas();
+    sincronizarPoliciasCloud();
+    if (Object.keys(empresas).length > 0) generarPlanilla();
+    else {
+      document.getElementById("subtitulo").textContent = "No hay empresas registradas en el sistema.";
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>

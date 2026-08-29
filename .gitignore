@@ -1,0 +1,10 @@
+# Archivos virtuales de Google Drive
+*.gsheet
+*.gslides
+*.gdoc
+
+# Archivos temporales y de sistema
+.DS_Store
+Thumbs.db
+node_modules/
+dist/
