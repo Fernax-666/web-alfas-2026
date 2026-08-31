@@ -27,9 +27,14 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Custom Styles -->
-  <link rel="stylesheet" href="css/styles.css?v=10">
-  <script src="js/scripts.js?v=10"></script>
+  <!-- Custom Styles & Modular Scripts -->
+  <link rel="stylesheet" href="css/styles.css?v=11">
+  <script src="js/utils/helpers.js?v=11"></script>
+  <script src="js/services/calculator.js?v=11"></script>
+  <script src="js/services/storage.js?v=11"></script>
+  <script src="js/services/cloudSync.js?v=11"></script>
+  <script src="js/services/exporter.js?v=11"></script>
+  <script src="js/scripts.js?v=11"></script>
 </head>
 
 <body>
@@ -58,54 +63,48 @@
     <div class="grid">
       <!-- Configuraciones -->
       <div class="card">
-        <h3><span style="border-bottom: 3px solid var(--primary)">Configuración</span> de Tarifas</h3>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px;">Ajuste los valores de la hora por
-          categoría.</p>
-        <div id="panelCostos" class="grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px;">
+        <h3><span class="title-accent">Configuración</span> de Tarifas</h3>
+        <p class="text-muted-sm">Ajuste los valores de la hora por categoría.</p>
+        <div id="panelCostos" class="grid panel-costos-grid">
           <!-- Generado por JS -->
         </div>
-        <button class="btn-primary" style="width: 100%; margin-top: 15px;" onclick="guardarConfig()">Actualizar
-          Precios</button>
+        <button class="btn-primary btn-full" onclick="guardarConfig()">Actualizar Precios</button>
       </div>
 
       <div class="card">
         <h3>Administración</h3>
-        <div style="display: flex; gap: 10px; margin-top: 15px;">
+        <div class="flex-gap-10">
           <button class="btn-outline" onclick="abrirModal('modalPolicias')">Gestionar Policías</button>
           <button class="btn-outline" onclick="abrirModal('modalEmpresas')">Gestionar Empresas</button>
-          <button class="btn-primary" onclick="window.location.href='Precarton_Adcionales.html'">Cargar
-            Precarton</button>
+          <button class="btn-primary" onclick="window.location.href='Precarton_Adcionales.html'">Cargar Precarton</button>
         </div>
-        <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
-          <button class="btn-primary" style="flex:1; background: #64748b;" onclick="abrirModalExportar()">🖨️ Exportar Reportes</button>
-          <button class="btn-primary" style="flex:1; background: #16a34a;" onclick="cargarServiciosDesdeCloud()">🔄 Leer Solapa Servicios</button>
-          <button class="btn-outline" style="flex:1; background: #f0fdf4; border-color: #16a34a; color: #166534;"
-            onclick="document.getElementById('importarJson').click()">⬇️ Cargar alfas.json</button>
-          <input type="file" id="importarJson" style="display:none" accept=".json" onchange="cargarAlfasJSON(event)">
+        <div class="flex-wrap-gap-10">
+          <button class="btn-primary btn-slate" onclick="abrirModalExportar()">🖨️ Exportar Reportes</button>
+          <button class="btn-primary btn-green" onclick="cargarServiciosDesdeCloud()">🔄 Leer Solapa Servicios</button>
+          <button class="btn-outline btn-outline-green" onclick="document.getElementById('importarJson').click()">⬇️ Cargar alfas.json</button>
+          <input type="file" id="importarJson" title="Seleccionar archivo de servicios JSON para importar" aria-label="Seleccionar archivo JSON" class="display-none" accept=".json" onchange="cargarAlfasJSON(event)">
         </div>
       </div>
     </div>
 
     <!-- Calendario Principal -->
     <div class="card">
-      <div
-        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap:10px;">
-        <h3 style="margin:0">Calendario de Servicios</h3>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <label style="font-size: 0.85rem; font-weight: 600;">Filtrar por Policía:</label>
-          <select id="filtroCalPolicia" style="width: auto; margin:0;" onchange="filtrarCalendario()"></select>
+      <div class="calendar-header">
+        <h3 class="margin-0">Calendario de Servicios</h3>
+        <div class="flex-center-gap-10">
+          <label for="filtroCalPolicia" class="label-filter">Filtrar por Policía:</label>
+          <select id="filtroCalPolicia" title="Filtrar eventos de calendario por Policía seleccionado" class="select-auto" onchange="filtrarCalendario()"></select>
         </div>
       </div>
       <div id="calendar"></div>
     </div>
 
     <!-- Dashboard y Tabla -->
-    <div
-      style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 20px; flex-wrap: wrap; gap:10px;">
-      <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0;">Dashboard de Estadísticas</h2>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <label style="font-size: 0.85rem; font-weight: 600;">Filtrar Mes:</label>
-        <select id="filtroMesDashboard" style="width: auto; margin:0;" onchange="calcularResumen()"></select>
+    <div class="dashboard-header">
+      <h2 class="dashboard-title">Dashboard de Estadísticas</h2>
+      <div class="flex-center-gap-10">
+        <label for="filtroMesDashboard" class="label-filter">Filtrar Mes:</label>
+        <select id="filtroMesDashboard" title="Filtrar cuadro de estadísticas del Dashboard por Mes" class="select-auto" onchange="calcularResumen()"></select>
       </div>
     </div>
 
@@ -113,7 +112,7 @@
       <div class="card">
         <h3>Distribución de Turnos</h3>
         <canvas id="grafico"></canvas>
-        <div id="resumenLista" style="margin-top: 15px; font-size: 0.9rem;"></div>
+        <div id="resumenLista" class="resumen-lista"></div>
       </div>
 
       <div class="card">
@@ -134,13 +133,12 @@
     </div>
 
     <div class="card">
-      <div
-        style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
+      <div class="historial-header">
         <h3>Historial de Servicios</h3>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-          <select id="filtroMesHistorial" style="width: auto;" onchange="aplicarFiltros()"></select>
-          <select id="filtroPolicia" style="width: auto;" onchange="aplicarFiltros()"></select>
-          <select id="filtroEmpresa" style="width: auto;" onchange="aplicarFiltros()"></select>
+        <div class="flex-wrap-gap-10">
+          <select id="filtroMesHistorial" title="Filtrar historial por Mes" class="select-auto-only" onchange="aplicarFiltros()"></select>
+          <select id="filtroPolicia" title="Filtrar historial por Policía" class="select-auto-only" onchange="aplicarFiltros()"></select>
+          <select id="filtroEmpresa" title="Filtrar historial por Empresa" class="select-auto-only" onchange="aplicarFiltros()"></select>
           <button class="btn-outline" onclick="limpiarFiltros()">Limpiar</button>
         </div>
       </div>
@@ -166,23 +164,22 @@
   <div id="modalServicio" class="modal-overlay">
     <div class="modal">
       <span class="close-modal" onclick="cerrarModal('modalServicio')">&times;</span>
-      <h3 id="fechaTitulo" style="margin-bottom: 20px;">Nuevo Servicio</h3>
+      <h3 id="fechaTitulo" class="mb-20">Nuevo Servicio</h3>
       <div class="form-group">
-        <label>Empresa</label>
-        <select id="selEmpresa" onchange="cambiarTurnos()"></select>
+        <label for="selEmpresa">Empresa</label>
+        <select id="selEmpresa" title="Seleccionar Empresa para asignar el servicio" onchange="cambiarTurnos()"></select>
       </div>
       <div class="form-group">
-        <label>Policía</label>
-        <select id="selPolicia"></select>
+        <label for="selPolicia">Policía</label>
+        <select id="selPolicia" title="Seleccionar Policía asignado al servicio"></select>
       </div>
       <div class="form-group">
-        <label>Turno</label>
-        <select id="selTurno"></select>
+        <label for="selTurno">Turno</label>
+        <select id="selTurno" title="Seleccionar Rango de Turno horario"></select>
       </div>
       <div class="form-group">
-        <label>Categoría <span style="font-size: 0.75rem; color: var(--text-muted);">(auto-asignada según
-            día)</span></label>
-        <select id="selCategoria">
+        <label for="selCategoria">Categoría <span class="font-muted-sub">(auto-asignada según día)</span></label>
+        <select id="selCategoria" title="Seleccionar Categoría tarifaria para el servicio">
           <option value="A">Cat. A</option>
           <option value="AP">Cat. AP</option>
           <option value="B">Cat. B</option>
@@ -192,26 +189,25 @@
           <option value="HO">Cat. HO</option>
         </select>
       </div>
-      <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="guardarEvento()">Guardar
-        Servicio</button>
+      <button class="btn-primary btn-full-sm" onclick="guardarEvento()">Guardar Servicio</button>
     </div>
   </div>
 
   <!-- MODAL POLICIAS -->
   <div id="modalPolicias" class="modal-overlay">
-    <div class="modal" style="max-width: 480px;">
+    <div class="modal modal-sm">
       <span class="close-modal" onclick="cerrarModal('modalPolicias')">&times;</span>
-      <h3 style="margin-bottom: 12px;">Gestionar Policías</h3>
+      <h3 class="mb-12">Gestionar Policías</h3>
 
       <!-- Nombre -->
-      <div class="form-group" style="margin-bottom: 8px;">
-        <label>Nombre Completo</label>
+      <div class="form-group mb-8">
+        <label for="nuevoPolicia">Nombre Completo</label>
         <input type="text" id="nuevoPolicia" placeholder="Ej: Perez Juan">
       </div>
       <!-- Jerarquía -->
-      <div class="form-group" style="margin-bottom: 10px;">
-        <label>Jerarquía</label>
-        <select id="jerarquiaPolicia">
+      <div class="form-group mb-10">
+        <label for="jerarquiaPolicia">Jerarquía</label>
+        <select id="jerarquiaPolicia" title="Seleccionar Jerarquía del agente de policía">
           <option value="">— Sin especificar —</option>
           <option value="Of. Ayte.">Of. Ayte.</option>
           <option value="Of. Sub. Insp.">Of. Sub. Insp.</option>
@@ -228,49 +224,45 @@
         </select>
       </div>
 
-      <button id="btnAgregarPolicia" class="btn-secondary" style="width: 100%; margin-bottom: 14px;"
-        onclick="agregarPolicia()">+ Agregar Policía</button>
+      <button id="btnAgregarPolicia" class="btn-secondary btn-full-xs mb-14" onclick="agregarPolicia()">+ Agregar Policía</button>
 
-      <div id="editandoBannerPol"
-        style="display:none; font-size:0.8rem; background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; padding:6px 10px; margin-bottom:8px; color:#1d4ed8;">
+      <div id="editandoBannerPol" class="banner-edit">
         ✏️ Editando: <strong id="editandoNombrePol"></strong> — Modificá los campos y hacé click en <b>Actualizar</b>
       </div>
 
-      <div class="form-group" style="margin-bottom: 6px;">
-        <label>Lista Actual</label>
-        <div style="display: flex; gap: 10px; align-items: flex-start;">
-          <select id="listaPolicias" size="6" style="height: auto; flex:1;"></select>
-          <button class="btn-outline" style="white-space:nowrap; padding: 6px 12px;" onclick="modificarPolicia()"
-            title="Cargar datos para editar">✏️ Modificar</button>
+      <div class="form-group mb-6">
+        <label for="listaPolicias">Lista Actual</label>
+        <div class="flex-start-gap-10">
+          <select id="listaPolicias" size="6" title="Lista de Policías registrados en el sistema" class="select-list"></select>
+          <button class="btn-outline btn-nowrap" onclick="modificarPolicia()" title="Cargar datos para editar">✏️ Modificar</button>
         </div>
       </div>
-      <button class="btn-danger" style="width: 100%; margin-top: 6px;" onclick="eliminarPolicia()">Eliminar
-        Seleccionado</button>
+      <button class="btn-danger btn-full-xs" onclick="eliminarPolicia()">Eliminar Seleccionado</button>
     </div>
   </div>
 
   <!-- MODAL EMPRESAS -->
   <div id="modalEmpresas" class="modal-overlay">
-    <div class="modal" style="max-width: 820px; width: 95%; max-height: 90vh; overflow-y: auto;">
+    <div class="modal modal-lg">
       <span class="close-modal" onclick="cerrarModal('modalEmpresas')">&times;</span>
-      <h3 style="margin-bottom: 12px;">Gestionar Empresas</h3>
+      <h3 class="mb-12">Gestionar Empresas</h3>
 
       <!-- Fila 1: Nombre + Turnos -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Nombre Empresa</label>
+      <div class="grid-2col">
+        <div class="form-group mb-8">
+          <label for="nuevoEmpresa">Nombre Empresa</label>
           <input type="text" id="nuevoEmpresa" placeholder="Ej: PALADINI">
         </div>
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Turnos (separados por coma)</label>
+        <div class="form-group mb-8">
+          <label for="rangoTurnos">Turnos (separados por coma)</label>
           <input type="text" id="rangoTurnos" placeholder="06-14, 14-22, 22-06">
         </div>
       </div>
       <!-- Fila 2: Categorías + N° Servicio + Teléfono -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px;">
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Cat. Lun–Vie</label>
-          <select id="catSemana">
+      <div class="grid-4col">
+        <div class="form-group mb-8">
+          <label for="catSemana">Cat. Lun–Vie</label>
+          <select id="catSemana" title="Categoría de tarifa aplicable de Lunes a Viernes">
             <option value="A">Cat. A</option>
             <option value="B">Cat. B</option>
             <option value="E">Cat. E</option>
@@ -278,9 +270,9 @@
             <option value="HO">Cat. HO</option>
           </select>
         </div>
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Cat. Sáb–Dom</label>
-          <select id="catFinde">
+        <div class="form-group mb-8">
+          <label for="catFinde">Cat. Sáb–Dom</label>
+          <select id="catFinde" title="Categoría de tarifa aplicable fines de semana (Sábados y Domingos)">
             <option value="AP">Cat. AP</option>
             <option value="BP">Cat. BP</option>
             <option value="E">Cat. E</option>
@@ -288,95 +280,88 @@
             <option value="HO">Cat. HO</option>
           </select>
         </div>
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>N° de Servicio</label>
+        <div class="form-group mb-8">
+          <label for="empNroServicio">N° de Servicio</label>
           <input type="text" id="empNroServicio" placeholder="Ej: 1023">
         </div>
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Teléfono Empresa</label>
+        <div class="form-group mb-8">
+          <label for="empTelefono">Teléfono Empresa</label>
           <input type="text" id="empTelefono" placeholder="Ej: 0341-4123456">
         </div>
       </div>
       <!-- Datos opcionales -->
-      <p style="font-size: 0.78rem; color: var(--text-muted); margin: 2px 0 6px; font-style: italic;">Campos opcionales
-      </p>
+      <p class="font-italic-muted">Campos opcionales</p>
       <!-- Fila 3: Domicilio + Barrio + Referente + Tel Referente -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px;">
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Domicilio</label>
+      <div class="grid-4col">
+        <div class="form-group mb-8">
+          <label for="empDomicilio">Domicilio</label>
           <input type="text" id="empDomicilio" placeholder="Ej: Av. Mitre 500">
         </div>
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Barrio</label>
+        <div class="form-group mb-8">
+          <label for="empBarrio">Barrio</label>
           <input type="text" id="empBarrio" placeholder="Ej: Centro">
         </div>
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Referente de la Entidad</label>
+        <div class="form-group mb-8">
+          <label for="empReferente">Referente de la Entidad</label>
           <input type="text" id="empReferente" placeholder="Ej: Juan Pérez">
         </div>
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Teléfono Referente</label>
+        <div class="form-group mb-8">
+          <label for="empTelReferente">Teléfono Referente</label>
           <input type="text" id="empTelReferente" placeholder="Ej: 341-1234567">
         </div>
       </div>
       <!-- Fila 4: Policía encargado + Teléfono + Botón -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: flex-end;">
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Policía Encargado</label>
+      <div class="grid-3col-end">
+        <div class="form-group mb-8">
+          <label for="empPoliciaEncargado">Policía Encargado</label>
           <input type="text" id="empPoliciaEncargado" placeholder="Ej: García Roberto">
         </div>
-        <div class="form-group" style="margin-bottom: 8px;">
-          <label>Teléfono Policía Encargado</label>
+        <div class="form-group mb-8">
+          <label for="empTelPoliciaEncargado">Teléfono Policía Encargado</label>
           <input type="text" id="empTelPoliciaEncargado" placeholder="Ej: 341-9876543">
         </div>
-        <div style="margin-bottom: 8px;">
-          <button class="btn-primary" style="width: 100%; height: 42px;" onclick="agregarEmpresa()">Agregar
-            Empresa</button>
+        <div class="mb-8">
+          <button class="btn-primary btn-h42" onclick="agregarEmpresa()">Agregar Empresa</button>
         </div>
       </div>
 
       <div class="form-group">
-        <label>Empresas Registradas</label>
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <select id="listaEmpresas" style="flex:1;" onchange="verTurnosEmpresa()"></select>
-          <button class="btn-outline" style="white-space:nowrap; height:42px; padding: 0 14px;"
-            onclick="modificarEmpresa()" title="Cargar datos en el formulario para editar">✏️ Modificar</button>
+        <label for="listaEmpresas">Empresas Registradas</label>
+        <div class="flex-center-gap-10">
+          <select id="listaEmpresas" title="Lista de Empresas registradas en el sistema" class="flex-1" onchange="verTurnosEmpresa()"></select>
+          <button class="btn-outline btn-modificar" onclick="modificarEmpresa()" title="Cargar datos en el formulario para editar">✏️ Modificar</button>
         </div>
       </div>
-      <div id="infoTurnos" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px;"></div>
-      <div id="editandoBanner"
-        style="display:none; font-size:0.8rem; background:#eff6ff; border:1px solid #93c5fd; border-radius:6px; padding:6px 10px; margin-bottom:8px; color:#1d4ed8;">
-        ✏️ Editando empresa: <strong id="editandoNombre"></strong> — Modificá los campos y hacé click en <b>Actualizar
-          Empresa</b>
+      <div id="infoTurnos" class="info-turnos"></div>
+      <div id="editandoBanner" class="banner-edit">
+        ✏️ Editando empresa: <strong id="editandoNombre"></strong> — Modificá los campos y hacé click en <b>Actualizar Empresa</b>
       </div>
-      <button class="btn-danger" style="width: 100%" onclick="eliminarEmpresa()">Eliminar Empresa</button>
+      <button class="btn-danger btn-full-xs" onclick="eliminarEmpresa()">Eliminar Empresa</button>
     </div>
   </div>
 
   <!-- MODAL EXPORTAR -->
   <div id="modalExportar" class="modal-overlay">
-    <div class="modal" style="max-width: 400px;">
+    <div class="modal modal-xs">
       <span class="close-modal" onclick="cerrarModal('modalExportar')">&times;</span>
-      <h3 style="margin-bottom: 20px;">Exportar Reportes</h3>
-      <div class="form-group" style="margin-bottom: 10px;">
-        <label>Seleccionar Mes <span style="font-weight:normal; font-size: 0.75rem;">(Opcional)</span></label>
-        <select id="exportMes"></select>
+      <h3 class="mb-20">Exportar Reportes</h3>
+      <div class="form-group mb-10">
+        <label for="exportMes">Seleccionar Mes <span class="font-weight-normal">(Opcional)</span></label>
+        <select id="exportMes" title="Seleccionar Mes de servicios a exportar"></select>
       </div>
-      <div class="form-group" style="margin-bottom: 10px;">
-        <label>Seleccionar Policía <span style="font-weight:normal; font-size: 0.75rem;">(Opcional)</span></label>
-        <select id="exportPolicia"></select>
+      <div class="form-group mb-10">
+        <label for="exportPolicia">Seleccionar Policía <span class="font-weight-normal">(Opcional)</span></label>
+        <select id="exportPolicia" title="Seleccionar Policía de servicios a exportar"></select>
       </div>
-      <div class="form-group" style="margin-bottom: 5px;">
-        <label>Seleccionar Empresa(s) <span style="font-weight:normal; font-size: 0.75rem;">(Marcar para
-            incluir)</span></label>
-        <div id="containerExportEmpresa"
-          style="max-height: 120px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 6px; background: #fff;">
+      <div class="form-group mb-6">
+        <label>Seleccionar Empresa(s) <span class="font-weight-normal">(Marcar para incluir)</span></label>
+        <div id="containerExportEmpresa" class="checkbox-container">
           <!-- Checkboxes dinámicos -->
         </div>
       </div>
-      <div style="display: flex; gap: 10px; margin-top: 15px;">
-        <button class="btn-danger" style="flex:1;" onclick="exportPDF()">PDF</button>
-        <button class="btn-secondary" style="flex:1;" onclick="exportExcel()">Excel</button>
+      <div class="flex-gap-10">
+        <button class="btn-danger flex-1" onclick="exportPDF()">PDF</button>
+        <button class="btn-secondary flex-1" onclick="exportExcel()">Excel</button>
       </div>
     </div>
   </div>

@@ -7,6 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
+  <script src="js/utils/helpers.js?v=10"></script>
+  <script src="js/services/calculator.js?v=10"></script>
+  <script src="js/services/storage.js?v=10"></script>
+  <script src="js/services/cloudSync.js?v=10"></script>
   <style>
     .planilla-controls {
       display: flex;
@@ -88,29 +92,38 @@
       .card { box-shadow: none; border: 1px solid #ccc; }
       .planilla-table select { border: none; appearance: none; background: transparent; }
     }
+
+    /* Clases de utilidad para layout libre de estilos inline */
+    .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .h1-planilla { font-size: 1.5rem; margin-bottom: 3px; }
+    .info-empresa-box { margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.7; display: none; }
+    .display-none { display: none !important; }
+    .header-actions { display: flex; gap: 10px; }
+    .margin-0 { margin: 0 !important; }
+    .input-year { width: 100px !important; min-width: 100px !important; }
   </style>
 </head>
 <body>
 <div class="container">
-  <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+  <header class="header-flex">
     <div>
-      <h1 style="font-size: 1.5rem; margin-bottom: 3px;">Planilla Mensual de Turnos</h1>
+      <h1 class="h1-planilla">Planilla Mensual de Turnos</h1>
       <p class="subtitle" id="subtitulo">Cargando...</p>
       <!-- Bloque de datos de empresa -->
-      <div id="infoEmpresa" style="margin-top: 8px; font-size: 0.8rem; color: var(--text-muted); line-height: 1.7; display:none;">
+      <div id="infoEmpresa" class="info-empresa-box">
         <span id="infoEmpNroSrv"></span>
         <span id="infoEmpDomicilio"></span>
         <span id="infoEmpBarrio"></span>
         <span id="infoEmpTel"></span>
-        <br id="brRef" style="display:none">
+        <br id="brRef" class="display-none">
         <span id="infoEmpRef"></span>
         <span id="infoEmpTelRef"></span>
-        <br id="brPol" style="display:none">
+        <br id="brPol" class="display-none">
         <span id="infoEmpPol"></span>
         <span id="infoEmpTelPol"></span>
       </div>
     </div>
-    <div class="no-print" style="display: flex; gap: 10px;">
+    <div class="no-print header-actions">
       <a href="index.html" class="nav-btn">← Volver al Sistema</a>
       <button class="btn-outline no-print" onclick="window.print()">🖨 Imprimir</button>
       <button class="btn-primary no-print" onclick="guardarPlanilla()">💾 Guardar</button>
@@ -119,13 +132,13 @@
 
   <div class="card no-print">
     <div class="planilla-controls">
-      <div class="form-group" style="margin: 0;">
-        <label>Empresa</label>
-        <select id="selEmpresa" onchange="generarPlanilla()"></select>
+      <div class="form-group margin-0">
+        <label for="selEmpresa">Empresa</label>
+        <select id="selEmpresa" title="Seleccionar Empresa para la planilla" onchange="generarPlanilla()"></select>
       </div>
-      <div class="form-group" style="margin: 0;">
-        <label>Mes</label>
-        <select id="selMes" onchange="generarPlanilla()">
+      <div class="form-group margin-0">
+        <label for="selMes">Mes</label>
+        <select id="selMes" title="Seleccionar Mes para la planilla" onchange="generarPlanilla()">
           <option value="0">Enero</option><option value="1">Febrero</option>
           <option value="2">Marzo</option><option value="3">Abril</option>
           <option value="4">Mayo</option><option value="5">Junio</option>
@@ -134,9 +147,9 @@
           <option value="10">Noviembre</option><option value="11">Diciembre</option>
         </select>
       </div>
-      <div class="form-group" style="margin: 0;">
-        <label>Año</label>
-        <input type="number" id="selAnio" value="2026" min="2020" max="2040" onchange="generarPlanilla()" style="width: 100px;">
+      <div class="form-group margin-0">
+        <label for="selAnio">Año</label>
+        <input type="number" id="selAnio" title="Seleccionar Año para la planilla" aria-label="Año" value="2026" min="2020" max="2040" onchange="generarPlanilla()" class="input-year">
       </div>
     </div>
   </div>
@@ -406,57 +419,18 @@
     downloadAnchorNode.remove();
   }
 
-  // Helper de cálculo de costo (portado de scripts.js para consistencia)
+  // Helper de cálculo de costo delegado al módulo AlfaCalculator
   function calcularCostoTurno(turno, fechaStr, empData) {
-    const fallback = { cat: "A", cost: 0, h: 8, vh: 0, detail: [], catLabel: "A" };
-    if (!turno || !turno.includes("-") || !empData) return fallback;
-    const parts = turno.split("-");
-    const startH = parseInt(parts[0]);
-    const endH = parseInt(parts[1]);
-    const totalH = endH > startH ? (endH - startH) : (24 - startH + endH);
-    const isOvernight = endH < startH || (endH === 0 && startH > 0);
-    const startDate = new Date(fechaStr + "T00:00:00");
-    const startDay = startDate.getDay();
-    const isStartFinde = (startDay === 0 || startDay === 6);
-    const catStart = isStartFinde ? empData.catFinde : empData.catSemana;
-    if (!isOvernight) {
-      const vh = config[catStart] || 0;
-      return { cat: catStart, cost: vh * totalH, h: totalH, vh, detail: [{ cat: catStart, h: totalH, vh, cost: vh * totalH }], catLabel: catStart };
+    if (window.AlfaCalculator) {
+      return window.AlfaCalculator.calcularCostoTurno(turno, fechaStr, empData, config);
     }
-    const nextDate = new Date(startDate);
-    nextDate.setDate(nextDate.getDate() + 1);
-    const nextDay = nextDate.getDay();
-    const isNextFinde = (nextDay === 0 || nextDay === 6);
-    const catNext = isNextFinde ? empData.catFinde : empData.catSemana;
-    if (catStart === catNext) {
-      const vh = config[catStart] || 0;
-      return { cat: catStart, cost: vh * totalH, h: totalH, vh, detail: [{ cat: catStart, h: totalH, vh, cost: vh * totalH }], catLabel: catStart };
-    }
-    const hStartPart = 24 - startH;
-    const hNextPart = endH;
-    const vh1 = config[catStart] || 0;
-    const vh2 = config[catNext] || 0;
-    const totalCost = (vh1 * hStartPart) + (vh2 * hNextPart);
-    return {
-      cat: `${catStart}+${catNext}`, cost: totalCost, h: totalH, vh: totalH > 0 ? totalCost / totalH : 0,
-      detail: [{ cat: catStart, h: hStartPart, vh: vh1, cost: vh1 * hStartPart }, { cat: catNext, h: hNextPart, vh: vh2, cost: vh2 * hNextPart }],
-      catLabel: `${catStart}+${catNext}`
-    };
+    return { cat: "A", cost: 0, h: 8, vh: 0, detail: [], catLabel: "A" };
   }
 
-  const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzIc0RqibgvDtP8gK_G_B9d37DGNXJ-1_bctDGsZwAXT9AE2cjmPEnynFI54UmBJ2xy_w/exec";
-
   function sincronizarPoliciasCloud() {
-    try {
-      const polData = policias.map(p => ({
-        nombre: typeof p === 'object' ? (p.nombre || '') : String(p),
-        jerarquia: typeof p === 'object' ? (p.jerarquia || '') : ''
-      }));
-      const payload = encodeURIComponent(JSON.stringify({ action: "syncPolicias", policias: polData }));
-      fetch(`${GOOGLE_SHEET_URL}?data=${payload}`, { mode: "no-cors" })
-        .then(() => console.log("Policías con Jerarquía sincronizados en la solapa POLICIA de Google Sheets"))
-        .catch(err => console.error("Error al sincronizar policías en la nube:", err));
-    } catch(e) { console.error("Error en sincronizarPoliciasCloud:", e); }
+    if (window.AlfaCloudSync) {
+      window.AlfaCloudSync.sincronizarPoliciasCloud(policias);
+    }
   }
 
   // Inicializar con el mes actual

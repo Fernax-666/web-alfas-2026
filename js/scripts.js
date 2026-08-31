@@ -1,112 +1,57 @@
-// --- CONFIGURACIÓN Y ESTADO ---
-const GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzIc0RqibgvDtP8gK_G_B9d37DGNXJ-1_bctDGsZwAXT9AE2cjmPEnynFI54UmBJ2xy_w/exec";
-
 /**
- * Función de sanitización XSS para cadenas de texto insertadas en HTML.
- * @param {any} inputStr - Cadena o valor a sanitizar.
- * @returns {string} Cadena escapada para renderizado seguro en DOM.
+ * @file scripts.js
+ * @description Orquestador principal de UI, navegación, manipulación del DOM y coordinación de servicios.
+ * Refactorizado aplicando arquitectura modular SOLID y JSDoc.
  */
-function escapeHTML(inputStr) {
-    if (inputStr === null || inputStr === undefined) return '';
-    return String(inputStr)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
 
-/**
- * Parsing seguro de JSON almacenado en localStorage con manejo de errores y fallback.
- * @template T
- * @param {string} key - Clave del almacenamiento local.
- * @param {T} fallback - Valor por defecto si ocurre error o la clave no existe.
- * @returns {T} Datos parseados o fallback.
- */
-function safeParse(key, fallback) {
-    try {
-        const rawData = localStorage.getItem(key);
-        if (!rawData) return fallback;
-        const parsed = JSON.parse(rawData);
-        return parsed !== null && parsed !== undefined ? parsed : fallback;
-    } catch (error) {
-        console.error(`[StorageError] Falló el parsing de "${key}":`, error);
-        return fallback;
-    }
-}
+// --- SERVICIOS MODULARES E INICIALIZACIÓN ---
+const Utils = (typeof window !== 'undefined' && window.AlfaUtils) ? window.AlfaUtils : require('./utils/helpers.js');
+const Calculator = (typeof window !== 'undefined' && window.AlfaCalculator) ? window.AlfaCalculator : require('./services/calculator.js');
+const Storage = (typeof window !== 'undefined' && window.AlfaStorage) ? window.AlfaStorage : require('./services/storage.js');
+const CloudSync = (typeof window !== 'undefined' && window.AlfaCloudSync) ? window.AlfaCloudSync : require('./services/cloudSync.js');
+const Exporter = (typeof window !== 'undefined' && window.AlfaExporter) ? window.AlfaExporter : require('./services/exporter.js');
 
-const CATEGORIAS = ["A", "AP", "B", "BP", "E", "HE", "HO"];
+// Wrapper functions para compatibilidad con código existente y tests
+function escapeHTML(inputStr) { return Utils.escapeHTML(inputStr); }
+function safeParse(key, fallback) { return Utils.safeParse(localStorage, key, fallback); }
+function formatearTurno(turnoStr) { return Utils.formatearTurno(turnoStr); }
+function getLocalYMD(dateObj) { return Utils.getLocalYMD(dateObj); }
+function getLocalYM(dateObj) { return Utils.getLocalYM(dateObj); }
+function colorAleatorio() { return Utils.colorAleatorio(); }
 
-let config = safeParse("config_alfas", {
-    A: 14993, AP: 16983.75, B: 16983.75, BP: 18736.5, E: 10638.75, HE: 5956.53, HO: 8121.36
-});
+const CATEGORIAS = Storage.CATEGORIAS;
 
-const defaultPolicias = [
-    { nombre: "Orellano Roberto", jerarquia: "" },
-    { nombre: "Orellano Andres", jerarquia: "" },
-    { nombre: "Guzman Yael", jerarquia: "" },
-    { nombre: "Casalegno Gabriela", jerarquia: "" },
-    { nombre: "Castro Roque", jerarquia: "" },
-    { nombre: "Vivas Lucas", jerarquia: "" },
-    { nombre: "Silva Cesar", jerarquia: "" },
-    { nombre: "Durbano Martin", jerarquia: "" },
-    { nombre: "Olivera Fernando", jerarquia: "" },
-    { nombre: "Maldonado Mercedes", jerarquia: "" }
-];
+// Inicialización de estado centralizado desde Storage Service
+const initialState = Storage.initStorage(Utils);
+let config = initialState.config;
+let policias = initialState.policias;
+let empresas = initialState.empresas;
+let coloresPolicia = initialState.coloresPolicia;
 
-const defaultEmpresas = {
-    "PALADINI": { turnos: ["06-14", "14-22", "22-06", "07:30-15:30"], catSemana: "A", catFinde: "AP" },
-    "SIGLO21 (P1)": { turnos: ["07-15", "15-23"], catSemana: "A", catFinde: "AP" },
-    "SIGLO21 (P2)": { turnos: ["07-15", "15-23"], catSemana: "A", catFinde: "AP" },
-    "SIGLO21 (P3)": { turnos: ["07-15", "15-23", "23-07"], catSemana: "A", catFinde: "AP" }
-};
-
-let policias = safeParse("policias", defaultPolicias);
-// Migrar formato antiguo: string[] -> {nombre, jerarquia}[]
-policias = policias.map(policiaItem => typeof policiaItem === "string" ? { nombre: policiaItem, jerarquia: "" } : policiaItem);
-let empresas = safeParse("empresas", defaultEmpresas);
-
-// Migrar formato antiguo de empresas (array -> objeto)
-Object.keys(empresas).forEach(nombreEmpresa => {
-    if (Array.isArray(empresas[nombreEmpresa])) {
-        empresas[nombreEmpresa] = { turnos: empresas[nombreEmpresa], catSemana: "A", catFinde: "AP" };
-    }
-});
-
-if (!localStorage.getItem("policias")) localStorage.setItem("policias", JSON.stringify(policias));
-if (!localStorage.getItem("empresas")) localStorage.setItem("empresas", JSON.stringify(empresas));
-
-let coloresPolicia = safeParse("colores_policia", {});
 let miGrafico = null;
 let calendar = null;
-
-// Inicializar colores si no existen (usar policia.nombre como clave)
-policias.forEach(policiaItem => { 
-    if (!coloresPolicia[policiaItem.nombre]) {
-        coloresPolicia[policiaItem.nombre] = colorAleatorio();
-    }
-});
+let _editandoPolicia = null;
 
 /**
  * Obtiene la lista simplificada de nombres de policías.
- * @returns {string[]} Lista de nombres.
+ * @returns {string[]} Lista de nombres de policías.
  */
-function nombresPolicias() { 
-    return policias.map(policiaItem => policiaItem.nombre); 
+function nombresPolicias() {
+    return policias.map(policiaItem => policiaItem.nombre);
 }
 
 /**
  * Genera la etiqueta formateada del policía con su jerarquía.
  * @param {{nombre: string, jerarquia?: string}} policiaObj - Objeto policía.
- * @returns {string} Etiqueta visible.
+ * @returns {string} Etiqueta visible en select/interfaz.
  */
-function etiquetaPolicia(policiaObj) { 
+function etiquetaPolicia(policiaObj) {
     if (!policiaObj) return "";
-    return policiaObj.jerarquia ? `[${policiaObj.jerarquia}] ${policiaObj.nombre}` : policiaObj.nombre; 
+    return policiaObj.jerarquia ? `[${policiaObj.jerarquia}] ${policiaObj.nombre}` : policiaObj.nombre;
 }
 
 /**
- * Inicializa los inputs de configuración de tarifario.
+ * Inicializa los inputs de configuración del panel de tarifas en el DOM.
  */
 function initInputs() {
     const container = document.getElementById("panelCostos");
@@ -124,7 +69,7 @@ function initInputs() {
 }
 
 /**
- * Guarda la configuración de tarifas y recalcula eventos locales y sincroniza en la nube.
+ * Guarda la configuración de tarifas, recalcula los montos locales y sincroniza en la nube.
  */
 function guardarConfig() {
     CATEGORIAS.forEach(categoriaKey => {
@@ -134,14 +79,14 @@ function guardarConfig() {
             config[categoriaKey] = parseFloat(val) || 0;
         }
     });
-    localStorage.setItem("config_alfas", JSON.stringify(config));
+    Storage.saveConfig(config);
     mostrarNotificacion("Tarifas actualizadas. Recalculando montos del sistema...", "var(--secondary)");
     recalcularMontosServicios();
-    sincronizarTarifasCloud();
+    CloudSync.sincronizarTarifasCloud(config);
 }
 
 /**
- * Recalcula el costo acumulado de los eventos cargados en el calendario según la nueva tarifa.
+ * Recalcula el costo acumulado de los eventos cargados en el calendario según las nuevas tarifas.
  */
 function recalcularMontosServicios() {
     if (!calendar) return;
@@ -150,7 +95,7 @@ function recalcularMontosServicios() {
         if (props.turno && props.empresa && eventoItem.startStr) {
             let empData = empresas[props.empresa];
             if (empData) {
-                let nuevoCosto = calcularCostoTurno(props.turno, eventoItem.startStr, empData);
+                let nuevoCosto = Calculator.calcularCostoTurno(props.turno, eventoItem.startStr, empData, config);
                 if (!props.cat || props.cat === nuevoCosto.cat) {
                     props.cost = nuevoCosto.cost;
                     props.vh = nuevoCosto.vh;
@@ -167,37 +112,10 @@ function recalcularMontosServicios() {
     actualizarTodo();
 }
 
-// FORMATOS LOCALES
 /**
- * Retorna fecha en formato YYYY-MM-DD local.
- * @param {Date} dateObj
- * @returns {string}
- */
-function getLocalYMD(dateObj) {
-    if (!dateObj) return "";
-    let y = dateObj.getFullYear();
-    let m = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-    let d = dateObj.getDate().toString().padStart(2, '0');
-    return `${y}-${m}-${d}`;
-}
-
-/**
- * Retorna mes en formato YYYY-MM local.
- * @param {Date} dateObj
- * @returns {string}
- */
-function getLocalYM(dateObj) {
-    if (!dateObj) return "";
-    let y = dateObj.getFullYear();
-    let m = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-    return `${y}-${m}`;
-}
-
-// --- UTILS ---
-/**
- * Muestra notificación flotante en la interfaz.
- * @param {string} msg - Mensaje.
- * @param {string} color - Color de fondo CSS.
+ * Muestra una notificación flotante en la interfaz de usuario.
+ * @param {string} msg - Texto a mostrar.
+ * @param {string} [color="var(--primary)"] - Estilo CSS para el color de fondo.
  */
 function mostrarNotificacion(msg, color = "var(--primary)") {
     let notifElem = document.getElementById("notificacion");
@@ -208,47 +126,40 @@ function mostrarNotificacion(msg, color = "var(--primary)") {
     setTimeout(() => notifElem.classList.remove("show"), 3000);
 }
 
-function abrirModal(modalId) { 
+/**
+ * Abre un modal por ID.
+ * @param {string} modalId 
+ */
+function abrirModal(modalId) {
     const elem = document.getElementById(modalId);
-    if (elem) elem.style.display = "flex"; 
-}
-function cerrarModal(modalId) { 
-    const elem = document.getElementById(modalId);
-    if (elem) elem.style.display = "none"; 
-}
-
-function colorAleatorio() {
-    const tones = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
-    return tones[Math.floor(Math.random() * tones.length)];
+    if (elem) elem.style.display = "flex";
 }
 
 /**
- * Formatea cadena de turno (ej. "06-14" -> "06HS A 14HS")
- * @param {string} turnoStr
- * @returns {string}
+ * Cierra un modal por ID.
+ * @param {string} modalId 
  */
-function formatearTurno(turnoStr) {
-    if (!turnoStr) return "";
-    if (!turnoStr.includes("-")) return turnoStr;
-    let parts = turnoStr.split("-");
-    return `${parts[0]}HS A ${parts[1]}HS`;
+function cerrarModal(modalId) {
+    const elem = document.getElementById(modalId);
+    if (elem) elem.style.display = "none";
 }
 
-// --- GESTIÓN DE DATOS ---
+/**
+ * Inicializa los selectores y listas desplegables del DOM con los datos actuales de policías y empresas.
+ */
 function inicializarSelects() {
     const sPol = document.getElementById("selPolicia");
     const fPol = document.getElementById("filtroPolicia");
-    const cPol = document.getElementById("filtroCalPolicia"); // Nuevo filtro calendario
+    const cPol = document.getElementById("filtroCalPolicia");
     const lPol = document.getElementById("listaPolicias");
     const sEmp = document.getElementById("selEmpresa");
     const fEmp = document.getElementById("filtroEmpresa");
     const lEmp = document.getElementById("listaEmpresas");
 
-    // Selects simples de nombre para calendario y filtros
     [
         { el: sPol, data: nombresPolicias(), first: "-- Seleccione Policía --" },
         { el: fPol, data: nombresPolicias(), first: "Todos los Policías" },
-        { el: cPol, data: nombresPolicias(), first: "Todos los Policías" }, // Populate new filter
+        { el: cPol, data: nombresPolicias(), first: "Todos los Policías" },
         { el: sEmp, data: Object.keys(empresas), first: "-- Seleccione Empresa --" },
         { el: fEmp, data: Object.keys(empresas), first: "Todas las Empresas" },
         { el: lEmp, data: Object.keys(empresas) }
@@ -257,12 +168,12 @@ function inicializarSelects() {
         s.el.innerHTML = s.first ? `<option value="">${s.first}</option>` : "";
         s.data.forEach(item => {
             let op = document.createElement("option");
-            op.value = item; op.text = item;
+            op.value = item;
+            op.text = item;
             s.el.appendChild(op);
         });
     });
 
-    // Lista de policías con jerarquía (value = nombre, text = etiqueta)
     if (lPol) {
         lPol.innerHTML = "";
         policias.forEach(p => {
@@ -274,21 +185,21 @@ function inicializarSelects() {
     }
 
     cambiarTurnos();
-    document.getElementById("stat-policias").textContent = policias.length;
+    const statPol = document.getElementById("stat-policias");
+    if (statPol) statPol.textContent = policias.length;
 }
 
-let _editandoPolicia = null; // nombre del policía que se está editando
-
+/**
+ * Añade o actualiza un policía en la lista de gestión.
+ */
 function agregarPolicia() {
     let n = document.getElementById("nuevoPolicia").value.trim();
     let j = document.getElementById("jerarquiaPolicia").value;
     if (!n) return mostrarNotificacion("Ingrese un nombre", "var(--danger)");
 
     if (_editandoPolicia) {
-        // Modo edición: actualizar el existente
         let idx = policias.findIndex(p => p.nombre === _editandoPolicia);
         if (idx !== -1) {
-            // Si cambió el nombre, actualizar clave de color
             if (_editandoPolicia !== n) {
                 coloresPolicia[n] = coloresPolicia[_editandoPolicia] || colorAleatorio();
                 delete coloresPolicia[_editandoPolicia];
@@ -300,21 +211,23 @@ function agregarPolicia() {
         document.getElementById("btnAgregarPolicia").textContent = "+ Agregar Policía";
         mostrarNotificacion("Policía actualizado", "var(--secondary)");
     } else {
-        // Modo alta
         if (nombresPolicias().includes(n)) return mostrarNotificacion("Ya existe", "var(--warning)");
         coloresPolicia[n] = colorAleatorio();
         policias.push({ nombre: n, jerarquia: j });
         mostrarNotificacion("Policía añadido");
     }
 
-    localStorage.setItem("policias", JSON.stringify(policias));
-    localStorage.setItem("colores_policia", JSON.stringify(coloresPolicia));
+    Storage.savePolicias(policias);
+    Storage.saveColores(coloresPolicia);
     document.getElementById("nuevoPolicia").value = "";
     document.getElementById("jerarquiaPolicia").value = "";
     inicializarSelects();
-    sincronizarPoliciasCloud();
+    CloudSync.sincronizarPoliciasCloud(policias);
 }
 
+/**
+ * Carga los datos de un policía seleccionado en el formulario para su edición.
+ */
 function modificarPolicia() {
     let nombre = document.getElementById("listaPolicias").value;
     if (!nombre) return mostrarNotificacion("Seleccione un policía", "var(--warning)");
@@ -329,24 +242,30 @@ function modificarPolicia() {
     mostrarNotificacion("Datos cargados — editá y guardá", "var(--primary)");
 }
 
+/**
+ * Elimina el policía seleccionado de la lista de gestión.
+ */
 function eliminarPolicia() {
     let n = document.getElementById("listaPolicias").value;
     if (!n) return;
     if (!confirm(`¿Eliminar al policía "${n}"?`)) return;
     policias = policias.filter(p => p.nombre !== n);
-    localStorage.setItem("policias", JSON.stringify(policias));
+    Storage.savePolicias(policias);
     inicializarSelects();
     mostrarNotificacion("Policía eliminado", "var(--danger)");
-    sincronizarPoliciasCloud();
+    CloudSync.sincronizarPoliciasCloud(policias);
 }
 
+/**
+ * Añade o actualiza una empresa en la lista de gestión.
+ */
 function agregarEmpresa() {
     let n = document.getElementById("nuevoEmpresa").value.trim().toUpperCase();
     let t = document.getElementById("rangoTurnos").value.split(",").map(x => x.trim()).filter(x => x);
     let catS = document.getElementById("catSemana").value;
     let catF = document.getElementById("catFinde").value;
     if (!n || t.length === 0) return mostrarNotificacion("Complete los campos", "var(--danger)");
-    // Campos opcionales
+
     let nroServicio = document.getElementById("empNroServicio").value.trim();
     let domicilio = document.getElementById("empDomicilio").value.trim();
     let barrio = document.getElementById("empBarrio").value.trim();
@@ -355,35 +274,41 @@ function agregarEmpresa() {
     let telReferente = document.getElementById("empTelReferente").value.trim();
     let policiaEnc = document.getElementById("empPoliciaEncargado").value.trim();
     let telPoliciaEnc = document.getElementById("empTelPoliciaEncargado").value.trim();
-    const esActualizacion = !!empresas[n]; // true si ya existía
+    const esActualizacion = !!empresas[n];
+
     empresas[n] = {
         turnos: t, catSemana: catS, catFinde: catF,
         nroServicio, domicilio, barrio, telefono,
         referente, telReferente, policiaEnc, telPoliciaEnc
     };
-    localStorage.setItem("empresas", JSON.stringify(empresas));
-    // Limpiar campos y restaurar modo "Agregar"
+    Storage.saveEmpresas(empresas);
+
     ["nuevoEmpresa", "rangoTurnos", "empNroServicio", "empDomicilio", "empBarrio",
         "empTelefono", "empReferente", "empTelReferente", "empPoliciaEncargado", "empTelPoliciaEncargado"
-    ].forEach(id => document.getElementById(id).value = "");
-    document.getElementById("editandoBanner").style.display = "none";
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+    });
+    const editBanner = document.getElementById("editandoBanner");
+    if (editBanner) editBanner.style.display = "none";
     const btnAgregar = document.querySelector("button[onclick='agregarEmpresa()']");
     if (btnAgregar) btnAgregar.textContent = "Agregar Empresa";
+
     inicializarSelects();
     mostrarNotificacion(esActualizacion ? "Empresa actualizada" : "Empresa añadida", "var(--secondary)");
-    sincronizarEmpresasCloud();
+    CloudSync.sincronizarEmpresasCloud(empresas);
 }
 
 /**
- * Visualiza la información detallada de la empresa seleccionada sanitizando entradas.
+ * Muestra el detalle de la empresa seleccionada en el contenedor de información.
  */
 function verTurnosEmpresa() {
     let empresaKey = document.getElementById("listaEmpresas").value;
     const infoContainer = document.getElementById("infoTurnos");
     if (!infoContainer) return;
-    if (!empresaKey || !empresas[empresaKey]) { 
-        infoContainer.textContent = ""; 
-        return; 
+    if (!empresaKey || !empresas[empresaKey]) {
+        infoContainer.textContent = "";
+        return;
     }
     let emp = empresas[empresaKey];
     let turnosTexto = (emp.turnos || []).map(t => escapeHTML(t)).join(", ");
@@ -399,11 +324,13 @@ function verTurnosEmpresa() {
     infoContainer.innerHTML = html;
 }
 
+/**
+ * Carga los datos de una empresa seleccionada en el formulario para su edición.
+ */
 function modificarEmpresa() {
     let nombre = document.getElementById("listaEmpresas").value;
     if (!nombre || !empresas[nombre]) return mostrarNotificacion("Seleccione una empresa", "var(--warning)");
     let emp = empresas[nombre];
-    // Cargar todos los campos en el formulario
     document.getElementById("nuevoEmpresa").value = nombre;
     document.getElementById("rangoTurnos").value = (emp.turnos || []).join(", ");
     document.getElementById("catSemana").value = emp.catSemana || "A";
@@ -416,42 +343,51 @@ function modificarEmpresa() {
     document.getElementById("empTelReferente").value = emp.telReferente || "";
     document.getElementById("empPoliciaEncargado").value = emp.policiaEnc || "";
     document.getElementById("empTelPoliciaEncargado").value = emp.telPoliciaEnc || "";
-    // Mostrar banner de edición y cambiar texto del botón
+
     document.getElementById("editandoNombre").textContent = nombre;
     document.getElementById("editandoBanner").style.display = "";
     const btnAgregar = document.querySelector("button[onclick='agregarEmpresa()']");
     if (btnAgregar) btnAgregar.textContent = "✔ Actualizar Empresa";
-    // Scroll al inicio del modal para que el usuario vea el formulario
-    document.querySelector("#modalEmpresas .modal").scrollTo({ top: 0, behavior: "smooth" });
+    const modalEmp = document.querySelector("#modalEmpresas .modal");
+    if (modalEmp) modalEmp.scrollTo({ top: 0, behavior: "smooth" });
     mostrarNotificacion("Datos cargados — editá y guardá", "var(--primary)");
 }
 
+/**
+ * Elimina la empresa seleccionada de la lista de gestión.
+ */
 function eliminarEmpresa() {
     let e = document.getElementById("listaEmpresas").value;
     if (!e) return;
     delete empresas[e];
-    localStorage.setItem("empresas", JSON.stringify(empresas));
+    Storage.saveEmpresas(empresas);
     inicializarSelects();
     mostrarNotificacion("Empresa eliminada", "var(--danger)");
-    sincronizarEmpresasCloud();
+    CloudSync.sincronizarEmpresasCloud(empresas);
 }
 
+/**
+ * Actualiza los turnos disponibles en el selector según la empresa elegida.
+ */
 function cambiarTurnos() {
     let e = document.getElementById("selEmpresa").value;
     let s = document.getElementById("selTurno");
+    if (!s) return;
     s.innerHTML = "";
     if (e && empresas[e]) {
-        let turnos = empresas[e].turnos || empresas[e]; // compat
+        let turnos = empresas[e].turnos || empresas[e];
         turnos.forEach(t => {
             let op = document.createElement("option");
             op.value = t; op.text = formatearTurno(t);
             s.appendChild(op);
         });
     }
-    // Auto-asignar categoría según el día actual y la empresa
     actualizarCategoriaAuto();
 }
 
+/**
+ * Asigna automáticamente la categoría según el día seleccionado y la empresa.
+ */
 function actualizarCategoriaAuto() {
     let e = document.getElementById("selEmpresa").value;
     if (!e || !empresas[e]) return;
@@ -463,70 +399,15 @@ function actualizarCategoriaAuto() {
     if (sel && cat) sel.value = cat;
 }
 
-// --- CÁLCULO DE COSTO CON SPLIT HORARIO ---
-// Calcula el costo real de un turno, dividiendo las horas entre categorías
-// si el turno cruza medianoche y el día siguiente tiene categoría diferente.
+/**
+ * Función delegada de cálculo de costo de turno.
+ * @param {string} turno 
+ * @param {string} fechaStr 
+ * @param {Object} empData 
+ * @returns {CalculationResult}
+ */
 function calcularCostoTurno(turno, fechaStr, empData) {
-    const fallback = { cat: "A", cost: 0, h: 8, vh: 0, detail: [], catLabel: "A" };
-    if (!turno || !turno.includes("-") || !empData) return fallback;
-
-    const parts = turno.split("-");
-    const startH = parseInt(parts[0]);
-    const endH = parseInt(parts[1]);
-
-    // Calcular horas totales del turno
-    const totalH = endH > startH ? (endH - startH) : (24 - startH + endH);
-    const isOvernight = endH < startH || (endH === 0 && startH > 0);
-
-    // Categoría del día de inicio
-    const startDate = new Date(fechaStr + "T00:00:00");
-    const startDay = startDate.getDay();
-    const isStartFinde = (startDay === 0 || startDay === 6);
-    const catStart = isStartFinde ? empData.catFinde : empData.catSemana;
-
-    if (!isOvernight) {
-        // Turno sin cruce de medianoche: una sola categoría
-        const vh = config[catStart] || 0;
-        const cost = vh * totalH;
-        return { cat: catStart, cost, h: totalH, vh, detail: [{ cat: catStart, h: totalH, vh, cost }], catLabel: catStart };
-    }
-
-    // Turno nocturno: calcular categoría del día siguiente
-    const nextDate = new Date(startDate);
-    nextDate.setDate(nextDate.getDate() + 1);
-    const nextDay = nextDate.getDay();
-    const isNextFinde = (nextDay === 0 || nextDay === 6);
-    const catNext = isNextFinde ? empData.catFinde : empData.catSemana;
-
-    if (catStart === catNext) {
-        // Mismo categoría en ambos días: sin split necesario
-        const vh = config[catStart] || 0;
-        const cost = vh * totalH;
-        return { cat: catStart, cost, h: totalH, vh, detail: [{ cat: catStart, h: totalH, vh, cost }], catLabel: catStart };
-    }
-
-    // Categories difieren: split a medianoche
-    const hStartPart = 24 - startH;   // horas antes de medianoche (ej. 24-22 = 2h)
-    const hNextPart = endH;             // horas después de medianoche (ej. 0h a 6h = 6h)
-
-    const vh1 = config[catStart] || 0;
-    const vh2 = config[catNext] || 0;
-    const cost1 = vh1 * hStartPart;
-    const cost2 = vh2 * hNextPart;
-    const totalCost = cost1 + cost2;
-    const vhProm = totalH > 0 ? totalCost / totalH : 0;
-
-    return {
-        cat: `${catStart}+${catNext}`,
-        cost: totalCost,
-        h: totalH,
-        vh: vhProm,
-        detail: [
-            { cat: catStart, h: hStartPart, vh: vh1, cost: cost1 },
-            { cat: catNext, h: hNextPart, vh: vh2, cost: cost2 }
-        ],
-        catLabel: `${catStart}+${catNext}`
-    };
+    return Calculator.calcularCostoTurno(turno, fechaStr, empData, config);
 }
 
 const defaultServiciosRaw = [
@@ -552,15 +433,17 @@ const defaultEventos = defaultServiciosRaw.map(s => ({
     }
 }));
 
-// --- CALENDARIO ---
+/**
+ * Inicializa el componente de FullCalendar en el DOM.
+ */
 function initCalendar() {
     const calendarEl = document.getElementById("calendar");
-    if (!calendarEl) return;
+    if (!calendarEl || typeof FullCalendar === 'undefined') return;
 
     let eventosGuardados = safeParse("eventos", defaultEventos);
     if (!Array.isArray(eventosGuardados) || eventosGuardados.length === 0) {
         eventosGuardados = defaultEventos;
-        localStorage.setItem("eventos", JSON.stringify(defaultEventos));
+        if (typeof localStorage !== 'undefined') localStorage.setItem("eventos", JSON.stringify(defaultEventos));
     }
 
     calendar = new FullCalendar.Calendar(calendarEl, {
@@ -595,7 +478,8 @@ function initCalendar() {
         },
         dateClick: function (info) {
             window.fechaSeleccionada = info.dateStr;
-            document.getElementById("fechaTitulo").textContent = "Nuevo Servicio: " + info.dateStr;
+            const tituloEl = document.getElementById("fechaTitulo");
+            if (tituloEl) tituloEl.textContent = "Nuevo Servicio: " + info.dateStr;
             abrirModal('modalServicio');
         },
         eventClick: function (info) {
@@ -609,9 +493,9 @@ function initCalendar() {
                 info.event.remove();
                 guardarEventosLocal();
                 actualizarTodo();
-                
+
                 if (policia && empresa && fecha) {
-                    eliminarServicioCloud(policia, empresa, turno, fecha);
+                    CloudSync.eliminarServicioCloud(policia, empresa, turno, fecha);
                 }
             }
         }
@@ -620,32 +504,18 @@ function initCalendar() {
 }
 
 /**
- * Solicita la eliminación de una fila de servicio en la solapa 'servicios' de Google Sheets.
- * @param {string} policia - Nombre del policía.
- * @param {string} empresa - Nombre de la empresa.
- * @param {string} turno - Horario de turno.
- * @param {string} fecha - Fecha en formato YYYY-MM-DD.
+ * Elimina una fila de servicio en Google Sheets.
  */
 function eliminarServicioCloud(policia, empresa, turno, fecha) {
     mostrarNotificacion("Eliminando servicio en la nube...", "var(--warning)");
-    const queryParams = new URLSearchParams({
-        action: "deleteServicio",
-        fecha: fecha || "",
-        empresa: empresa || "",
-        policia: policia || "",
-        turno: turno || ""
-    }).toString();
-
-    fetch(`${GOOGLE_SHEET_URL}?${queryParams}`, { mode: "no-cors" })
-        .then(() => {
-            mostrarNotificacion("Servicio eliminado de la nube", "var(--secondary)");
-        })
-        .catch(err => {
-            console.error("Error eliminando servicio en la nube:", err);
-            mostrarNotificacion("Eliminado localmente, pero falló la actualización en la nube", "var(--danger)");
-        });
+    CloudSync.eliminarServicioCloud(policia, empresa, turno, fecha)
+        .then(() => mostrarNotificacion("Servicio eliminado de la nube", "var(--secondary)"))
+        .catch(() => mostrarNotificacion("Eliminado localmente, pero falló la actualización en la nube", "var(--danger)"));
 }
 
+/**
+ * Guarda un evento de servicio desde el formulario modal.
+ */
 function guardarEvento() {
     let p = document.getElementById("selPolicia").value;
     let t = document.getElementById("selTurno").value;
@@ -653,7 +523,6 @@ function guardarEvento() {
 
     if (!p || !e) return mostrarNotificacion("Complete todos los campos", "var(--danger)");
 
-    // Validar duplicado exacto (Policía, Empresa y Turno coinciden)
     let duplicado = calendar.getEvents().some(ev =>
         ev.startStr === window.fechaSeleccionada &&
         ev.extendedProps.policia === p &&
@@ -662,16 +531,11 @@ function guardarEvento() {
     );
     if (duplicado) return mostrarNotificacion(`${p} ya tiene este turno asignado`, "var(--warning)");
 
-    let dia = new Date(window.fechaSeleccionada + "T00:00:00").getDay();
-
-    // Calcular costo con lógica de split por cambio de categoría en turno nocturno
     let empData = empresas[e];
-    let resultado = calcularCostoTurno(t, window.fechaSeleccionada, empData);
+    let resultado = Calculator.calcularCostoTurno(t, window.fechaSeleccionada, empData, config);
 
-    // Permitir override manual de categoría (si es distinta de la auto-calculada)
     let catSelUI = document.getElementById("selCategoria").value;
     if (catSelUI && catSelUI !== resultado.cat && !resultado.cat.includes("+")) {
-        // El usuario cambió manualmente: recalcular simple con esa cat
         let vh = config[catSelUI] || 0;
         resultado = { cat: catSelUI, cost: vh * resultado.h, h: resultado.h, vh, detail: [{ cat: catSelUI, h: resultado.h, vh, cost: vh * resultado.h }], catLabel: catSelUI };
     }
@@ -693,11 +557,9 @@ function guardarEvento() {
     guardarEventosLocal();
     actualizarTodo();
     cerrarModal('modalServicio');
-    
-    // Mostrar estado de carga
+
     mostrarNotificacion("Guardando en la nube...", "var(--warning)");
-    
-    // Enviar a Google Sheets asíncronamente
+
     const catFinal = resultado.catLabel || resultado.cat || "A";
     const payload = {
         action: "addServicio",
@@ -710,64 +572,32 @@ function guardarEvento() {
         costo: resultado.cost
     };
 
-    const queryParams = new URLSearchParams({
-        action: "addServicio",
-        fecha: window.fechaSeleccionada || "",
-        empresa: e || "",
-        policia: p || "",
-        turno: t || "",
-        categoria: catFinal,
-        hora: String(resultado.h || 8),
-        costo: String(resultado.cost || 0),
-        data: JSON.stringify(payload)
-    }).toString();
-
-    fetch(`${GOOGLE_SHEET_URL}?${queryParams}`, { mode: "no-cors" })
-    .then(() => {
-        mostrarNotificacion("Servicio registrado y guardado en la nube", "var(--secondary)");
-    })
-    .catch(err => {
-        console.error("Error Fetch enviando servicio:", err);
-        mostrarNotificacion("Guardado localmente, pero falló la conexión con la nube", "var(--danger)");
-    });
+    CloudSync.registrarServicioCloud(payload)
+        .then(() => mostrarNotificacion("Servicio registrado y guardado en la nube", "var(--secondary)"))
+        .catch(() => mostrarNotificacion("Guardado localmente, pero falló la conexión con la nube", "var(--danger)"));
 }
 
+/**
+ * Guarda los eventos actuales del calendario en el almacenamiento local.
+ */
 function guardarEventosLocal() {
+    if (!calendar) return;
     let evs = calendar.getEvents().map(e => ({
         title: e.title, start: e.startStr, backgroundColor: e.backgroundColor,
         extendedProps: e.extendedProps
     }));
-    localStorage.setItem("eventos", JSON.stringify(evs));
+    if (typeof localStorage !== 'undefined') localStorage.setItem("eventos", JSON.stringify(evs));
 }
 
-// --- SINCRONIZACIÓN CLOUD ---
+// --- SINCRONIZACIÓN Y UI ---
 
-function sincronizarTarifasCloud() {
-    const payload = encodeURIComponent(JSON.stringify({ action: "syncTarifas", config: config }));
-    fetch(`${GOOGLE_SHEET_URL}?data=${payload}`, { mode: "no-cors" })
-        .then(() => console.log("Tarifas sincronizadas en la nube (GET no-cors)"))
-        .catch(err => console.error("Fallo al sincronizar tarifas:", err));
-}
+function sincronizarTarifasCloud() { CloudSync.sincronizarTarifasCloud(config); }
+function sincronizarPoliciasCloud() { CloudSync.sincronizarPoliciasCloud(policias); }
+function sincronizarEmpresasCloud() { CloudSync.sincronizarEmpresasCloud(empresas); }
 
-function sincronizarPoliciasCloud() {
-    const polData = policias.map(p => ({
-        nombre: typeof p === 'object' ? (p.nombre || '') : String(p),
-        jerarquia: typeof p === 'object' ? (p.jerarquia || '') : ''
-    }));
-    const payload = encodeURIComponent(JSON.stringify({ action: "syncPolicias", policias: polData }));
-    fetch(`${GOOGLE_SHEET_URL}?data=${payload}`, { mode: "no-cors" })
-        .then(() => console.log("Policías con Jerarquía sincronizados en la solapa POLICIA (GET no-cors)"))
-        .catch(err => console.error("Fallo al sincronizar policías:", err));
-}
-
-function sincronizarEmpresasCloud() {
-    const payload = encodeURIComponent(JSON.stringify({ action: "syncEmpresas", empresas: empresas }));
-    fetch(`${GOOGLE_SHEET_URL}?data=${payload}`, { mode: "no-cors" })
-        .then(() => console.log("Empresas sincronizadas en la nube (GET no-cors)"))
-        .catch(err => console.error("Fallo al sincronizar empresas:", err));
-}
-
-// --- ACTUALIZACIÓN DE UI ---
+/**
+ * Puebla dinámicamente los selectores de meses en los filtros del Dashboard e Historial.
+ */
 function popularFiltroMeses() {
     let selectDash = document.getElementById("filtroMesDashboard");
     let selectHist = document.getElementById("filtroMesHistorial");
@@ -777,22 +607,23 @@ function popularFiltroMeses() {
     let valHist = selectHist ? selectHist.value : "";
 
     let mesesSet = new Set();
-    calendar.getEvents().forEach(e => {
-        if (e.start) {
-            mesesSet.add(getLocalYM(e.start));
-        }
-    });
+    if (calendar) {
+        calendar.getEvents().forEach(e => {
+            if (e.start) {
+                mesesSet.add(getLocalYM(e.start));
+            }
+        });
+    }
     let todayYyyyMm = getLocalYM(new Date());
     mesesSet.add(todayYyyyMm);
 
     let mesesArr = Array.from(mesesSet).sort().reverse();
-
     let optionsHTML = `<option value="">Todos los meses</option>`;
     let formatter = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' });
 
     mesesArr.forEach(m => {
         let [y, mo] = m.split('-');
-        let text = formatter.format(new Date(y, parseInt(mo) - 1, 1));
+        let text = formatter.format(new Date(y, parseInt(mo, 10) - 1, 1));
         text = text.charAt(0).toUpperCase() + text.slice(1);
         optionsHTML += `<option value="${m}">${text}</option>`;
     });
@@ -801,6 +632,9 @@ function popularFiltroMeses() {
     if (selectHist) { selectHist.innerHTML = optionsHTML; selectHist.value = valHist; }
 }
 
+/**
+ * Actualiza todos los componentes dependientes del estado (Filtros, Tabla, Gráfico, Totales).
+ */
 function actualizarTodo() {
     popularFiltroMeses();
     actualizarTabla();
@@ -808,11 +642,14 @@ function actualizarTodo() {
     calcularResumen();
 }
 
+/**
+ * Renderiza las filas de la tabla de historial de servicios.
+ */
 function actualizarTabla() {
     const tbody = document.querySelector("#tablaServicios tbody");
+    if (!tbody || !calendar) return;
     tbody.innerHTML = "";
 
-    // Ordenar eventos por fecha desc
     let sorted = [...calendar.getEvents()].sort((a, b) => b.start - a.start);
 
     sorted.forEach(e => {
@@ -822,7 +659,6 @@ function actualizarTabla() {
         let empNombre = p.empresa || p.Empresa || "S/D";
         let tr = document.createElement("tr");
 
-        // Construir badge de categoría (puede ser simple o mixta)
         let catBadge = "";
         if (p.detail && p.detail.length > 1) {
             catBadge = p.detail.map(d =>
@@ -835,22 +671,27 @@ function actualizarTabla() {
 
         tr.innerHTML = `
             <td>${getLocalYMD(e.start)}</td>
-            <td><span class="badge" style="background:#eef2ff; color:#4338ca">${empNombre}</span></td>
-            <td><div style="display:flex; align-items:center; gap:8px">
-                <div style="width:10px; height:10px; border-radius:50%; background:${e.backgroundColor || '#2563eb'}"></div>
+            <td><span class="badge badge-empresa">${empNombre}</span></td>
+            <td><div class="policia-cell">
+                <div class="policia-dot" style="background:${e.backgroundColor || '#2563eb'}"></div>
                 ${polNombre}
             </div></td>
             <td>${formatearTurno(p.turno)}</td>
-            <td style="white-space:nowrap">${catBadge}</td>
-            <td style="font-weight:600">$${costVal.toLocaleString('es-AR')}</td>
+            <td class="nowrap-cell">${catBadge}</td>
+            <td class="font-weight-600">$${costVal.toLocaleString('es-AR')}</td>
         `;
         tbody.appendChild(tr);
     });
 }
 
+/**
+ * Calcula los totales acumulados del Dashboard y actualiza el gráfico circular.
+ */
 function calcularResumen() {
+    if (!calendar) return;
     let stats = { turnos: 0, costo: 0, porPol: {} };
-    let mesFiltro = document.getElementById("filtroMesDashboard") ? document.getElementById("filtroMesDashboard").value : "";
+    let mesFiltroElem = document.getElementById("filtroMesDashboard");
+    let mesFiltro = mesFiltroElem ? mesFiltroElem.value : "";
 
     calendar.getEvents().forEach(e => {
         let ym = getLocalYM(e.start);
@@ -860,7 +701,6 @@ function calcularResumen() {
         let costVal = (p.cost !== undefined) ? Number(p.cost) : (p.costo !== undefined ? Number(p.costo) : 0);
         let polNombre = p.policia || p.Policia || "Desconocido";
 
-        // Stats totales
         stats.turnos++;
         stats.costo += costVal;
 
@@ -869,12 +709,13 @@ function calcularResumen() {
         stats.porPol[polNombre].total += costVal;
     });
 
-    // Update Dashboard Cards
-    document.getElementById("stat-turnos").textContent = stats.turnos;
-    document.getElementById("stat-costo").textContent = `$${stats.costo.toLocaleString('es-AR')}`;
+    const statTurnos = document.getElementById("stat-turnos");
+    const statCosto = document.getElementById("stat-costo");
+    if (statTurnos) statTurnos.textContent = stats.turnos;
+    if (statCosto) statCosto.textContent = `$${stats.costo.toLocaleString('es-AR')}`;
 
-    // Update Totales Table
     const tBody = document.getElementById("totalesBody");
+    if (!tBody) return;
     tBody.innerHTML = "";
     let labels = [], data = [], colors = [];
     let resumenHtml = "";
@@ -890,11 +731,14 @@ function calcularResumen() {
         colors.push(coloresPolicia[name]);
         resumenHtml += `<div><strong>${name}</strong>: ${row.turnos} turnos ($${row.total.toLocaleString('es-AR')})</div>`;
     }
-    document.getElementById("resumenLista").innerHTML = resumenHtml;
+    const resLista = document.getElementById("resumenLista");
+    if (resLista) resLista.innerHTML = resumenHtml;
 
-    // Update Chart
+    const graficoCanvas = document.getElementById('grafico');
+    if (!graficoCanvas || typeof Chart === 'undefined') return;
+
     if (miGrafico) miGrafico.destroy();
-    const ctx = document.getElementById('grafico').getContext('2d');
+    const ctx = graficoCanvas.getContext('2d');
     miGrafico = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -917,15 +761,21 @@ function calcularResumen() {
     });
 }
 
-// --- FILTROS ---
+/**
+ * Aplica los filtros seleccionados a las filas de la tabla de servicios.
+ */
 function aplicarFiltros() {
-    let pol = document.getElementById("filtroPolicia").value;
-    let emp = document.getElementById("filtroEmpresa").value;
-    let mes = document.getElementById("filtroMesHistorial") ? document.getElementById("filtroMesHistorial").value : "";
+    const polEl = document.getElementById("filtroPolicia");
+    const empEl = document.getElementById("filtroEmpresa");
+    const mesEl = document.getElementById("filtroMesHistorial");
+
+    let pol = polEl ? polEl.value : "";
+    let emp = empEl ? empEl.value : "";
+    let mes = mesEl ? mesEl.value : "";
     let filas = document.querySelectorAll("#tablaServicios tbody tr");
 
     filas.forEach(f => {
-        let fFecha = f.children[0].textContent.trim(); // "YYYY-MM-DD"
+        let fFecha = f.children[0].textContent.trim();
         let fEmp = f.children[1].textContent.trim();
         let fPol = f.children[2].textContent.trim();
         let match = true;
@@ -937,9 +787,13 @@ function aplicarFiltros() {
     });
 }
 
+/**
+ * Filtra la visibilidad de eventos en el FullCalendar según el policía seleccionado.
+ */
 function filtrarCalendario() {
     if (!calendar) return;
-    const filtroVal = (document.getElementById("filtroCalPolicia").value || "").trim();
+    const filtroCal = document.getElementById("filtroCalPolicia");
+    const filtroVal = (filtroCal ? filtroCal.value : "").trim();
 
     calendar.getEvents().forEach(ev => {
         const policia = (ev.extendedProps.policia || "").trim();
@@ -951,28 +805,37 @@ function filtrarCalendario() {
     });
 }
 
+/**
+ * Limpia todos los filtros activos y resetea las vistas.
+ */
 function limpiarFiltros() {
-    document.getElementById("filtroPolicia").value = "";
-    document.getElementById("filtroEmpresa").value = "";
-    if (document.getElementById("filtroMesHistorial")) document.getElementById("filtroMesHistorial").value = "";
+    const polEl = document.getElementById("filtroPolicia");
+    const empEl = document.getElementById("filtroEmpresa");
+    const mesEl = document.getElementById("filtroMesHistorial");
+
+    if (polEl) polEl.value = "";
+    if (empEl) empEl.value = "";
+    if (mesEl) mesEl.value = "";
     aplicarFiltros();
 }
 
 // --- EXPORTACIÓN ---
+
+/**
+ * Prepara y abre el modal de opciones de exportación.
+ */
 function abrirModalExportar() {
     let selMes = document.getElementById("exportMes");
     let selPol = document.getElementById("exportPolicia");
     let contEmp = document.getElementById("containerExportEmpresa");
 
-    // Poblar meses y policías de las listas maestras
-    if (document.getElementById("filtroMesHistorial")) {
+    if (document.getElementById("filtroMesHistorial") && selMes) {
         selMes.innerHTML = document.getElementById("filtroMesHistorial").innerHTML;
     }
-    if (document.getElementById("filtroPolicia")) {
+    if (document.getElementById("filtroPolicia") && selPol) {
         selPol.innerHTML = document.getElementById("filtroPolicia").innerHTML;
     }
 
-    // Poblar empresas como lista de Checkboxes
     if (contEmp) {
         contEmp.innerHTML = "";
         Object.keys(empresas).forEach(item => {
@@ -990,264 +853,54 @@ function abrirModalExportar() {
     abrirModal("modalExportar");
 }
 
+/**
+ * Genera el reporte Excel invocando a Exporter.exportExcel.
+ */
 function exportExcel() {
     const mesFiltroValue = document.getElementById("exportMes") ? document.getElementById("exportMes").value : "";
     const polFiltroValue = document.getElementById("exportPolicia") ? document.getElementById("exportPolicia").value : "";
-
-    // Obtener los valores de las checkboxes marcadas
     const chks = document.querySelectorAll(".chk-export-emp:checked");
     const empFiltros = Array.from(chks).map(c => c.value);
+    const rawEvents = safeParse("eventos", []);
 
-    let data = [["Fecha", "Empresa", "Policía", "Turno", "Categoría", "Horas", "Valor Hora", "Costo Total"]];
-    let rawEvents = safeParse("eventos", []);
-
-    // Ordenar cronológicamente
-    let eventosData = rawEvents.map(e => ({
-        ...e,
-        startDate: new Date(e.start + (e.start.includes("T") ? "" : "T00:00:00"))
-    }));
-    eventosData.sort((a, b) => a.startDate - b.startDate);
-
-    eventosData.forEach(e => {
-        if (!e.startDate) return;
-        let ym = getLocalYM(e.startDate);
-        if (mesFiltroValue && ym !== mesFiltroValue) return;
-
-        let p = e.extendedProps || {};
-        let polNombre = (p.policia || "").trim();
-        let empNombre = (p.empresa || "").trim();
-
-        if (polFiltroValue && polNombre !== polFiltroValue) return;
-
-        if (empFiltros.length > 0) {
-            if (!empFiltros.includes(empNombre)) return;
-        }
-
-        data.push([getLocalYMD(e.startDate), empNombre, polNombre, formatearTurno(p.turno), p.cat, p.h, p.vh, p.cost]);
+    Exporter.exportExcel({
+        mesFiltroValue,
+        polFiltroValue,
+        empFiltros,
+        rawEvents,
+        utils: Utils,
+        onNotification: mostrarNotificacion,
+        onCloseModal: () => cerrarModal("modalExportar")
     });
-
-    if (data.length === 1) {
-        mostrarNotificacion("No hay registros para exportar con estos filtros", "var(--warning)");
-        return;
-    }
-
-    let wb = XLSX.utils.book_new();
-    let ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, "Servicios");
-    XLSX.writeFile(wb, `Reporte_Servicios_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    cerrarModal("modalExportar");
-    mostrarNotificacion("Excel generado con éxito", "var(--secondary)");
 }
 
+/**
+ * Genera el reporte PDF invocando a Exporter.exportPDF.
+ */
 async function exportPDF() {
-    try {
-        const mesFiltro = document.getElementById("exportMes") ? document.getElementById("exportMes").value : "";
-        const polFiltro = document.getElementById("exportPolicia") ? document.getElementById("exportPolicia").value : "";
+    const mesFiltro = document.getElementById("exportMes") ? document.getElementById("exportMes").value : "";
+    const polFiltro = document.getElementById("exportPolicia") ? document.getElementById("exportPolicia").value : "";
+    const chks = document.querySelectorAll(".chk-export-emp:checked");
+    const empFiltros = Array.from(chks).map(c => c.value);
+    const rawEvents = safeParse("eventos", []);
 
-        // Obtener valores de checkboxes marcadas
-        const chks = document.querySelectorAll(".chk-export-emp:checked");
-        const empFiltros = Array.from(chks).map(c => c.value);
-
-        let rows = [];
-        // OBTENCIÓN DIRECTA DE DATOS (Bypasseando el estado del calendario para asegurar 100% integridad)
-        let rawEvents = safeParse("eventos", []);
-
-        // Convertir y ordenar cronológicamente
-        let eventosData = rawEvents.map(e => ({
-            ...e,
-            startDate: new Date(e.start + (e.start.includes("T") ? "" : "T00:00:00"))
-        }));
-        eventosData.sort((a, b) => a.startDate - b.startDate);
-
-        let totalCosto = 0;
-        // Pre-normalizar filtros para mayor rendimiento
-        const polFilterNorm = (polFiltro || "").toLowerCase().replace(/[^a-z0-9]/g, '');
-        const empFiltersNorm = empFiltros.map(f => (f || "").trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
-
-        let startOfMonth = null;
-        let endOfMonth = null;
-        if (mesFiltro && mesFiltro.includes("-")) {
-            let [filAnio, filMes] = mesFiltro.split('-').map(Number);
-            startOfMonth = new Date(filAnio, filMes - 1, 1, 0, 0, 0);
-            endOfMonth = new Date(filAnio, filMes, 0, 23, 59, 59);
-        }
-
-        eventosData.forEach(e => {
-            if (!e.startDate || isNaN(e.startDate.getTime())) return;
-
-            let props = e.extendedProps || {};
-
-            // EXTRAER POLICÍA (Manejar string u objeto)
-            let pRaw = props.policia || e.policia || e.title || "";
-            let polStr = (typeof pRaw === 'object' ? pRaw.nombre : pRaw).toString().split(/[\n-]/)[0].trim();
-
-            // EXTRAER EMPRESA (Manejar string u objeto)
-            let eRaw = props.empresa || e.empresa || "";
-            let empStr = (typeof eRaw === 'object' ? eRaw.nombre : eRaw).toString().trim();
-
-            // BÚSQUEDA MAESTRA EN EL TÍTULO (Si falta empresa estructurada)
-            if (!empStr && e.title) {
-                const masterEmpresas = Object.keys(empresas);
-                let titleTerm = e.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-                for (let n of masterEmpresas) {
-                    let nTerm = n.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    if (titleTerm.includes(nTerm)) {
-                        empStr = n; break;
-                    }
-                }
-            }
-
-            let polNorm = polStr.toLowerCase().replace(/[^a-z0-9]/g, '');
-            let empNorm = empStr.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-            // FILTRO DE MES
-            if (startOfMonth && endOfMonth) {
-                if (e.startDate < startOfMonth || e.startDate > endOfMonth) return;
-            }
-
-            // FILTRO DE POLICÍA (Búsqueda por inclusión bidireccional)
-            if (polFilterNorm) {
-                if (!polNorm.includes(polFilterNorm) && !polFilterNorm.includes(polNorm)) return;
-            }
-
-            // FILTRO DE EMPRESA (Búsqueda en lista de seleccionadas)
-            if (empFiltersNorm.length > 0 && !empFiltersNorm.includes(empNorm)) return;
-
-
-            rows.push([
-                getLocalYMD(e.startDate),
-                empStr || "S/D",
-                polStr || "S/D",
-                formatearTurno(props.turno || e.turno || ""),
-                props.cat || e.cat || "-",
-                `$${(props.cost || e.cost || 0).toLocaleString('es-AR')}`
-            ]);
-            totalCosto += (props.cost || e.cost || 0);
-        });
-
-        console.log(`Reporte generado: ${rows.length} registros encontrados.`);
-
-
-        if (rows.length === 0) {
-            mostrarNotificacion("No hay registros para exportar con estos filtros", "var(--warning)");
-            return;
-        }
-
-        // Cerramos el modal momentáneamente y avisamos
-        cerrarModal("modalExportar");
-        mostrarNotificacion("Preparando visualización del calendario...", "var(--primary)");
-
-        // Activar modo PDF para estilos específicos (quitar transparencias y días de otros meses)
-        document.body.classList.add('pdf-mode');
-
-        let prevDate = calendar.getDate();
-        let prevFiltroCal = document.getElementById("filtroCalPolicia").value;
-
-        if (mesFiltro) calendar.gotoDate(mesFiltro + "-01");
-        if (polFiltro) document.getElementById("filtroCalPolicia").value = polFiltro;
-        else document.getElementById("filtroCalPolicia").value = "";
-        filtrarCalendario();
-
-        // Esperamos a que el calendario se pinte y acomode
-        await new Promise(r => setTimeout(r, 800));
-
-        let imgData = null;
-        let canvasWidth = 0;
-        let canvasHeight = 0;
-        try {
-            const calEl = document.getElementById("calendar");
-            if (calEl) {
-                const canvas = await html2canvas(calEl, {
-                    scale: 2,
-                    useCORS: true,
-                    logging: false
-                });
-                imgData = canvas.toDataURL('image/jpeg', 0.9);
-                canvasWidth = canvas.width;
-                canvasHeight = canvas.height;
-            }
-        } catch (err) {
-            console.error("Error html2canvas:", err);
-        }
-
-        // Restaurar el calendario a como estaba
-        calendar.gotoDate(prevDate);
-        document.getElementById("filtroCalPolicia").value = prevFiltroCal;
-        filtrarCalendario();
-
-        // Desactivar modo PDF
-        document.body.classList.remove('pdf-mode');
-
-        const { jsPDF } = window.jspdf;
-        let doc = new jsPDF();
-
-        doc.setFontSize(20);
-        doc.text("Reporte de Servicios Adicionales", 15, 20);
-
-        let lineasHeader = [`Generado el: ${new Date().toLocaleString()}`];
-        if (mesFiltro || polFiltro || empFiltros.length > 0) {
-            lineasHeader.push("Filtros Aplicados:");
-            if (mesFiltro) lineasHeader.push(`  • Mes: ${mesFiltro}`);
-            if (polFiltro) lineasHeader.push(`  • Policía: ${polFiltro}`);
-            if (empFiltros.length > 0) {
-                lineasHeader.push(`  • Empresas: ${empFiltros.join(", ")}`);
-            }
-        }
-
-        doc.setFontSize(9);
-
-        const pdfWidth = doc.internal.pageSize.getWidth();
-        // Dividir líneas muy largas si existen montones de empresas
-        let splitLines = doc.splitTextToSize(lineasHeader, pdfWidth - 30);
-        doc.text(splitLines, 15, 28);
-
-        // Bajar finalYHeader dinámicamente según la cantidad de líneas creadas
-        // (Aprox 4.5 pt por línea + peque margen)
-        let finalYHeader = 28 + (splitLines.length * 4.5) + 3;
-        if (imgData && canvasWidth > 0) {
-            const margin = 15;
-            let pdfImgWidth = pdfWidth - margin * 2;
-            let pdfImgHeight = (canvasHeight * pdfImgWidth) / canvasWidth;
-
-            if (pdfImgHeight > 130) {
-                pdfImgWidth = pdfImgWidth * (130 / pdfImgHeight);
-                pdfImgHeight = 130;
-                let leftMargin = (pdfWidth - pdfImgWidth) / 2;
-                doc.addImage(imgData, 'JPEG', leftMargin, finalYHeader, pdfImgWidth, pdfImgHeight);
-            } else {
-                doc.addImage(imgData, 'JPEG', margin, finalYHeader, pdfImgWidth, pdfImgHeight);
-            }
-            finalYHeader = finalYHeader + pdfImgHeight + 8;
-        }
-
-        doc.autoTable({
-            startY: finalYHeader,
-            head: [['Fecha', 'Empresa', 'Policía', 'Turno', 'Cat', 'Total']],
-            body: rows,
-            theme: 'striped',
-            headStyles: { fillColor: [37, 99, 235] }
-        });
-
-        let finalY = doc.lastAutoTable.finalY || finalYHeader;
-        if (finalY > doc.internal.pageSize.getHeight() - 25) {
-            doc.addPage();
-            finalY = 20;
-        }
-
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text(`Cantidad de Turnos: ${rows.length}`, 15, finalY + 10);
-        doc.text(`Monto Acumulado: $${totalCosto.toLocaleString('es-AR')}`, 15, finalY + 16);
-
-
-        doc.save(`Reporte_Servicios_${new Date().toISOString().slice(0, 10)}.pdf`);
-        mostrarNotificacion("PDF generado con éxito", "var(--secondary)");
-    } catch (globalError) {
-        console.error("Error en exportPDF:", globalError);
-        mostrarNotificacion("Error al generar el PDF. Revisa la consola.", "var(--danger)");
-    }
+    await Exporter.exportPDF({
+        mesFiltro,
+        polFiltro,
+        empFiltros,
+        rawEvents,
+        empresasMap: empresas,
+        calendarInstance: calendar,
+        utils: Utils,
+        onNotification: mostrarNotificacion,
+        onCloseModal: () => cerrarModal("modalExportar")
+    });
 }
 
+/**
+ * Importa archivo JSON local de eventos/servicios.
+ * @param {Event} evt 
+ */
 function cargarAlfasJSON(evt) {
     let file = evt.target.files[0];
     if (!file) return;
@@ -1257,9 +910,7 @@ function cargarAlfasJSON(evt) {
             let parsed = JSON.parse(e.target.result);
             if (Array.isArray(parsed)) {
                 let eventosFinales = parsed.map(item => {
-                    // Si ya es un evento FullCalendar estructurado
                     if (item.start && item.extendedProps) return item;
-                    // Si proviene del formato de filas de la solapa 'servicios' de Google Sheets
                     let p = item.policia || item.Policia || item.policiaNombre || "";
                     let emp = item.empresa || item.Empresa || "";
                     let t = item.turno || item.Turno || "";
@@ -1279,7 +930,7 @@ function cargarAlfasJSON(evt) {
                         }
                     };
                 });
-                localStorage.setItem("eventos", JSON.stringify(eventosFinales));
+                if (typeof localStorage !== 'undefined') localStorage.setItem("eventos", JSON.stringify(eventosFinales));
                 mostrarNotificacion("Datos de servicios cargados exitosamente", "var(--secondary)");
                 if (calendar) {
                     calendar.removeAllEvents();
@@ -1292,33 +943,30 @@ function cargarAlfasJSON(evt) {
         } catch (err) {
             mostrarNotificacion("Error al leer archivo de servicios/alfas.json", "var(--danger)");
         }
-        // Resetear input para permitir cargar el mismo archivo varias veces si se modifica
-        document.getElementById('importarJson').value = "";
+        const impJson = document.getElementById('importarJson');
+        if (impJson) impJson.value = "";
     };
     reader.readAsText(file);
 }
 
-// --- LECTURA DIRECTA DE SOLAPA SERVICIOS (SIN DEPENDER DE LOCALSTORAGE) ---
+/**
+ * Consulta y sincroniza los servicios desde la nube o cae a fallbacks de localStorage.
+ */
 async function cargarServiciosDesdeCloud() {
     mostrarNotificacion("Leyendo registros de la solapa 'servicios' de Google Sheets...", "var(--primary)");
     try {
-        const url = `${GOOGLE_SHEET_URL}?action=getServicios`;
-        const res = await fetch(url);
-        if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-                procesarYMostrarServiciosCloud(data);
-                mostrarNotificacion("Servicios cargados desde Google Sheets", "var(--secondary)");
-                return;
-            }
+        const data = await CloudSync.obtenerServiciosCloud();
+        if (data && Array.isArray(data) && data.length > 0) {
+            procesarYMostrarServiciosCloud(data);
+            mostrarNotificacion("Servicios cargados desde Google Sheets", "var(--secondary)");
+            return;
         }
     } catch (err) {
         console.log("Error consultando dataset activo de la solapa 'servicios':", err);
     }
 
-    // FALLBACK 1: Leer de localStorage (ya que Apps Script no tiene getServicios implementado aún)
     try {
-        let eventosLocales = localStorage.getItem("eventos");
+        let eventosLocales = (typeof localStorage !== 'undefined') ? localStorage.getItem("eventos") : null;
         if (eventosLocales) {
             let parsed = JSON.parse(eventosLocales);
             if (Array.isArray(parsed) && parsed.length > 0) {
@@ -1331,13 +979,16 @@ async function cargarServiciosDesdeCloud() {
         console.error("Error leyendo localStorage:", e);
     }
 
-    // FALLBACK 2: Procesar dataset por defecto si no hay nada en Google Sheets ni localStorage
     if (typeof defaultServiciosRaw !== "undefined" && Array.isArray(defaultServiciosRaw)) {
         procesarYMostrarServiciosCloud(defaultServiciosRaw);
         mostrarNotificacion("Datos de la solapa 'servicios' reflejados por defecto", "var(--secondary)");
     }
 }
 
+/**
+ * Procesa la lista de servicios recibida y la muestra en FullCalendar deduplicando duplicados.
+ * @param {Array} serviciosList 
+ */
 function procesarYMostrarServiciosCloud(serviciosList) {
     if (!Array.isArray(serviciosList)) return;
     let eventosFinales = serviciosList.map(item => {
@@ -1349,8 +1000,7 @@ function procesarYMostrarServiciosCloud(serviciosList) {
         let emp = item.empresa || item.Empresa || "";
         let t = item.turno || item.Turno || "";
         let f = item.fecha || item.Fecha || "";
-        
-        // Extraer solo la parte YYYY-MM-DD si viene con hora (ej. de Google Sheets T03:00:00.000Z)
+
         if (typeof f === 'string' && f.includes('T')) {
             f = f.split('T')[0];
         }
@@ -1372,7 +1022,6 @@ function procesarYMostrarServiciosCloud(serviciosList) {
         };
     });
 
-    // Deduplicar eventos idénticos (misma fecha, policía, empresa y turno)
     const vistosSet = new Set();
     const eventosUnicos = eventosFinales.filter(ev => {
         const props = ev.extendedProps || {};
@@ -1389,11 +1038,30 @@ function procesarYMostrarServiciosCloud(serviciosList) {
     actualizarTodo();
 }
 
-// --- INICIO ---
-document.addEventListener('DOMContentLoaded', () => {
-    initInputs();
-    initCalendar();
-    inicializarSelects();
-    cargarServiciosDesdeCloud();
-    sincronizarPoliciasCloud();
-});
+// INICIALIZACIÓN AUTOMÁTICA EN NAVEGADOR
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    document.addEventListener('DOMContentLoaded', () => {
+        initInputs();
+        initCalendar();
+        inicializarSelects();
+        cargarServiciosDesdeCloud();
+        sincronizarPoliciasCloud();
+    });
+}
+
+// EXPORTACIÓN PARA NODE.JS / SUITE DE PRUEBAS
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        escapeHTML,
+        safeParse,
+        formatearTurno,
+        getLocalYMD,
+        getLocalYM,
+        colorAleatorio,
+        calcularCostoTurno,
+        nombresPolicias,
+        etiquetaPolicia,
+        defaultServiciosRaw,
+        defaultEventos
+    };
+}
