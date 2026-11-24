@@ -1,19 +1,23 @@
 /**
  * @file scripts.js
- * @description Orquestador principal de UI, navegación, manipulación del DOM y coordinación de servicios.
- * Refactorizado aplicando arquitectura modular SOLID y JSDoc.
+ * @description Orquestador principal de UI, navegación adaptativa PC/Móvil Exclusivo, manipulación segura del DOM (Anti-XSS)
+ * y coordinación de servicios (Storage, SQLite/IndexedDB Local Database, CloudSync Outbox y Exporter).
+ * Refactorizado aplicando arquitectura modular SOLID, directivas @sitio-mobile-adapter y JSDoc estricto.
  */
 
 // --- SERVICIOS MODULARES E INICIALIZACIÓN ---
 const Utils = (typeof window !== 'undefined' && window.AlfaUtils) ? window.AlfaUtils : require('./utils/helpers.js');
 const Calculator = (typeof window !== 'undefined' && window.AlfaCalculator) ? window.AlfaCalculator : require('./services/calculator.js');
+const Database = (typeof window !== 'undefined' && window.AlfaDatabase) ? window.AlfaDatabase : require('./services/database.js');
 const Storage = (typeof window !== 'undefined' && window.AlfaStorage) ? window.AlfaStorage : require('./services/storage.js');
 const CloudSync = (typeof window !== 'undefined' && window.AlfaCloudSync) ? window.AlfaCloudSync : require('./services/cloudSync.js');
 const Exporter = (typeof window !== 'undefined' && window.AlfaExporter) ? window.AlfaExporter : require('./services/exporter.js');
 
-// Wrapper functions para compatibilidad con código existente y tests
+// Wrapper functions para compatibilidad con código existente y suite de tests
 function escapeHTML(inputStr) { return Utils.escapeHTML(inputStr); }
-function safeParse(key, fallback) { return Utils.safeParse(localStorage, key, fallback); }
+function sanitizeForSpreadsheet(val) { return Utils.sanitizeForSpreadsheet(val); }
+function sanitizeColor(colorStr, fb) { return Utils.sanitizeColor(colorStr, fb); }
+function safeParse(key, fallback) { return Utils.safeParse(typeof localStorage !== 'undefined' ? localStorage : {}, key, fallback); }
 function formatearTurno(turnoStr) { return Utils.formatearTurno(turnoStr); }
 function getLocalYMD(dateObj) { return Utils.getLocalYMD(dateObj); }
 function getLocalYM(dateObj) { return Utils.getLocalYM(dateObj); }
@@ -31,6 +35,7 @@ let coloresPolicia = initialState.coloresPolicia;
 let miGrafico = null;
 let calendar = null;
 let _editandoPolicia = null;
+let _currentMobileTab = 'agenda';
 
 /**
  * Obtiene la lista simplificada de nombres de policías.
@@ -58,31 +63,33 @@ function initInputs() {
     if (!container) return;
     container.innerHTML = "";
     CATEGORIAS.forEach(categoriaKey => {
+        const safeKey = escapeHTML(categoriaKey);
+        const safeVal = Number(config[categoriaKey]) || 0;
         const group = document.createElement("div");
         group.className = "form-group";
         group.innerHTML = `
-            <label>Cat. ${escapeHTML(categoriaKey)}</label>
-            <input type="number" id="costo_${escapeHTML(categoriaKey)}" value="${config[categoriaKey] || 0}" step="0.01">
+            <label for="costo_${safeKey}">Cat. ${safeKey}</label>
+            <input type="number" id="costo_${safeKey}" value="${safeVal}" step="0.01" inputmode="decimal">
         `;
         container.appendChild(group);
     });
 }
 
 /**
- * Guarda la configuración de tarifas, recalcula los montos locales y sincroniza en la nube.
+ * Guarda la configuración de tarifas, recalcula los montos locales y sincroniza con SQLite/IndexedDB y la nube.
  */
 function guardarConfig() {
     CATEGORIAS.forEach(categoriaKey => {
         const inputElem = document.getElementById(`costo_${categoriaKey}`);
         if (inputElem) {
-            const val = inputElem.value;
-            config[categoriaKey] = parseFloat(val) || 0;
+            const val = parseFloat(inputElem.value);
+            config[categoriaKey] = (Number.isFinite(val) && val >= 0) ? val : 0;
         }
     });
     Storage.saveConfig(config);
-    mostrarNotificacion("Tarifas actualizadas. Recalculando montos del sistema...", "var(--secondary)");
+    mostrarNotificacion("Tarifas actualizadas en Base Local y Nube...", "var(--secondary)");
     recalcularMontosServicios();
-    CloudSync.sincronizarTarifasCloud(config);
+    CloudSync.sincronizarTarifasCloud(config).then(() => actualizarEstadoBaseDatosUI());
 }
 
 /**
@@ -120,10 +127,10 @@ function recalcularMontosServicios() {
 function mostrarNotificacion(msg, color = "var(--primary)") {
     let notifElem = document.getElementById("notificacion");
     if (!notifElem) return;
-    notifElem.style.background = color;
+    notifElem.style.background = sanitizeColor(color, "var(--primary)");
     notifElem.textContent = msg;
     notifElem.classList.add("show");
-    setTimeout(() => notifElem.classList.remove("show"), 3000);
+    setTimeout(() => notifElem.classList.remove("show"), 3200);
 }
 
 /**
@@ -142,6 +149,20 @@ function abrirModal(modalId) {
 function cerrarModal(modalId) {
     const elem = document.getElementById(modalId);
     if (elem) elem.style.display = "none";
+}
+
+/**
+ * Abre el modal de Nuevo Servicio preconfigurado con la fecha actual (usado por el botón FAB móvil).
+ */
+function abrirNuevoServicioRapido() {
+    const hoyIso = getLocalYMD(new Date());
+    window.fechaSeleccionada = hoyIso;
+    const inputFecha = document.getElementById("inputFechaServicio");
+    if (inputFecha) inputFecha.value = hoyIso;
+    const tituloEl = document.getElementById("fechaTitulo");
+    if (tituloEl) tituloEl.textContent = "Nuevo Servicio: " + hoyIso;
+    actualizarCategoriaAuto();
+    abrirModal('modalServicio');
 }
 
 /**
@@ -165,11 +186,17 @@ function inicializarSelects() {
         { el: lEmp, data: Object.keys(empresas) }
     ].forEach(s => {
         if (!s.el) return;
-        s.el.innerHTML = s.first ? `<option value="">${s.first}</option>` : "";
+        s.el.innerHTML = "";
+        if (s.first) {
+            let firstOp = document.createElement("option");
+            firstOp.value = "";
+            firstOp.textContent = s.first;
+            s.el.appendChild(firstOp);
+        }
         s.data.forEach(item => {
             let op = document.createElement("option");
             op.value = item;
-            op.text = item;
+            op.textContent = item;
             s.el.appendChild(op);
         });
     });
@@ -179,7 +206,7 @@ function inicializarSelects() {
         policias.forEach(p => {
             let op = document.createElement("option");
             op.value = p.nombre;
-            op.text = etiquetaPolicia(p);
+            op.textContent = etiquetaPolicia(p);
             lPol.appendChild(op);
         });
     }
@@ -195,7 +222,7 @@ function inicializarSelects() {
 function agregarPolicia() {
     let n = document.getElementById("nuevoPolicia").value.trim();
     let j = document.getElementById("jerarquiaPolicia").value;
-    if (!n) return mostrarNotificacion("Ingrese un nombre", "var(--danger)");
+    if (!n) return mostrarNotificacion("Ingrese un nombre válido", "var(--danger)");
 
     if (_editandoPolicia) {
         let idx = policias.findIndex(p => p.nombre === _editandoPolicia);
@@ -211,18 +238,18 @@ function agregarPolicia() {
         document.getElementById("btnAgregarPolicia").textContent = "+ Agregar Policía";
         mostrarNotificacion("Policía actualizado", "var(--secondary)");
     } else {
-        if (nombresPolicias().includes(n)) return mostrarNotificacion("Ya existe", "var(--warning)");
+        if (nombresPolicias().includes(n)) return mostrarNotificacion("Ya existe este efectivo", "var(--warning)");
         coloresPolicia[n] = colorAleatorio();
         policias.push({ nombre: n, jerarquia: j });
         mostrarNotificacion("Policía añadido");
     }
 
-    Storage.savePolicias(policias);
     Storage.saveColores(coloresPolicia);
+    Storage.savePolicias(policias, coloresPolicia);
     document.getElementById("nuevoPolicia").value = "";
     document.getElementById("jerarquiaPolicia").value = "";
     inicializarSelects();
-    CloudSync.sincronizarPoliciasCloud(policias);
+    CloudSync.sincronizarPoliciasCloud(policias).then(() => actualizarEstadoBaseDatosUI());
 }
 
 /**
@@ -250,10 +277,10 @@ function eliminarPolicia() {
     if (!n) return;
     if (!confirm(`¿Eliminar al policía "${n}"?`)) return;
     policias = policias.filter(p => p.nombre !== n);
-    Storage.savePolicias(policias);
+    Storage.savePolicias(policias, coloresPolicia);
     inicializarSelects();
     mostrarNotificacion("Policía eliminado", "var(--danger)");
-    CloudSync.sincronizarPoliciasCloud(policias);
+    CloudSync.sincronizarPoliciasCloud(policias).then(() => actualizarEstadoBaseDatosUI());
 }
 
 /**
@@ -264,7 +291,7 @@ function agregarEmpresa() {
     let t = document.getElementById("rangoTurnos").value.split(",").map(x => x.trim()).filter(x => x);
     let catS = document.getElementById("catSemana").value;
     let catF = document.getElementById("catFinde").value;
-    if (!n || t.length === 0) return mostrarNotificacion("Complete los campos", "var(--danger)");
+    if (!n || t.length === 0) return mostrarNotificacion("Complete nombre y turnos", "var(--danger)");
 
     let nroServicio = document.getElementById("empNroServicio").value.trim();
     let domicilio = document.getElementById("empDomicilio").value.trim();
@@ -296,11 +323,11 @@ function agregarEmpresa() {
 
     inicializarSelects();
     mostrarNotificacion(esActualizacion ? "Empresa actualizada" : "Empresa añadida", "var(--secondary)");
-    CloudSync.sincronizarEmpresasCloud(empresas);
+    CloudSync.sincronizarEmpresasCloud(empresas).then(() => actualizarEstadoBaseDatosUI());
 }
 
 /**
- * Muestra el detalle de la empresa seleccionada en el contenedor de información.
+ * Muestra el detalle de la empresa seleccionada en el contenedor de información (100% sanitizado contra XSS).
  */
 function verTurnosEmpresa() {
     let empresaKey = document.getElementById("listaEmpresas").value;
@@ -359,18 +386,19 @@ function modificarEmpresa() {
 function eliminarEmpresa() {
     let e = document.getElementById("listaEmpresas").value;
     if (!e) return;
+    if (!confirm(`¿Eliminar la empresa "${e}"?`)) return;
     delete empresas[e];
     Storage.saveEmpresas(empresas);
     inicializarSelects();
     mostrarNotificacion("Empresa eliminada", "var(--danger)");
-    CloudSync.sincronizarEmpresasCloud(empresas);
+    CloudSync.sincronizarEmpresasCloud(empresas).then(() => actualizarEstadoBaseDatosUI());
 }
 
 /**
  * Actualiza los turnos disponibles en el selector según la empresa elegida.
  */
 function cambiarTurnos() {
-    let e = document.getElementById("selEmpresa").value;
+    let e = document.getElementById("selEmpresa") ? document.getElementById("selEmpresa").value : "";
     let s = document.getElementById("selTurno");
     if (!s) return;
     s.innerHTML = "";
@@ -378,7 +406,8 @@ function cambiarTurnos() {
         let turnos = empresas[e].turnos || empresas[e];
         turnos.forEach(t => {
             let op = document.createElement("option");
-            op.value = t; op.text = formatearTurno(t);
+            op.value = t;
+            op.textContent = formatearTurno(t);
             s.appendChild(op);
         });
     }
@@ -389,8 +418,13 @@ function cambiarTurnos() {
  * Asigna automáticamente la categoría según el día seleccionado y la empresa.
  */
 function actualizarCategoriaAuto() {
-    let e = document.getElementById("selEmpresa").value;
+    let eElem = document.getElementById("selEmpresa");
+    let e = eElem ? eElem.value : "";
     if (!e || !empresas[e]) return;
+    const inputFecha = document.getElementById("inputFechaServicio");
+    if (inputFecha && inputFecha.value) {
+        window.fechaSeleccionada = inputFecha.value;
+    }
     let fecha = window.fechaSeleccionada || new Date().toISOString().slice(0, 10);
     let dia = new Date(fecha + "T00:00:00").getDay();
     let esFinde = (dia === 0 || dia === 6);
@@ -404,7 +438,7 @@ function actualizarCategoriaAuto() {
  * @param {string} turno 
  * @param {string} fechaStr 
  * @param {Object} empData 
- * @returns {CalculationResult}
+ * @returns {Object}
  */
 function calcularCostoTurno(turno, fechaStr, empData) {
     return Calculator.calcularCostoTurno(turno, fechaStr, empData, config);
@@ -434,7 +468,7 @@ const defaultEventos = defaultServiciosRaw.map(s => ({
 }));
 
 /**
- * Inicializa el componente de FullCalendar en el DOM.
+ * Inicializa el componente de FullCalendar en el DOM con adaptación inteligente para Móvil Exclusivo vs PC.
  */
 function initCalendar() {
     const calendarEl = document.getElementById("calendar");
@@ -443,8 +477,10 @@ function initCalendar() {
     let eventosGuardados = safeParse("eventos", defaultEventos);
     if (!Array.isArray(eventosGuardados) || eventosGuardados.length === 0) {
         eventosGuardados = defaultEventos;
-        if (typeof localStorage !== 'undefined') localStorage.setItem("eventos", JSON.stringify(defaultEventos));
+        Storage.saveEventos(defaultEventos);
     }
+
+    const platform = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isMobileViewport: false };
 
     calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'es',
@@ -454,10 +490,13 @@ function initCalendar() {
             month: 'Mes',
             week: 'Semana'
         },
-        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek' },
+        headerToolbar: platform.isMobileViewport
+            ? { left: 'prev,next', center: 'title', right: 'today,dayGridMonth,dayGridWeek' }
+            : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek' },
         height: 'auto',
         contentHeight: 'auto',
-        editable: true,
+        editable: !platform.isMobileViewport,
+        dayMaxEvents: platform.isMobileViewport ? 2 : false,
         events: eventosGuardados,
         eventClassNames: function (arg) {
             if (!arg.event.start) return [];
@@ -478,8 +517,11 @@ function initCalendar() {
         },
         dateClick: function (info) {
             window.fechaSeleccionada = info.dateStr;
+            const inputFecha = document.getElementById("inputFechaServicio");
+            if (inputFecha) inputFecha.value = info.dateStr;
             const tituloEl = document.getElementById("fechaTitulo");
             if (tituloEl) tituloEl.textContent = "Nuevo Servicio: " + info.dateStr;
+            actualizarCategoriaAuto();
             abrirModal('modalServicio');
         },
         eventClick: function (info) {
@@ -495,7 +537,8 @@ function initCalendar() {
                 actualizarTodo();
 
                 if (policia && empresa && fecha) {
-                    CloudSync.eliminarServicioCloud(policia, empresa, turno, fecha);
+                    CloudSync.eliminarServicioCloud(policia, empresa, turno, fecha)
+                        .then(() => actualizarEstadoBaseDatosUI());
                 }
             }
         }
@@ -509,8 +552,11 @@ function initCalendar() {
 function eliminarServicioCloud(policia, empresa, turno, fecha) {
     mostrarNotificacion("Eliminando servicio en la nube...", "var(--warning)");
     CloudSync.eliminarServicioCloud(policia, empresa, turno, fecha)
-        .then(() => mostrarNotificacion("Servicio eliminado de la nube", "var(--secondary)"))
-        .catch(() => mostrarNotificacion("Eliminado localmente, pero falló la actualización en la nube", "var(--danger)"));
+        .then(() => {
+            mostrarNotificacion("Servicio eliminado de la nube", "var(--secondary)");
+            actualizarEstadoBaseDatosUI();
+        })
+        .catch(() => mostrarNotificacion("Eliminado en base local (Encolado para sincronización)", "var(--warning)"));
 }
 
 /**
@@ -520,8 +566,14 @@ function guardarEvento() {
     let p = document.getElementById("selPolicia").value;
     let t = document.getElementById("selTurno").value;
     let e = document.getElementById("selEmpresa").value;
+    const inputFecha = document.getElementById("inputFechaServicio");
+    if (inputFecha && inputFecha.value) {
+        window.fechaSeleccionada = inputFecha.value;
+    }
 
-    if (!p || !e) return mostrarNotificacion("Complete todos los campos", "var(--danger)");
+    if (!p || !e || !window.fechaSeleccionada) {
+        return mostrarNotificacion("Complete fecha, empresa y policía", "var(--danger)");
+    }
 
     let duplicado = calendar.getEvents().some(ev =>
         ev.startStr === window.fechaSeleccionada &&
@@ -537,14 +589,21 @@ function guardarEvento() {
     let catSelUI = document.getElementById("selCategoria").value;
     if (catSelUI && catSelUI !== resultado.cat && !resultado.cat.includes("+")) {
         let vh = config[catSelUI] || 0;
-        resultado = { cat: catSelUI, cost: vh * resultado.h, h: resultado.h, vh, detail: [{ cat: catSelUI, h: resultado.h, vh, cost: vh * resultado.h }], catLabel: catSelUI };
+        resultado = {
+            cat: catSelUI,
+            cost: vh * resultado.h,
+            h: resultado.h,
+            vh,
+            detail: [{ cat: catSelUI, h: resultado.h, vh, cost: vh * resultado.h }],
+            catLabel: catSelUI
+        };
     }
 
     let nuevoEv = {
         title: `${p}\n${e} (${formatearTurno(t)})`,
         start: window.fechaSeleccionada,
         allDay: true,
-        backgroundColor: coloresPolicia[p] || '#2563eb',
+        backgroundColor: sanitizeColor(coloresPolicia[p], '#2563eb'),
         borderColor: 'transparent',
         extendedProps: {
             policia: p, empresa: e, turno: t,
@@ -558,7 +617,7 @@ function guardarEvento() {
     actualizarTodo();
     cerrarModal('modalServicio');
 
-    mostrarNotificacion("Guardando en la nube...", "var(--warning)");
+    mostrarNotificacion("Guardando en Base Local SQLite y Nube...", "var(--primary)");
 
     const catFinal = resultado.catLabel || resultado.cat || "A";
     const payload = {
@@ -573,20 +632,28 @@ function guardarEvento() {
     };
 
     CloudSync.registrarServicioCloud(payload)
-        .then(() => mostrarNotificacion("Servicio registrado y guardado en la nube", "var(--secondary)"))
-        .catch(() => mostrarNotificacion("Guardado localmente, pero falló la conexión con la nube", "var(--danger)"));
+        .then((synced) => {
+            if (synced) {
+                mostrarNotificacion("Servicio guardado en Base Local y Google Sheets", "var(--secondary)");
+            } else {
+                mostrarNotificacion("Guardado en Base Local SQLite (Pendiente en cola Outbox)", "var(--warning)");
+            }
+            actualizarEstadoBaseDatosUI();
+        });
 }
 
 /**
- * Guarda los eventos actuales del calendario en el almacenamiento local.
+ * Guarda los eventos actuales del calendario en localStorage y en las tablas relacionales de AlfaDatabase.
  */
 function guardarEventosLocal() {
     if (!calendar) return;
     let evs = calendar.getEvents().map(e => ({
-        title: e.title, start: e.startStr, backgroundColor: e.backgroundColor,
+        title: e.title,
+        start: e.startStr,
+        backgroundColor: sanitizeColor(e.backgroundColor, '#2563eb'),
         extendedProps: e.extendedProps
     }));
-    if (typeof localStorage !== 'undefined') localStorage.setItem("eventos", JSON.stringify(evs));
+    Storage.saveEventos(evs);
 }
 
 // --- SINCRONIZACIÓN Y UI ---
@@ -617,15 +684,15 @@ function popularFiltroMeses() {
     let todayYyyyMm = getLocalYM(new Date());
     mesesSet.add(todayYyyyMm);
 
-    let mesesArr = Array.from(mesesSet).sort().reverse();
+    let mesesArr = Array.from(mesesSet).filter(m => /^\d{4}-\d{2}$/.test(m)).sort().reverse();
     let optionsHTML = `<option value="">Todos los meses</option>`;
     let formatter = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' });
 
     mesesArr.forEach(m => {
         let [y, mo] = m.split('-');
-        let text = formatter.format(new Date(y, parseInt(mo, 10) - 1, 1));
+        let text = formatter.format(new Date(Number(y), parseInt(mo, 10) - 1, 1));
         text = text.charAt(0).toUpperCase() + text.slice(1);
-        optionsHTML += `<option value="${m}">${text}</option>`;
+        optionsHTML += `<option value="${escapeHTML(m)}">${escapeHTML(text)}</option>`;
     });
 
     if (selectDash) { selectDash.innerHTML = optionsHTML; selectDash.value = valDash; }
@@ -633,17 +700,18 @@ function popularFiltroMeses() {
 }
 
 /**
- * Actualiza todos los componentes dependientes del estado (Filtros, Tabla, Gráfico, Totales).
+ * Actualiza todos los componentes dependientes del estado (Filtros, Tabla, Gráfico, Totales, Estado BD).
  */
 function actualizarTodo() {
     popularFiltroMeses();
     actualizarTabla();
     aplicarFiltros();
     calcularResumen();
+    actualizarEstadoBaseDatosUI();
 }
 
 /**
- * Renderiza las filas de la tabla de historial de servicios.
+ * Renderiza las filas de la tabla de historial de servicios con sanitización XSS y atributos `data-label` para tarjetas móviles.
  */
 function actualizarTabla() {
     const tbody = document.querySelector("#tablaServicios tbody");
@@ -655,37 +723,48 @@ function actualizarTabla() {
     sorted.forEach(e => {
         let p = e.extendedProps || {};
         let costVal = (p.cost !== undefined) ? Number(p.cost) : (p.costo !== undefined ? Number(p.costo) : 0);
-        let polNombre = p.policia || p.Policia || "S/D";
-        let empNombre = p.empresa || p.Empresa || "S/D";
+        let polNombre = String(p.policia || p.Policia || "S/D");
+        let empNombre = String(p.empresa || p.Empresa || "S/D");
         let tr = document.createElement("tr");
 
         let catBadge = "";
-        if (p.detail && p.detail.length > 1) {
-            catBadge = p.detail.map(d =>
-                `<span class="badge badge-${d.cat.toLowerCase()}" title="${d.h}h × $${d.vh.toLocaleString('es-AR')}">${d.cat} (${d.h}h)</span>`
-            ).join(" ");
+        if (p.detail && Array.isArray(p.detail) && p.detail.length > 1) {
+            catBadge = p.detail.map(d => {
+                const dCat = String(d.cat || "A").replace(/[^a-zA-Z0-9]/g, "");
+                const dHours = Number(d.h) || 0;
+                const dVh = Number(d.vh) || 0;
+                return `<span class="badge badge-${escapeHTML(dCat.toLowerCase())}" title="${escapeHTML(dHours)}h × $${escapeHTML(dVh.toLocaleString('es-AR'))}">${escapeHTML(dCat)} (${escapeHTML(dHours)}h)</span>`;
+            }).join(" ");
         } else {
-            let catSafe = (p.cat || "A").split("+")[0].toLowerCase();
-            catBadge = `<span class="badge badge-${catSafe}">${p.cat || "A"}</span>`;
+            let rawCat = String(p.cat || "A");
+            let catSafeClass = rawCat.split("+")[0].replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "a";
+            catBadge = `<span class="badge badge-${escapeHTML(catSafeClass)}">${escapeHTML(rawCat)}</span>`;
         }
 
+        const safeColor = sanitizeColor(e.backgroundColor, '#2563eb');
+        const safeFecha = escapeHTML(getLocalYMD(e.start));
+        const safeEmp = escapeHTML(empNombre);
+        const safePol = escapeHTML(polNombre);
+        const safeTurno = escapeHTML(formatearTurno(p.turno));
+        const safeCosto = escapeHTML((Number.isFinite(costVal) ? costVal : 0).toLocaleString('es-AR'));
+
         tr.innerHTML = `
-            <td>${getLocalYMD(e.start)}</td>
-            <td><span class="badge badge-empresa">${empNombre}</span></td>
-            <td><div class="policia-cell">
-                <div class="policia-dot" style="background:${e.backgroundColor || '#2563eb'}"></div>
-                ${polNombre}
+            <td data-label="Fecha">${safeFecha}</td>
+            <td data-label="Empresa"><span class="badge badge-empresa">${safeEmp}</span></td>
+            <td data-label="Policía"><div class="policia-cell">
+                <div class="policia-dot" style="background:${safeColor}"></div>
+                <span>${safePol}</span>
             </div></td>
-            <td>${formatearTurno(p.turno)}</td>
-            <td class="nowrap-cell">${catBadge}</td>
-            <td class="font-weight-600">$${costVal.toLocaleString('es-AR')}</td>
+            <td data-label="Turno">${safeTurno}</td>
+            <td data-label="Categoría" class="nowrap-cell">${catBadge}</td>
+            <td data-label="Costo Total" class="font-weight-600">$${safeCosto}</td>
         `;
         tbody.appendChild(tr);
     });
 }
 
 /**
- * Calcula los totales acumulados del Dashboard y actualiza el gráfico circular.
+ * Calcula los totales acumulados del Dashboard y actualiza el gráfico circular con sanitización XSS.
  */
 function calcularResumen() {
     if (!calendar) return;
@@ -699,14 +778,14 @@ function calcularResumen() {
 
         let p = e.extendedProps || {};
         let costVal = (p.cost !== undefined) ? Number(p.cost) : (p.costo !== undefined ? Number(p.costo) : 0);
-        let polNombre = p.policia || p.Policia || "Desconocido";
+        let polNombre = String(p.policia || p.Policia || "Desconocido");
 
         stats.turnos++;
-        stats.costo += costVal;
+        stats.costo += (Number.isFinite(costVal) ? costVal : 0);
 
         if (!stats.porPol[polNombre]) stats.porPol[polNombre] = { turnos: 0, total: 0 };
         stats.porPol[polNombre].turnos++;
-        stats.porPol[polNombre].total += costVal;
+        stats.porPol[polNombre].total += (Number.isFinite(costVal) ? costVal : 0);
     });
 
     const statTurnos = document.getElementById("stat-turnos");
@@ -722,14 +801,22 @@ function calcularResumen() {
 
     for (let name in stats.porPol) {
         let row = stats.porPol[name];
+        let safeName = escapeHTML(name);
+        let safeTurnos = escapeHTML(row.turnos);
+        let safeTotal = escapeHTML(row.total.toLocaleString('es-AR'));
+
         let tr = document.createElement("tr");
-        tr.innerHTML = `<td>${name}</td><td>${row.turnos}</td><td style="font-weight:600">$${row.total.toLocaleString('es-AR')}</td>`;
+        tr.innerHTML = `
+            <td data-label="Policía">${safeName}</td>
+            <td data-label="Turnos">${safeTurnos}</td>
+            <td data-label="Monto" class="font-weight-600">$${safeTotal}</td>
+        `;
         tBody.appendChild(tr);
 
         labels.push(name);
         data.push(row.turnos);
-        colors.push(coloresPolicia[name]);
-        resumenHtml += `<div><strong>${name}</strong>: ${row.turnos} turnos ($${row.total.toLocaleString('es-AR')})</div>`;
+        colors.push(sanitizeColor(coloresPolicia[name], '#2563eb'));
+        resumenHtml += `<div><strong>${safeName}</strong>: ${safeTurnos} turnos ($${safeTotal})</div>`;
     }
     const resLista = document.getElementById("resumenLista");
     if (resLista) resLista.innerHTML = resumenHtml;
@@ -754,7 +841,7 @@ function calcularResumen() {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
+                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16 } }
             },
             cutout: '70%'
         }
@@ -819,10 +906,10 @@ function limpiarFiltros() {
     aplicarFiltros();
 }
 
-// --- EXPORTACIÓN ---
+// --- EXPORTACIÓN Y BASE DE DATOS LOCAL INTELIGENTE ---
 
 /**
- * Prepara y abre el modal de opciones de exportación.
+ * Prepara y abre el modal de opciones de exportación (100% sanitizado contra XSS).
  */
 function abrirModalExportar() {
     let selMes = document.getElementById("exportMes");
@@ -839,12 +926,13 @@ function abrirModalExportar() {
     if (contEmp) {
         contEmp.innerHTML = "";
         Object.keys(empresas).forEach(item => {
+            const safeItem = escapeHTML(item);
             let div = document.createElement("div");
-            div.style.marginBottom = "5px";
+            div.className = "chk-export-row";
             div.innerHTML = `
-                <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
-                    <input type="checkbox" class="chk-export-emp" value="${item}">
-                    ${item}
+                <label class="chk-export-label">
+                    <input type="checkbox" class="chk-export-emp" value="${safeItem}">
+                    <span>${safeItem}</span>
                 </label>
             `;
             contEmp.appendChild(div);
@@ -898,47 +986,138 @@ async function exportPDF() {
 }
 
 /**
- * Importa archivo JSON local de eventos/servicios.
+ * Exporta un Dump SQL completo (.sql compatible con SQLite 3 y PostgreSQL) desde la base de datos local.
+ */
+function exportarBaseDatosSQL() {
+    if (!Database || typeof Database.exportSQLDump !== 'function') {
+        return mostrarNotificacion("Motor AlfaDatabase no disponible", "var(--danger)");
+    }
+    const evs = safeParse("eventos", []);
+    const sqlContent = Database.exportSQLDump({
+        config,
+        policias,
+        empresas,
+        coloresPolicia,
+        eventos: evs
+    });
+    const blob = new Blob([sqlContent], { type: "application/sql;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `alfas_database_${new Date().toISOString().slice(0, 10)}.sql`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    mostrarNotificacion("Dump SQL (SQLite / PostgreSQL) descargado con éxito", "var(--secondary)");
+}
+
+/**
+ * Sincroniza manualmente la cola Outbox pendiente hacia Google Sheets.
+ */
+async function sincronizarColaOutbox() {
+    mostrarNotificacion("Sincronizando base local con Google Sheets...", "var(--primary)");
+    const result = await CloudSync.flushOutboxCloud();
+    actualizarEstadoBaseDatosUI();
+    if (result.remaining === 0) {
+        mostrarNotificacion(`Base local 100% sincronizada (${result.processed} envíos completados)`, "var(--secondary)");
+    } else {
+        mostrarNotificacion(`Quedan ${result.remaining} registros en cola Outbox (Modo Offline)`, "var(--warning)");
+    }
+}
+
+/**
+ * Actualiza los indicadores visuales del estado de la Base de Datos Local (SQLite/IndexedDB) y Cola Outbox.
+ */
+function actualizarEstadoBaseDatosUI() {
+    if (!Database || typeof Database.getDatabaseStatus !== 'function') return;
+    const status = Database.getDatabaseStatus();
+    const badgeEngine = document.getElementById("dbEngineBadge");
+    const badgeOutbox = document.getElementById("dbOutboxBadge");
+    const platformBadge = document.getElementById("platformModeBadge");
+
+    if (badgeEngine) {
+        const labelMap = {
+            "capacitor-sqlite-native": "SQLite Nativo (Android APK)",
+            "indexeddb-sql-mirror": "SQLite/IndexedDB Local Activo",
+            "localstorage-mirror": "LocalStorage Mirror",
+            "memory-localstorage": "Memoria Local"
+        };
+        badgeEngine.textContent = labelMap[status.engine] || status.engine;
+    }
+
+    if (badgeOutbox) {
+        if (status.pendingOutboxCount > 0) {
+            badgeOutbox.textContent = `${status.pendingOutboxCount} pendientes de nube`;
+            badgeOutbox.className = "badge badge-bp";
+        } else {
+            badgeOutbox.textContent = status.isOnline ? "Sincronizado con Sheets" : "Modo Offline Seguro";
+            badgeOutbox.className = status.isOnline ? "badge badge-a" : "badge badge-b";
+        }
+    }
+
+    if (platformBadge && Utils.detectPlatformContext) {
+        const ctx = Utils.detectPlatformContext();
+        const modeLabels = {
+            "apk": "📱 Android APK",
+            "mobile-web": "📱 Modo Móvil Exclusivo",
+            "desktop": "🖥️ Modo Escritorio PC"
+        };
+        platformBadge.textContent = modeLabels[ctx.mode] || "🖥️ PC / Móvil";
+    }
+}
+
+/**
+ * Importa archivo JSON local de eventos/servicios validando estrictamente su esquema para prevenir ataques.
  * @param {Event} evt 
  */
 function cargarAlfasJSON(evt) {
-    let file = evt.target.files[0];
+    let file = evt && evt.target && evt.target.files ? evt.target.files[0] : null;
     if (!file) return;
     let reader = new FileReader();
     reader.onload = function (e) {
         try {
             let parsed = JSON.parse(e.target.result);
             if (Array.isArray(parsed)) {
-                let eventosFinales = parsed.map(item => {
-                    if (item.start && item.extendedProps) return item;
-                    let p = item.policia || item.Policia || item.policiaNombre || "";
-                    let emp = item.empresa || item.Empresa || "";
-                    let t = item.turno || item.Turno || "";
-                    let f = item.fecha || item.Fecha || "";
-                    let c = item.categoria || item.Categoria || "A";
-                    let cost = parseFloat(item.costo || item.Costo || 0);
-                    let h = parseFloat(item.hora || item.Hora || 8);
-                    return {
-                        title: `${p}\n${emp} (${formatearTurno(t)})`,
-                        start: f,
-                        backgroundColor: coloresPolicia[p] || '#2563eb',
-                        borderColor: 'transparent',
-                        extendedProps: {
-                            policia: p, empresa: emp, turno: t,
-                            cat: c, cost: cost, h: h, vh: h > 0 ? cost / h : 0,
-                            detail: [{ cat: c, h: h, vh: h > 0 ? cost / h : 0, cost: cost }]
-                        }
-                    };
+                let eventosFinales = [];
+                parsed.forEach(item => {
+                    const validation = Utils.validateServicioRecord(item);
+                    if (validation.valid && validation.record) {
+                        const r = validation.record;
+                        eventosFinales.push({
+                            title: `${r.policia}\n${r.empresa} (${formatearTurno(r.turno)})`,
+                            start: r.fecha,
+                            allDay: true,
+                            backgroundColor: sanitizeColor(coloresPolicia[r.policia], '#2563eb'),
+                            borderColor: 'transparent',
+                            extendedProps: {
+                                policia: r.policia,
+                                empresa: r.empresa,
+                                turno: r.turno,
+                                cat: r.cat,
+                                cost: r.cost,
+                                h: r.h,
+                                vh: r.vh,
+                                detail: r.detail
+                            }
+                        });
+                    }
                 });
-                if (typeof localStorage !== 'undefined') localStorage.setItem("eventos", JSON.stringify(eventosFinales));
-                mostrarNotificacion("Datos de servicios cargados exitosamente", "var(--secondary)");
+
+                if (eventosFinales.length === 0 && parsed.length > 0) {
+                    mostrarNotificacion("Ningún registro del archivo cumplió el esquema de seguridad", "var(--danger)");
+                    return;
+                }
+
+                Storage.saveEventos(eventosFinales);
+                mostrarNotificacion(`${eventosFinales.length} servicios importados a la Base Local`, "var(--secondary)");
                 if (calendar) {
                     calendar.removeAllEvents();
                     eventosFinales.forEach(ev => calendar.addEvent(ev));
                     actualizarTodo();
                 }
             } else {
-                mostrarNotificacion("El archivo no tiene el formato esperado", "var(--danger)");
+                mostrarNotificacion("El archivo no tiene el formato de lista esperado", "var(--danger)");
             }
         } catch (err) {
             mostrarNotificacion("Error al leer archivo de servicios/alfas.json", "var(--danger)");
@@ -950,76 +1129,68 @@ function cargarAlfasJSON(evt) {
 }
 
 /**
- * Consulta y sincroniza los servicios desde la nube o cae a fallbacks de localStorage.
+ * Consulta y sincroniza los servicios desde la nube o cae a fallbacks de la base de datos local.
  */
 async function cargarServiciosDesdeCloud() {
-    mostrarNotificacion("Leyendo registros de la solapa 'servicios' de Google Sheets...", "var(--primary)");
+    mostrarNotificacion("Consultando Google Sheets y Base Local SQLite...", "var(--primary)");
     try {
+        await CloudSync.flushOutboxCloud();
         const data = await CloudSync.obtenerServiciosCloud();
         if (data && Array.isArray(data) && data.length > 0) {
             procesarYMostrarServiciosCloud(data);
-            mostrarNotificacion("Servicios cargados desde Google Sheets", "var(--secondary)");
+            mostrarNotificacion("Servicios sincronizados desde Google Sheets a Base Local", "var(--secondary)");
             return;
         }
     } catch (err) {
-        console.log("Error consultando dataset activo de la solapa 'servicios':", err);
+        console.warn("Aviso consultando Google Sheets:", err);
     }
 
     try {
-        let eventosLocales = (typeof localStorage !== 'undefined') ? localStorage.getItem("eventos") : null;
-        if (eventosLocales) {
-            let parsed = JSON.parse(eventosLocales);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-                procesarYMostrarServiciosCloud(parsed);
-                mostrarNotificacion("Datos de servicios cargados localmente (Modo Offline/Fallback)", "var(--secondary)");
-                return;
-            }
+        let eventosLocales = safeParse("eventos", null);
+        if (Array.isArray(eventosLocales) && eventosLocales.length > 0) {
+            procesarYMostrarServiciosCloud(eventosLocales);
+            mostrarNotificacion("Servicios cargados desde Base de Datos Local (Offline-First)", "var(--secondary)");
+            return;
         }
     } catch (e) {
-        console.error("Error leyendo localStorage:", e);
+        console.error("Error leyendo base local:", e);
     }
 
     if (typeof defaultServiciosRaw !== "undefined" && Array.isArray(defaultServiciosRaw)) {
         procesarYMostrarServiciosCloud(defaultServiciosRaw);
-        mostrarNotificacion("Datos de la solapa 'servicios' reflejados por defecto", "var(--secondary)");
+        mostrarNotificacion("Datos iniciales cargados en Base Local", "var(--secondary)");
     }
 }
 
 /**
- * Procesa la lista de servicios recibida y la muestra en FullCalendar deduplicando duplicados.
+ * Procesa la lista de servicios recibida, valida su esquema y la persiste en FullCalendar y AlfaDatabase deduplicando.
  * @param {Array} serviciosList 
  */
 function procesarYMostrarServiciosCloud(serviciosList) {
     if (!Array.isArray(serviciosList)) return;
-    let eventosFinales = serviciosList.map(item => {
-        if (item.start && item.extendedProps) {
-            item.allDay = true;
-            return item;
-        }
-        let p = item.policia || item.Policia || item.policiaNombre || "";
-        let emp = item.empresa || item.Empresa || "";
-        let t = item.turno || item.Turno || "";
-        let f = item.fecha || item.Fecha || "";
+    let eventosFinales = [];
 
-        if (typeof f === 'string' && f.includes('T')) {
-            f = f.split('T')[0];
-        }
-
-        let c = item.categoria || item.Categoria || "A";
-        let cost = parseFloat(item.costo || item.Costo || item.cost || 0);
-        let h = parseFloat(item.hora || item.Hora || item.h || 8);
-        return {
-            title: `${p}\n${emp} (${formatearTurno(t)})`,
-            start: f,
+    serviciosList.forEach(item => {
+        const validation = Utils.validateServicioRecord(item);
+        if (!validation.valid || !validation.record) return;
+        const r = validation.record;
+        eventosFinales.push({
+            title: `${r.policia}\n${r.empresa} (${formatearTurno(r.turno)})`,
+            start: r.fecha,
             allDay: true,
-            backgroundColor: coloresPolicia[p] || '#2563eb',
+            backgroundColor: sanitizeColor(coloresPolicia[r.policia], '#2563eb'),
             borderColor: 'transparent',
             extendedProps: {
-                policia: p, empresa: emp, turno: t,
-                cat: c, cost: cost, h: h, vh: h > 0 ? cost / h : 0,
-                detail: [{ cat: c, h: h, vh: h > 0 ? cost / h : 0, cost: cost }]
+                policia: r.policia,
+                empresa: r.empresa,
+                turno: r.turno,
+                cat: r.cat,
+                cost: r.cost,
+                h: r.h,
+                vh: r.vh,
+                detail: r.detail
             }
-        };
+        });
     });
 
     const vistosSet = new Set();
@@ -1031,6 +1202,8 @@ function procesarYMostrarServiciosCloud(serviciosList) {
         return true;
     });
 
+    Storage.saveEventos(eventosUnicos);
+
     if (calendar) {
         calendar.removeAllEvents();
         eventosUnicos.forEach(ev => calendar.addEvent(ev));
@@ -1038,14 +1211,53 @@ function procesarYMostrarServiciosCloud(serviciosList) {
     actualizarTodo();
 }
 
-// INICIALIZACIÓN AUTOMÁTICA EN NAVEGADOR
+// =============================================================================
+// NAVEGACIÓN EXCLUSIVA MÓVIL (APP SHELL TÁCTIL <= 768px & APK)
+// =============================================================================
+
+/**
+ * Cambia la pestaña activa en el Modo Móvil Exclusivo sin afectar la vista multipanel de escritorio (PC).
+ * @param {'agenda'|'resumen'|'historial'|'gestion'} tabName
+ */
+function cambiarTabMovil(tabName) {
+    _currentMobileTab = tabName;
+    document.body.setAttribute("data-mobile-tab", tabName);
+
+    const navBtns = document.querySelectorAll(".mobile-nav-btn");
+    navBtns.forEach(btn => {
+        const isTarget = btn.getAttribute("data-tab") === tabName;
+        btn.classList.toggle("active", isTarget);
+        btn.setAttribute("aria-selected", isTarget ? "true" : "false");
+    });
+
+    if (tabName === "agenda" && calendar) {
+        setTimeout(() => calendar.updateSize(), 60);
+    } else if (tabName === "resumen") {
+        calcularResumen();
+    }
+}
+
+// INICIALIZACIÓN AUTOMÁTICA EN NAVEGADOR / CAPACITOR WEBVIEW
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
         initInputs();
         initCalendar();
         inicializarSelects();
+        cambiarTabMovil('agenda');
         cargarServiciosDesdeCloud();
         sincronizarPoliciasCloud();
+        actualizarEstadoBaseDatosUI();
+
+        window.addEventListener('online', () => {
+            sincronizarColaOutbox();
+        });
+        window.addEventListener('offline', () => {
+            actualizarEstadoBaseDatosUI();
+            mostrarNotificacion("Modo Offline Activo — Guardando en SQLite/IndexedDB Local", "var(--warning)");
+        });
+        window.addEventListener('resize', () => {
+            actualizarEstadoBaseDatosUI();
+        });
     });
 }
 
@@ -1053,6 +1265,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         escapeHTML,
+        sanitizeForSpreadsheet,
+        sanitizeColor,
         safeParse,
         formatearTurno,
         getLocalYMD,

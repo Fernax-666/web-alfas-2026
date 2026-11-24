@@ -1,13 +1,14 @@
 ---
 name: "Refactor Agent"
 id: "refactor-agent"
-model: "gemini-3.6-pro"
+model: "gemini-1.5-pro"
 mode: "autonomous"
 tools:
-  - "view_file"
-  - "replace_file_content"
-  - "write_to_file"
-  - "run_command"
+  - "read_file"
+  - "write_file"
+  - "git_diff"
+  - "db-inspector:describe_table"
+  - "db-inspector:list_tables"
 ---
 
 # SYSTEM PROMPT

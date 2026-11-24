@@ -11,30 +11,39 @@
     --border: #e2e8f0;
     --radius: 12px;
     --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    /* Directivas @sitio-mobile-adapter: Safe Areas Nativas para Android APK / Notches */
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
 }
 
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: var(--bg-main);
     color: var(--text-main);
     line-height: 1.5;
-    padding: 20px;
+    padding-top: calc(20px + var(--sat));
+    padding-bottom: calc(24px + var(--sab));
+    padding-left: calc(20px + var(--sal));
+    padding-right: calc(20px + var(--sar));
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1240px;
     margin: 0 auto;
 }
 
 header {
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 24px;
 }
 
 h1 {
@@ -47,6 +56,16 @@ h1 {
 p.subtitle {
     color: var(--text-muted);
     font-size: 1rem;
+}
+
+/* Barra de Estado de Base de Datos Inteligente (SQLite + Outbox + Plataforma) */
+.system-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
 }
 
 .card {
@@ -64,9 +83,11 @@ p.subtitle {
     gap: 20px;
 }
 
-/* Botones */
-button {
+/* Botones con ergonomía táctil */
+button,
+.btn-link {
     padding: 10px 16px;
+    min-height: 44px;
     border-radius: 8px;
     border: none;
     cursor: pointer;
@@ -77,6 +98,7 @@ button {
     align-items: center;
     justify-content: center;
     gap: 8px;
+    text-decoration: none;
 }
 
 button:active {
@@ -127,25 +149,29 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
     width: 100%;
-    padding: 10px;
+    padding: 10px 12px;
+    min-height: 44px;
     border-radius: 8px;
     border: 1px solid var(--border);
     font-family: inherit;
-    font-size: 0.95rem;
+    font-size: 16px;
     outline: none;
     transition: border-color 0.2s;
+    background-color: #fff;
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
     border-color: var(--primary);
 }
 
 /* Calendario Custom */
 #calendar {
-    min-height: 600px;
+    min-height: 580px;
     background: white;
     border-radius: var(--radius);
 }
@@ -165,13 +191,12 @@ select:focus {
     border-color: var(--primary);
 }
 
-/* Permitir múltiples líneas en eventos de calendario */
 .fc-event-title {
     white-space: normal !important;
     overflow: hidden;
     font-size: 0.75rem;
     font-weight: 600;
-    line-height: 1.1;
+    line-height: 1.15;
     padding: 2px 4px;
 }
 
@@ -182,18 +207,20 @@ select:focus {
 /* Notificaciones */
 #notificacion {
     position: fixed;
-    bottom: 20px;
+    bottom: 24px;
     right: 20px;
-    padding: 15px 25px;
+    padding: 14px 22px;
     border-radius: var(--radius);
     color: white;
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
-    transform: translateY(100px);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15);
+    transform: translateY(150px);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 9999;
     display: flex;
     align-items: center;
     gap: 10px;
+    max-width: 92vw;
+    font-weight: 500;
 }
 
 #notificacion.show {
@@ -203,7 +230,7 @@ select:focus {
 /* Tablas */
 .table-container {
     overflow-x: auto;
-    margin-top: 20px;
+    margin-top: 16px;
 }
 
 table {
@@ -237,30 +264,44 @@ tr:hover {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(2px);
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 2000;
+    padding: 16px;
 }
 
 .modal {
     background: white;
-    padding: 30px;
+    padding: 28px;
     border-radius: var(--radius);
-    width: 90%;
-    max-width: 450px;
+    width: 100%;
+    max-width: 460px;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: var(--shadow);
     position: relative;
 }
 
 .close-modal {
     position: absolute;
-    top: 15px;
-    right: 15px;
+    top: 12px;
+    right: 14px;
     cursor: pointer;
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     color: var(--text-muted);
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.close-modal:hover {
+    background: var(--bg-main);
 }
 
 /* Dashboard Summary */
@@ -274,8 +315,9 @@ tr:hover {
 .stat-card {
     padding: 15px;
     border-radius: 10px;
-    background: var(--bg-main);
+    background: var(--bg-card);
     border: 1px solid var(--border);
+    box-shadow: var(--shadow);
 }
 
 .stat-val {
@@ -290,28 +332,29 @@ tr:hover {
     text-transform: uppercase;
 }
 
+.chart-wrapper {
+    position: relative;
+    height: 280px;
+    width: 100%;
+}
+
 #grafico {
-    max-height: 350px;
+    max-height: 280px;
     margin: 0 auto;
 }
 
 .badge {
-    padding: 4px 8px;
+    padding: 4px 10px;
     border-radius: 6px;
     font-size: 0.75rem;
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
-.badge-a {
-    background: #dcfce7;
-    color: #166534;
-}
-
-.badge-ap {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
+.badge-a { background: #dcfce7; color: #166534; }
+.badge-ap { background: #fee2e2; color: #991b1b; }
 .badge-b { background: #e0f2fe; color: #0369a1; }
 .badge-bp { background: #fef3c7; color: #92400e; }
 .badge-e { background: #f1f5f9; color: #475569; }
@@ -329,43 +372,41 @@ tr:hover {
     background-color: rgba(37, 99, 235, 0.1) !important;
 }
 
-/* Eventos de meses pasados con 100% de visibilidad */
 .event-past-month {
     opacity: 1 !important;
 }
 
-/* Ocultar eventos de otros meses (relleno de las 6 semanas) para no confundir con el mes en vista */
 .fc-day-other .fc-event {
     display: none !important;
 }
 
-/* Anular la transparencia cuando se está tomando la foto para el PDF */
 body.pdf-mode .event-past-month {
     opacity: 1 !important;
 }
 
-/* Clases de Utilidad y Accesibilidad para HTML Limpio */
+/* Clases de Utilidad y Accesibilidad */
 .title-accent { border-bottom: 3px solid var(--primary); }
 .text-muted-sm { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px; }
 .panel-costos-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .btn-full { width: 100%; margin-top: 15px; }
 .btn-full-sm { width: 100%; margin-top: 10px; }
 .btn-full-xs { width: 100%; margin-top: 6px; }
-.flex-gap-10 { display: flex; gap: 10px; margin-top: 15px; }
+.flex-gap-10 { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
 .flex-wrap-gap-10 { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-.btn-slate { flex: 1; background: #64748b; }
-.btn-green { flex: 1; background: #16a34a; }
+.btn-slate { flex: 1; background: #475569; color: #fff; }
+.btn-green { flex: 1; background: #16a34a; color: #fff; }
+.btn-indigo { flex: 1; background: #4f46e5; color: #fff; }
 .btn-outline-green { flex: 1; background: #f0fdf4; border-color: #16a34a; color: #166534; }
-.display-none { display: none; }
-.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+.display-none { display: none !important; }
+.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
 .margin-0 { margin: 0; }
-.flex-center-gap-10 { display: flex; align-items: center; gap: 10px; }
-.label-filter { font-size: 0.85rem; font-weight: 600; }
-.select-auto { width: auto; margin: 0; }
-.select-auto-only { width: auto; }
+.flex-center-gap-10 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.label-filter { font-size: 0.85rem; font-weight: 600; margin-bottom: 0; }
+.select-auto { width: auto; min-width: 180px; margin: 0; }
+.select-auto-only { width: auto; min-width: 160px; }
 .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
 .dashboard-title { font-size: 1.25rem; font-weight: 700; margin: 0; }
-.resumen-lista { margin-top: 15px; font-size: 0.9rem; }
+.resumen-lista { margin-top: 15px; font-size: 0.9rem; display: grid; gap: 6px; }
 .historial-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; }
 .mb-20 { margin-bottom: 20px; }
 .font-muted-sub { font-size: 0.75rem; color: var(--text-muted); }
@@ -375,23 +416,266 @@ body.pdf-mode .event-past-month {
 .mb-10 { margin-bottom: 10px; }
 .mb-6 { margin-bottom: 6px; }
 .mb-14 { margin-bottom: 14px; }
-.banner-edit { display: none; font-size: 0.8rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; color: #1d4ed8; }
+.banner-edit { display: none; font-size: 0.8rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; color: #1d4ed8; }
 .flex-start-gap-10 { display: flex; gap: 10px; align-items: flex-start; }
-.select-list { height: auto; flex: 1; }
-.btn-nowrap { white-space: nowrap; padding: 6px 12px; }
+.select-list { height: auto; min-height: 150px; flex: 1; }
+.btn-nowrap { white-space: nowrap; padding: 8px 14px; }
 .modal-lg { max-width: 820px; width: 95%; max-height: 90vh; overflow-y: auto; }
 .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.grid-4col { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; }
+.grid-4col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .grid-3col-end { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: flex-end; }
 .font-italic-muted { font-size: 0.78rem; color: var(--text-muted); margin: 2px 0 6px; font-style: italic; }
-.btn-h42 { width: 100%; height: 42px; }
-.info-turnos { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px; }
-.modal-xs { max-width: 400px; }
+.btn-h42 { width: 100%; min-height: 44px; }
+.info-turnos { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.6; }
+.modal-xs { max-width: 420px; }
 .font-weight-normal { font-weight: normal; font-size: 0.75rem; }
-.checkbox-container { max-height: 120px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 6px; background: #fff; }
+.checkbox-container { max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 8px; background: #fff; }
+.chk-export-row { margin-bottom: 6px; }
+.chk-export-label { display: flex; align-items: center; gap: 10px; font-weight: normal; cursor: pointer; min-height: 36px; color: var(--text-main); }
+.chk-export-label input[type="checkbox"] { width: 20px; height: 20px; min-height: 20px; }
 .flex-1 { flex: 1; }
-.btn-modificar { white-space: nowrap; height: 42px; padding: 0 14px; }
-.policia-dot { width: 10px; height: 10px; border-radius: 50%; }
+.btn-modificar { white-space: nowrap; min-height: 44px; padding: 0 14px; }
+.policia-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .policia-cell { display: flex; align-items: center; gap: 8px; }
 .nowrap-cell { white-space: nowrap; }
 .font-weight-600 { font-weight: 600; }
+
+/* Elementos exclusivos del Modo Móvil (ocultos en PC de escritorio > 768px) */
+.mobile-bottom-nav,
+.mobile-fab-add {
+    display: none;
+}
+
+/* ============================================================================
+   DIRECTIVAS @sitio-mobile-adapter: MODO MÓVIL EXCLUSIVO & ANDROID APK (<= 768px)
+   ============================================================================ */
+@media (max-width: 768px) {
+    body {
+        padding-top: calc(12px + var(--sat));
+        padding-left: calc(12px + var(--sal));
+        padding-right: calc(12px + var(--sar));
+        /* Espacio inferior reservado para la barra de navegación nativa móvil */
+        padding-bottom: calc(90px + var(--sab));
+    }
+
+    h1 {
+        font-size: 1.35rem;
+    }
+
+    p.subtitle {
+        font-size: 0.85rem;
+    }
+
+    /* 1. Ergonomía Táctil Mínima de 48px x 48px y separación de 8px */
+    button,
+    .btn-link,
+    select,
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    input[type="search"],
+    textarea {
+        min-height: 48px !important;
+        font-size: 16px !important; /* Previene auto-zoom forzado en Android/iOS WebView */
+    }
+
+    .stat-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+
+    .stat-card {
+        padding: 10px 8px;
+        text-align: center;
+    }
+
+    .stat-val {
+        font-size: 1.1rem;
+    }
+
+    .stat-label {
+        font-size: 0.68rem;
+    }
+
+    /* 2. Navegación por Pestañas en Modo Móvil Exclusivo (App Shell) */
+    body[data-mobile-tab="agenda"] [data-mobile-section="resumen"],
+    body[data-mobile-tab="agenda"] [data-mobile-section="historial"],
+    body[data-mobile-tab="agenda"] [data-mobile-section="gestion"] {
+        display: none !important;
+    }
+
+    body[data-mobile-tab="resumen"] [data-mobile-section="agenda"],
+    body[data-mobile-tab="resumen"] [data-mobile-section="historial"],
+    body[data-mobile-tab="resumen"] [data-mobile-section="gestion"] {
+        display: none !important;
+    }
+
+    body[data-mobile-tab="historial"] [data-mobile-section="agenda"],
+    body[data-mobile-tab="historial"] [data-mobile-section="resumen"],
+    body[data-mobile-tab="historial"] [data-mobile-section="gestion"] {
+        display: none !important;
+    }
+
+    body[data-mobile-tab="gestion"] [data-mobile-section="agenda"],
+    body[data-mobile-tab="gestion"] [data-mobile-section="resumen"],
+    body[data-mobile-tab="gestion"] [data-mobile-section="historial"] {
+        display: none !important;
+    }
+
+    /* Grillas a 1 sola columna fluida en móvil */
+    .grid,
+    .grid-2col,
+    .grid-4col,
+    .grid-3col-end {
+        grid-template-columns: 1fr !important;
+    }
+
+    .panel-costos-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .calendar-header,
+    .dashboard-header,
+    .historial-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .select-auto,
+    .select-auto-only {
+        width: 100% !important;
+    }
+
+    #calendar {
+        min-height: 440px;
+    }
+
+    .fc .fc-toolbar {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .fc .fc-button {
+        min-height: 42px;
+        padding: 6px 12px;
+    }
+
+    /* 3. Transformación de Tablas a Tarjetas Apiladas (Stacked Card Layout) */
+    .table-responsive table.custom-table,
+    .table-responsive table.custom-table tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .table-responsive table.custom-table thead {
+        display: none;
+    }
+
+    .table-responsive table.custom-table tr {
+        display: block;
+        margin-bottom: 12px;
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 10px;
+        box-shadow: 0 1px 3px rgb(0 0 0 / 0.05);
+    }
+
+    .table-responsive table.custom-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 6px;
+        border: none;
+        border-bottom: 1px solid #f1f5f9;
+        text-align: right;
+        gap: 10px;
+    }
+
+    .table-responsive table.custom-table td:last-child {
+        border-bottom: none;
+    }
+
+    .table-responsive table.custom-table td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        text-align: left;
+        margin-right: 12px;
+        flex-shrink: 0;
+    }
+
+    /* 4. Barra de Navegación Inferior Exclusiva Móvil (Bottom Navigation Bar) */
+    .mobile-bottom-nav {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #ffffff;
+        border-top: 1px solid var(--border);
+        padding-top: 6px;
+        padding-bottom: calc(6px + var(--sab));
+        padding-left: var(--sal);
+        padding-right: var(--sar);
+        box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
+        z-index: 1500;
+    }
+
+    .mobile-nav-btn {
+        background: transparent;
+        border: none;
+        border-radius: 8px;
+        padding: 4px 2px;
+        min-height: 52px !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        color: var(--text-muted);
+        font-size: 0.7rem !important;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .mobile-nav-btn .nav-icon {
+        font-size: 1.2rem;
+        line-height: 1;
+    }
+
+    .mobile-nav-btn.active {
+        color: var(--primary);
+        background: #eff6ff;
+    }
+
+    /* 5. Botón Flotante Táctil (FAB) para Nuevo Servicio Rápido en Móvil */
+    .mobile-fab-add {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: fixed;
+        right: 18px;
+        bottom: calc(76px + var(--sab));
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: #ffffff;
+        font-size: 1.75rem;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+        z-index: 1490;
+        border: none;
+    }
+
+    #notificacion {
+        bottom: calc(78px + var(--sab));
+        left: 12px;
+        right: 12px;
+    }
+}

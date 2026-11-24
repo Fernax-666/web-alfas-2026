@@ -1,12 +1,12 @@
 ---
 name: "Code Reviewer"
 id: "code-reviewer"
-model: "gemini-3.6-pro"
+model: "gemini-1.5-pro"
 mode: "supervised"
 tools:
-  - "view_file"
-  - "grep_search"
-  - "run_command"
+  - "read_file"
+  - "git_diff"
+  - "run_terminal_command"
 ---
 
 # SYSTEM PROMPT

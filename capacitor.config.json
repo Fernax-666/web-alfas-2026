@@ -1,0 +1,31 @@
+{
+  "appId": "ar.gob.policiacaminera.alfas",
+  "appName": "Gestión Alfas",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false,
+    "allowNavigation": [
+      "script.google.com",
+      "script.googleusercontent.com"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false,
+    "backgroundColor": "#f8fafc"
+  },
+  "plugins": {
+    "CapacitorSQLite": {
+      "iosDatabaseLocation": "Library/CapacitorDatabase",
+      "iosIsEncryption": false,
+      "androidIsEncryption": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#2563eb"
+    }
+  }
+}

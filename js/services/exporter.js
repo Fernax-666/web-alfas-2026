@@ -1,6 +1,7 @@
 /**
  * @file exporter.js
  * @description Servicio desacoplado para la generación y descarga de reportes en Excel (SheetJS) y PDF (jsPDF + html2canvas).
+ * Incluye sanitización contra CSV/Formula Injection (OWASP) en celdas exportadas.
  * Compatible con entornos de Navegador (window.AlfaExporter) y Node.js (CommonJS).
  */
 
@@ -15,13 +16,13 @@
 }(typeof self !== 'undefined' ? self : this, function () {
 
     /**
-     * Exporta los servicios filtrados a una planilla de cálculo Excel (.xlsx).
+     * Exporta los servicios filtrados a una planilla de cálculo Excel (.xlsx) sanitizando fórmulas peligrosas.
      * @param {Object} options - Parámetros de exportación.
      * @param {string} options.mesFiltroValue 
      * @param {string} options.polFiltroValue 
      * @param {string[]} options.empFiltros 
      * @param {Array} options.rawEvents 
-     * @param {Object} options.utils - Referencia a AlfaUtils (formatearTurno, getLocalYM, getLocalYMD).
+     * @param {Object} options.utils - Referencia a AlfaUtils (formatearTurno, getLocalYM, getLocalYMD, sanitizeForSpreadsheet).
      * @param {Function} options.onNotification - Callback para notificaciones flotantes.
      * @param {Function} options.onCloseModal - Callback para cerrar modal de exportación.
      */
@@ -31,13 +32,14 @@
             return;
         }
 
+        const sanitizeCell = (utils && utils.sanitizeForSpreadsheet) ? utils.sanitizeForSpreadsheet : (v => v);
         const data = [["Fecha", "Empresa", "Policía", "Turno", "Categoría", "Horas", "Valor Hora", "Costo Total"]];
         const safeEvents = Array.isArray(rawEvents) ? rawEvents : [];
 
         // Ordenar cronológicamente
         const eventosData = safeEvents.map(e => ({
             ...e,
-            startDate: new Date(e.start + (e.start.includes("T") ? "" : "T00:00:00"))
+            startDate: new Date(e.start + (String(e.start).includes("T") ? "" : "T00:00:00"))
         }));
         eventosData.sort((a, b) => a.startDate - b.startDate);
 
@@ -47,21 +49,21 @@
             if (mesFiltroValue && ym !== mesFiltroValue) return;
 
             const p = e.extendedProps || {};
-            const polNombre = (p.policia || "").trim();
-            const empNombre = (p.empresa || "").trim();
+            const polNombre = String(p.policia || "").trim();
+            const empNombre = String(p.empresa || "").trim();
 
             if (polFiltroValue && polNombre !== polFiltroValue) return;
             if (empFiltros && empFiltros.length > 0 && !empFiltros.includes(empNombre)) return;
 
             data.push([
-                utils.getLocalYMD(e.startDate),
-                empNombre,
-                polNombre,
-                utils.formatearTurno(p.turno),
-                p.cat,
-                p.h,
-                p.vh,
-                p.cost
+                sanitizeCell(utils.getLocalYMD(e.startDate)),
+                sanitizeCell(empNombre),
+                sanitizeCell(polNombre),
+                sanitizeCell(utils.formatearTurno(p.turno)),
+                sanitizeCell(p.cat || "A"),
+                Number(p.h) || 8,
+                Number(p.vh) || 0,
+                Number(p.cost) || 0
             ]);
         });
 
@@ -96,7 +98,7 @@
             // Convertir y ordenar cronológicamente
             const eventosData = safeEvents.map(e => ({
                 ...e,
-                startDate: new Date(e.start + (e.start.includes("T") ? "" : "T00:00:00"))
+                startDate: new Date(e.start + (String(e.start).includes("T") ? "" : "T00:00:00"))
             }));
             eventosData.sort((a, b) => a.startDate - b.startDate);
 
@@ -150,7 +152,7 @@
 
                 if (empFiltersNorm.length > 0 && !empFiltersNorm.includes(empNorm)) return;
 
-                const costVal = (props.cost || e.cost || 0);
+                const costVal = Number(props.cost || e.cost || 0) || 0;
                 rows.push([
                     utils.getLocalYMD(e.startDate),
                     empStr || "S/D",

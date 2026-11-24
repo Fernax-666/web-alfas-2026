@@ -1,0 +1,13 @@
+{
+  "name": "Gestión de Servicios Adicionales (Alfas)",
+  "short_name": "Gestión Alfas",
+  "description": "Control de turnos, costos, precartón mensual y base de datos local SQLite/IndexedDB con sincronización Google Sheets.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "lang": "es-AR",
+  "categories": ["productivity", "business", "utilities"]
+}

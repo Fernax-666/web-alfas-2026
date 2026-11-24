@@ -1,14 +1,15 @@
 ---
 name: "QA Test Engineer"
 id: "qa-engineer"
-model: "gemini-3.6-pro"
+model: "gemini-1.5-pro"
 mode: "autonomous"
 tools:
-  - "view_file"
-  - "write_to_file"
-  - "replace_file_content"
-  - "run_command"
-  - "browser_subagent"
+  - "read_file"
+  - "write_file"
+  - "run_terminal_command"
+  - "browser-qa:navigate"
+  - "browser-qa:screenshot"
+  - "browser-qa:click"
 ---
 
 # SYSTEM PROMPT

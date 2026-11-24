@@ -1,0 +1,32 @@
+{
+  "name": "web-app-alfas-caminera",
+  "version": "2.0.0",
+  "description": "Sistema Híbrido de Gestión de Servicios Adicionales (Alfas) con Base de Datos Local SQLite/IndexedDB y Sincronización Google Sheets",
+  "main": "js/scripts.js",
+  "scripts": {
+    "test": "node tests/services.test.js",
+    "build": "node scripts/build-apk-assets.js",
+    "build:web": "node scripts/build-apk-assets.js",
+    "cap:init": "npx cap init \"Gestión Alfas\" ar.gob.policiacaminera.alfas --web-dir www",
+    "cap:add:android": "npx cap add android",
+    "cap:sync": "npm run build:web && npx cap sync android",
+    "cap:open:android": "npx cap open android",
+    "apk:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "apk:release": "npm run cap:sync && cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor-community/sqlite": "^6.0.0",
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/network": "^6.0.0",
+    "@capacitor/preferences": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.0"
+  },
+  "author": "Policía Caminera - Centro de Datos",
+  "license": "MIT"
+}

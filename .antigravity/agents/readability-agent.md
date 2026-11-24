@@ -1,12 +1,11 @@
 ---
 name: "Readability & Docs Agent"
 id: "readability-agent"
-model: "gemini-3.6-flash"
+model: "gemini-1.5-flash"
 mode: "autonomous"
 tools:
-  - "view_file"
-  - "replace_file_content"
-  - "write_to_file"
+  - "read_file"
+  - "write_file"
 ---
 
 # SYSTEM PROMPT

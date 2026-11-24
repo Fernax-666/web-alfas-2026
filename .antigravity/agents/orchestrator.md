@@ -1,14 +1,13 @@
 ---
 name: "Orchestrator Agent"
 id: "orchestrator"
-model: "gemini-3.6-pro"
+model: "gemini-1.5-pro"
 mode: "supervised"
 tools:
-  - "view_file"
-  - "list_dir"
-  - "run_command"
-  - "invoke_subagent"
-  - "replace_file_content"
+  - "read_file"
+  - "list_directory"
+  - "git_diff"
+  - "delegate_agent"
 ---
 
 # SYSTEM PROMPT

@@ -1,6 +1,6 @@
 /**
  * @file storage.js
- * @description Servicio de almacenamiento local y migraciones de esquemas para la aplicación.
+ * @description Servicio de almacenamiento local, migraciones de esquemas y puente con AlfaDatabase (SQLite/IndexedDB).
  * Compatible con entornos de Navegador (window.AlfaStorage) y Node.js (CommonJS).
  */
 
@@ -41,6 +41,20 @@
     };
 
     /**
+     * Obtiene la instancia de AlfaDatabase si está disponible en el entorno.
+     * @returns {Object|null}
+     */
+    function getDatabaseRef() {
+        if (typeof window !== 'undefined' && window.AlfaDatabase) return window.AlfaDatabase;
+        try {
+            if (typeof require === 'function') return require('./database.js');
+        } catch (_) {
+            // No disponible
+        }
+        return null;
+    }
+
+    /**
      * Carga y realiza migraciones del estado inicial del sistema.
      * @param {Object} helpers - Instancia del módulo AlfaUtils.
      * @returns {Object} Estado inicial parseado y migrado.
@@ -53,9 +67,14 @@
         let policiasRaw = safeParse(storageObj, "policias", defaultPolicias);
 
         // Migración de policías (string[] -> {nombre, jerarquia}[])
-        let policias = policiasRaw.map(item => typeof item === "string" ? { nombre: item, jerarquia: "" } : item);
+        let policias = (Array.isArray(policiasRaw) ? policiasRaw : defaultPolicias).map(item =>
+            typeof item === "string" ? { nombre: item, jerarquia: "" } : { nombre: String(item.nombre || ""), jerarquia: String(item.jerarquia || "") }
+        ).filter(p => p.nombre);
 
         let empresas = safeParse(storageObj, "empresas", defaultEmpresas);
+        if (!empresas || typeof empresas !== 'object' || Array.isArray(empresas)) {
+            empresas = { ...defaultEmpresas };
+        }
         // Migración de empresas (array de turnos -> objeto estructurado)
         Object.keys(empresas).forEach(nombre => {
             if (Array.isArray(empresas[nombre])) {
@@ -78,6 +97,15 @@
             if (!localStorage.getItem("colores_policia")) localStorage.setItem("colores_policia", JSON.stringify(coloresPolicia));
         }
 
+        // Inicializar y sincronizar en segundo plano con AlfaDatabase (SQLite / IndexedDB)
+        const db = getDatabaseRef();
+        if (db && typeof db.initDatabase === 'function') {
+            db.initDatabase().then(() => {
+                const evs = safeParse(storageObj, "eventos", []);
+                db.syncStateToLocalDB({ config, policias, empresas, coloresPolicia, eventos: evs });
+            }).catch(() => {});
+        }
+
         return {
             CATEGORIAS,
             config,
@@ -88,33 +116,40 @@
     }
 
     /**
-     * Guarda el listado de policías en localStorage.
+     * Guarda el listado de policías en localStorage y en la base de datos local SQLite/IndexedDB.
      * @param {Array} policiasList 
+     * @param {Object} [coloresMap]
      */
-    function savePolicias(policiasList) {
+    function savePolicias(policiasList, coloresMap) {
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem("policias", JSON.stringify(policiasList));
         }
+        const db = getDatabaseRef();
+        if (db) db.syncStateToLocalDB({ policias: policiasList, coloresPolicia: coloresMap });
     }
 
     /**
-     * Guarda el mapa de empresas en localStorage.
+     * Guarda el mapa de empresas en localStorage y en la base de datos local SQLite/IndexedDB.
      * @param {Object} empresasMap 
      */
     function saveEmpresas(empresasMap) {
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem("empresas", JSON.stringify(empresasMap));
         }
+        const db = getDatabaseRef();
+        if (db) db.syncStateToLocalDB({ empresas: empresasMap });
     }
 
     /**
-     * Guarda la configuración de tarifas en localStorage.
+     * Guarda la configuración de tarifas en localStorage y en la base de datos local SQLite/IndexedDB.
      * @param {Object} configMap 
      */
     function saveConfig(configMap) {
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem("config_alfas", JSON.stringify(configMap));
         }
+        const db = getDatabaseRef();
+        if (db) db.syncStateToLocalDB({ config: configMap });
     }
 
     /**
@@ -127,6 +162,18 @@
         }
     }
 
+    /**
+     * Guarda la lista de eventos/servicios en localStorage y sincroniza la tabla `servicios` en SQLite/IndexedDB.
+     * @param {Array} eventosList 
+     */
+    function saveEventos(eventosList) {
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem("eventos", JSON.stringify(eventosList));
+        }
+        const db = getDatabaseRef();
+        if (db) db.syncStateToLocalDB({ eventos: eventosList });
+    }
+
     return {
         CATEGORIAS,
         defaultConfig,
@@ -136,6 +183,7 @@
         savePolicias,
         saveEmpresas,
         saveConfig,
-        saveColores
+        saveColores,
+        saveEventos
     };
 }));

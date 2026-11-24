@@ -3,8 +3,14 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Gestión de Servicios Adicionales | Dashboard</title>
+
+  <link rel="manifest" href="manifest.webmanifest">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,21 +34,27 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=11">
-  <script src="js/utils/helpers.js?v=11"></script>
-  <script src="js/services/calculator.js?v=11"></script>
-  <script src="js/services/storage.js?v=11"></script>
-  <script src="js/services/cloudSync.js?v=11"></script>
-  <script src="js/services/exporter.js?v=11"></script>
-  <script src="js/scripts.js?v=11"></script>
+  <link rel="stylesheet" href="css/styles.css?v=12">
+  <script src="js/utils/helpers.js?v=12"></script>
+  <script src="js/services/calculator.js?v=12"></script>
+  <script src="js/services/database.js?v=12"></script>
+  <script src="js/services/storage.js?v=12"></script>
+  <script src="js/services/cloudSync.js?v=12"></script>
+  <script src="js/services/exporter.js?v=12"></script>
+  <script src="js/scripts.js?v=12"></script>
 </head>
 
-<body>
+<body data-mobile-tab="agenda">
 
   <div class="container">
     <header>
       <h1>Gestión de Servicios Adicionales</h1>
-      <p class="subtitle">Control de turnos, costos y reportes</p>
+      <p class="subtitle">Control de turnos, costos, reportes y sincronización híbrida</p>
+      <div class="system-status-bar">
+        <span id="platformModeBadge" class="badge badge-empresa">🖥️ Modo Escritorio PC</span>
+        <span id="dbEngineBadge" class="badge badge-b">SQLite/IndexedDB Local Activo</span>
+        <span id="dbOutboxBadge" class="badge badge-a">Sincronizado con Sheets</span>
+      </div>
     </header>
 
     <div class="stat-grid">
@@ -60,7 +72,8 @@
       </div>
     </div>
 
-    <div class="grid">
+    <!-- SECCIÓN GESTIÓN Y BASE DE DATOS LOCAL (PC siempre visible / Móvil tab 'gestion') -->
+    <div class="grid" data-mobile-section="gestion">
       <!-- Configuraciones -->
       <div class="card">
         <h3><span class="title-accent">Configuración</span> de Tarifas</h3>
@@ -72,23 +85,27 @@
       </div>
 
       <div class="card">
-        <h3>Administración</h3>
+        <h3>Administración y Base de Datos Local</h3>
         <div class="flex-gap-10">
-          <button class="btn-outline" onclick="abrirModal('modalPolicias')">Gestionar Policías</button>
-          <button class="btn-outline" onclick="abrirModal('modalEmpresas')">Gestionar Empresas</button>
-          <button class="btn-primary" onclick="window.location.href='Precarton_Adcionales.html'">Cargar Precarton</button>
+          <button class="btn-outline" onclick="abrirModal('modalPolicias')">👮 Gestionar Policías</button>
+          <button class="btn-outline" onclick="abrirModal('modalEmpresas')">🏢 Gestionar Empresas</button>
+          <button class="btn-primary" onclick="window.location.href='Precarton_Adcionales.html'">🗂️ Cargar Precartón</button>
         </div>
         <div class="flex-wrap-gap-10">
           <button class="btn-primary btn-slate" onclick="abrirModalExportar()">🖨️ Exportar Reportes</button>
-          <button class="btn-primary btn-green" onclick="cargarServiciosDesdeCloud()">🔄 Leer Solapa Servicios</button>
-          <button class="btn-outline btn-outline-green" onclick="document.getElementById('importarJson').click()">⬇️ Cargar alfas.json</button>
+          <button class="btn-primary btn-green" onclick="cargarServiciosDesdeCloud()">🔄 Leer Google Sheets</button>
+          <button class="btn-outline btn-outline-green" onclick="document.getElementById('importarJson').click()">⬇️ Importar alfas.json</button>
           <input type="file" id="importarJson" title="Seleccionar archivo de servicios JSON para importar" aria-label="Seleccionar archivo JSON" class="display-none" accept=".json" onchange="cargarAlfasJSON(event)">
+        </div>
+        <div class="flex-wrap-gap-10">
+          <button class="btn-primary btn-indigo" onclick="exportarBaseDatosSQL()">🗄️ Exportar Base SQL (.sql)</button>
+          <button class="btn-outline" onclick="sincronizarColaOutbox()">☁️ Sincronizar Cola Outbox</button>
         </div>
       </div>
     </div>
 
-    <!-- Calendario Principal -->
-    <div class="card">
+    <!-- SECCIÓN AGENDA / CALENDARIO PRINCIPAL (PC siempre visible / Móvil tab 'agenda') -->
+    <div class="card" data-mobile-section="agenda">
       <div class="calendar-header">
         <h3 class="margin-0">Calendario de Servicios</h3>
         <div class="flex-center-gap-10">
@@ -99,40 +116,45 @@
       <div id="calendar"></div>
     </div>
 
-    <!-- Dashboard y Tabla -->
-    <div class="dashboard-header">
-      <h2 class="dashboard-title">Dashboard de Estadísticas</h2>
-      <div class="flex-center-gap-10">
-        <label for="filtroMesDashboard" class="label-filter">Filtrar Mes:</label>
-        <select id="filtroMesDashboard" title="Filtrar cuadro de estadísticas del Dashboard por Mes" class="select-auto" onchange="calcularResumen()"></select>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <h3>Distribución de Turnos</h3>
-        <canvas id="grafico"></canvas>
-        <div id="resumenLista" class="resumen-lista"></div>
+    <!-- SECCIÓN RESUMEN / DASHBOARD DE ESTADÍSTICAS (PC siempre visible / Móvil tab 'resumen') -->
+    <div data-mobile-section="resumen">
+      <div class="dashboard-header">
+        <h2 class="dashboard-title">Dashboard de Estadísticas</h2>
+        <div class="flex-center-gap-10">
+          <label for="filtroMesDashboard" class="label-filter">Filtrar Mes:</label>
+          <select id="filtroMesDashboard" title="Filtrar cuadro de estadísticas del Dashboard por Mes" class="select-auto" onchange="calcularResumen()"></select>
+        </div>
       </div>
 
-      <div class="card">
-        <h3>Resumen por Policía</h3>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Policía</th>
-                <th>Turnos</th>
-                <th>Monto</th>
-              </tr>
-            </thead>
-            <tbody id="totalesBody"></tbody>
-          </table>
+      <div class="grid">
+        <div class="card">
+          <h3>Distribución de Turnos</h3>
+          <div class="chart-wrapper">
+            <canvas id="grafico"></canvas>
+          </div>
+          <div id="resumenLista" class="resumen-lista"></div>
+        </div>
+
+        <div class="card">
+          <h3>Resumen por Policía</h3>
+          <div class="table-container table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Policía</th>
+                  <th>Turnos</th>
+                  <th>Monto</th>
+                </tr>
+              </thead>
+              <tbody id="totalesBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="card">
+    <!-- SECCIÓN HISTORIAL DE SERVICIOS (PC siempre visible / Móvil tab 'historial') -->
+    <div class="card" data-mobile-section="historial">
       <div class="historial-header">
         <h3>Historial de Servicios</h3>
         <div class="flex-wrap-gap-10">
@@ -142,8 +164,8 @@
           <button class="btn-outline" onclick="limpiarFiltros()">Limpiar</button>
         </div>
       </div>
-      <div class="table-container">
-        <table id="tablaServicios">
+      <div class="table-container table-responsive">
+        <table id="tablaServicios" class="custom-table">
           <thead>
             <tr>
               <th>Fecha</th>
@@ -160,11 +182,42 @@
     </div>
   </div>
 
+  <!-- BOTÓN FLOTANTE (FAB) EXCLUSIVO MÓVIL PARA CARGA RÁPIDA DE SERVICIO -->
+  <button type="button" class="mobile-fab-add" onclick="abrirNuevoServicioRapido()" title="Registrar Nuevo Servicio" aria-label="Registrar Nuevo Servicio">+</button>
+
+  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL (APP SHELL ANDROID APK / MOBILE) -->
+  <nav class="mobile-bottom-nav" aria-label="Navegación principal móvil">
+    <button type="button" class="mobile-nav-btn active" data-tab="agenda" onclick="cambiarTabMovil('agenda')">
+      <span class="nav-icon">📅</span>
+      <span>Agenda</span>
+    </button>
+    <button type="button" class="mobile-nav-btn" data-tab="resumen" onclick="cambiarTabMovil('resumen')">
+      <span class="nav-icon">📊</span>
+      <span>Resumen</span>
+    </button>
+    <button type="button" class="mobile-nav-btn" data-tab="historial" onclick="cambiarTabMovil('historial')">
+      <span class="nav-icon">📋</span>
+      <span>Historial</span>
+    </button>
+    <a href="Precarton_Adcionales.html" class="mobile-nav-btn">
+      <span class="nav-icon">🗂️</span>
+      <span>Precartón</span>
+    </a>
+    <button type="button" class="mobile-nav-btn" data-tab="gestion" onclick="cambiarTabMovil('gestion')">
+      <span class="nav-icon">⚙️</span>
+      <span>Gestión</span>
+    </button>
+  </nav>
+
   <!-- MODAL SERVICIO -->
   <div id="modalServicio" class="modal-overlay">
     <div class="modal">
       <span class="close-modal" onclick="cerrarModal('modalServicio')">&times;</span>
       <h3 id="fechaTitulo" class="mb-20">Nuevo Servicio</h3>
+      <div class="form-group">
+        <label for="inputFechaServicio">Fecha del Servicio</label>
+        <input type="date" id="inputFechaServicio" title="Seleccionar fecha del servicio" onchange="actualizarCategoriaAuto()">
+      </div>
       <div class="form-group">
         <label for="selEmpresa">Empresa</label>
         <select id="selEmpresa" title="Seleccionar Empresa para asignar el servicio" onchange="cambiarTurnos()"></select>
@@ -199,12 +252,10 @@
       <span class="close-modal" onclick="cerrarModal('modalPolicias')">&times;</span>
       <h3 class="mb-12">Gestionar Policías</h3>
 
-      <!-- Nombre -->
       <div class="form-group mb-8">
         <label for="nuevoPolicia">Nombre Completo</label>
         <input type="text" id="nuevoPolicia" placeholder="Ej: Perez Juan">
       </div>
-      <!-- Jerarquía -->
       <div class="form-group mb-10">
         <label for="jerarquiaPolicia">Jerarquía</label>
         <select id="jerarquiaPolicia" title="Seleccionar Jerarquía del agente de policía">
@@ -247,7 +298,6 @@
       <span class="close-modal" onclick="cerrarModal('modalEmpresas')">&times;</span>
       <h3 class="mb-12">Gestionar Empresas</h3>
 
-      <!-- Fila 1: Nombre + Turnos -->
       <div class="grid-2col">
         <div class="form-group mb-8">
           <label for="nuevoEmpresa">Nombre Empresa</label>
@@ -258,7 +308,6 @@
           <input type="text" id="rangoTurnos" placeholder="06-14, 14-22, 22-06">
         </div>
       </div>
-      <!-- Fila 2: Categorías + N° Servicio + Teléfono -->
       <div class="grid-4col">
         <div class="form-group mb-8">
           <label for="catSemana">Cat. Lun–Vie</label>
@@ -289,9 +338,7 @@
           <input type="text" id="empTelefono" placeholder="Ej: 0341-4123456">
         </div>
       </div>
-      <!-- Datos opcionales -->
       <p class="font-italic-muted">Campos opcionales</p>
-      <!-- Fila 3: Domicilio + Barrio + Referente + Tel Referente -->
       <div class="grid-4col">
         <div class="form-group mb-8">
           <label for="empDomicilio">Domicilio</label>
@@ -310,7 +357,6 @@
           <input type="text" id="empTelReferente" placeholder="Ej: 341-1234567">
         </div>
       </div>
-      <!-- Fila 4: Policía encargado + Teléfono + Botón -->
       <div class="grid-3col-end">
         <div class="form-group mb-8">
           <label for="empPoliciaEncargado">Policía Encargado</label>
@@ -356,12 +402,12 @@
       <div class="form-group mb-6">
         <label>Seleccionar Empresa(s) <span class="font-weight-normal">(Marcar para incluir)</span></label>
         <div id="containerExportEmpresa" class="checkbox-container">
-          <!-- Checkboxes dinámicos -->
+          <!-- Checkboxes dinámicos sanitizados -->
         </div>
       </div>
       <div class="flex-gap-10">
-        <button class="btn-danger flex-1" onclick="exportPDF()">PDF</button>
-        <button class="btn-secondary flex-1" onclick="exportExcel()">Excel</button>
+        <button class="btn-danger flex-1" onclick="exportPDF()">📄 PDF</button>
+        <button class="btn-secondary flex-1" onclick="exportExcel()">📊 Excel</button>
       </div>
     </div>
   </div>

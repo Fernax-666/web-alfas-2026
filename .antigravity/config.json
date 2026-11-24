@@ -1,0 +1,40 @@
+{
+  "skills": {
+    "auto_discover": true,
+    "directory": ".antigravity/skills",
+    "active_skills": [
+      "clean-code-refactoring",
+      "architecture-boundaries",
+      "semantic-html-layout",
+      "ui-copy-proofreader",
+      "modern-js-practices",
+      "rest-api-design",
+      "database-prisma-orm",
+      "security-hardening",
+      "testing-standards",
+      "git-workflow-commits",
+      "frontend-design",
+      "sleek-design-mobile-apps",
+      "ai-agents-architect",
+      "immersive-3d-web",
+      "responsive-design",
+      "flutter-build-responsive-layout",
+      "data-analyst-antigravityskills-com",
+      "excel-master-antigravityskills-com",
+      "frontend-expert-antigravityskills-com",
+      "mobile-developer-antigravityskills-com",
+      "uiux-designer-antigravityskills-com",
+      "data-analyst",
+      "excel-master",
+      "frontend-expert",
+      "mobile-developer",
+      "uiux-designer",
+      "orchestrator",
+      "refactor-agent",
+      "readability-agent",
+      "code-reviewer",
+      "security-auditor",
+      "qa-engineer"
+    ]
+  }
+}
