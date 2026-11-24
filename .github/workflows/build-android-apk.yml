@@ -1,4 +1,4 @@
-name: Build Android APK (Gestión Alfas)
+name: Build Android APK (Web Alfas 2026)
 
 on:
   workflow_dispatch:
@@ -23,12 +23,14 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK Licenses (Pre-instalado en ubuntu-latest)
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Install dependencies & Run QA Security Tests
         run: |
-          npm install
+          npm install --no-audit --no-fund
           npm test
 
       - name: Build Web Bundle & Sync Capacitor Android
@@ -43,10 +45,10 @@ jobs:
         working-directory: ./android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Gestion-Alfas-Android-APK
+          name: Web-Alfas-2026-Android-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
