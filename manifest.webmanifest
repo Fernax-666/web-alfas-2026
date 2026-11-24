@@ -1,6 +1,6 @@
 {
-  "name": "Gestión de Servicios Adicionales (Alfas)",
-  "short_name": "Gestión Alfas",
+  "name": "Web Alfas 2026 - Gestión de Servicios Adicionales",
+  "short_name": "Web Alfas 2026",
   "description": "Control de turnos, costos, precartón mensual y base de datos local SQLite/IndexedDB con sincronización Google Sheets.",
   "start_url": "./index.html",
   "scope": "./",

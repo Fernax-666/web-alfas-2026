@@ -1,7 +1,7 @@
 {
-  "name": "web-app-alfas-caminera",
+  "name": "web-alfas-2026",
   "version": "2.0.0",
-  "description": "Sistema Híbrido de Gestión de Servicios Adicionales (Alfas) con Base de Datos Local SQLite/IndexedDB y Sincronización Google Sheets",
+  "description": "Web Alfas 2026 - Sistema Híbrido de Gestión de Servicios Adicionales (Alfas) con Base de Datos Local SQLite/IndexedDB y Sincronización Google Sheets",
   "main": "js/scripts.js",
   "scripts": {
     "test": "node tests/services.test.js",
