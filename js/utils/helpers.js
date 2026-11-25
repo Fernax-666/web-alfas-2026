@@ -1,7 +1,7 @@
 /**
  * @file helpers.js
  * @description Funciones puras de utilidad para sanitización XSS, prevención de CSV/Formula Injection,
- * validación de esquemas JSON, detección de plataforma (PC/Móvil/Capacitor) y formateo.
+ * validación de esquemas JSON, gestión de Temas Visuales, detección de plataforma y formateo compacto.
  * Compatible con entornos de Navegador (window.AlfaUtils) y Node.js (CommonJS).
  */
 
@@ -14,6 +14,9 @@
         root.AlfaUtils = factory();
     }
 }(typeof self !== 'undefined' ? self : this, function () {
+
+    const THEME_STORAGE_KEY = 'alfa_app_theme';
+    const AVAILABLE_THEMES = ['light', 'dark', 'police', 'emerald'];
 
     /**
      * Sanitiza una cadena de texto para evitar vulnerabilidades XSS en la inserción HTML.
@@ -154,6 +157,31 @@
     }
 
     /**
+     * Formatea un rango de turno de forma ultracompacta para celdas de calendario móvil (ej. "07-15hs").
+     * @param {string} turnoStr 
+     * @returns {string}
+     */
+    function formatearTurnoCorto(turnoStr) {
+        if (!turnoStr) return "";
+        const cleanStr = String(turnoStr).trim().replace(/HS/gi, '').replace(/\s+A\s+/gi, '-').trim();
+        if (!cleanStr.includes("-")) return cleanStr;
+        const parts = cleanStr.split("-").map(p => p.trim());
+        return `${parts[0]}-${parts[1]}hs`;
+    }
+
+    /**
+     * Abrevia el nombre de un efectivo para celdas estrechas en móvil (ej. "Olivera Fernando" -> "Olivera F.").
+     * @param {string} nombreStr 
+     * @returns {string}
+     */
+    function abreviarNombrePolicia(nombreStr) {
+        if (!nombreStr) return "";
+        const parts = String(nombreStr).trim().split(/\s+/);
+        if (parts.length <= 1) return parts[0] || "";
+        return `${parts[0]} ${parts[1].charAt(0)}.`;
+    }
+
+    /**
      * Retorna fecha en formato local YYYY-MM-DD.
      * @param {Date} dateObj - Objeto Date.
      * @returns {string} Fecha formateada.
@@ -214,16 +242,49 @@
         return { isNativeAPK, isMobileViewport: isMobileViewport || isNativeAPK, isTouchDevice, mode };
     }
 
+    /**
+     * Obtiene el tema visual guardado o 'light' por defecto.
+     * @returns {'light'|'dark'|'police'|'emerald'}
+     */
+    function getSavedTheme() {
+        if (typeof localStorage !== 'undefined') {
+            const saved = localStorage.getItem(THEME_STORAGE_KEY);
+            if (saved && AVAILABLE_THEMES.includes(saved)) return saved;
+        }
+        return 'light';
+    }
+
+    /**
+     * Aplica y persiste un tema visual en el documento HTML actual.
+     * @param {'light'|'dark'|'police'|'emerald'} themeName 
+     * @returns {string} Tema aplicado.
+     */
+    function applyTheme(themeName) {
+        const validTheme = AVAILABLE_THEMES.includes(themeName) ? themeName : 'light';
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(THEME_STORAGE_KEY, validTheme);
+        }
+        if (typeof document !== 'undefined' && document.documentElement) {
+            document.documentElement.setAttribute('data-theme', validTheme);
+        }
+        return validTheme;
+    }
+
     return {
+        AVAILABLE_THEMES,
         escapeHTML,
         sanitizeForSpreadsheet,
         sanitizeColor,
         safeParse,
         validateServicioRecord,
         formatearTurno,
+        formatearTurnoCorto,
+        abreviarNombrePolicia,
         getLocalYMD,
         getLocalYM,
         colorAleatorio,
-        detectPlatformContext
+        detectPlatformContext,
+        getSavedTheme,
+        applyTheme
     };
 }));

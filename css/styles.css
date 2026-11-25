@@ -1,4 +1,5 @@
-:root {
+:root,
+html[data-theme="light"] {
     --primary: #2563eb;
     --primary-dark: #1e40af;
     --secondary: #10b981;
@@ -10,12 +11,54 @@
     --text-muted: #64748b;
     --border: #e2e8f0;
     --radius: 12px;
-    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    /* Directivas @sitio-mobile-adapter: Safe Areas Nativas para Android APK / Notches */
+    --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
     --sat: env(safe-area-inset-top, 0px);
     --sab: env(safe-area-inset-bottom, 0px);
     --sal: env(safe-area-inset-left, 0px);
     --sar: env(safe-area-inset-right, 0px);
+}
+
+/* Tema 2: Oscuro Nocturno */
+html[data-theme="dark"] {
+    --primary: #3b82f6;
+    --primary-dark: #2563eb;
+    --secondary: #10b981;
+    --danger: #f87171;
+    --warning: #fbbf24;
+    --bg-main: #0f172a;
+    --bg-card: #1e293b;
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    --shadow: 0 4px 10px rgb(0 0 0 / 0.35);
+}
+
+/* Tema 3: Azul Policial Caminera */
+html[data-theme="police"] {
+    --primary: #1d4ed8;
+    --primary-dark: #1e3a8a;
+    --secondary: #0284c7;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --bg-main: #eff6ff;
+    --bg-card: #ffffff;
+    --text-main: #0f172a;
+    --text-muted: #475569;
+    --border: #bfdbfe;
+}
+
+/* Tema 4: Esmeralda Táctico */
+html[data-theme="emerald"] {
+    --primary: #059669;
+    --primary-dark: #047857;
+    --secondary: #0d9488;
+    --danger: #e11d48;
+    --warning: #d97706;
+    --bg-main: #ecfdf5;
+    --bg-card: #ffffff;
+    --text-main: #064e3b;
+    --text-muted: #374151;
+    --border: #a7f3d0;
 }
 
 * {
@@ -29,75 +72,93 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: var(--bg-main);
     color: var(--text-main);
-    line-height: 1.5;
-    padding-top: calc(20px + var(--sat));
+    line-height: 1.45;
+    padding-top: calc(18px + var(--sat));
     padding-bottom: calc(24px + var(--sab));
-    padding-left: calc(20px + var(--sal));
-    padding-right: calc(20px + var(--sar));
+    padding-left: calc(18px + var(--sal));
+    padding-right: calc(18px + var(--sar));
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .container {
-    max-width: 1240px;
+    max-width: 1260px;
     margin: 0 auto;
 }
 
-header {
-    text-align: center;
-    margin-bottom: 24px;
+/* Cabecera Flexible para PC y Móvil */
+.app-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.header-titles {
+    text-align: left;
 }
 
 h1 {
     font-weight: 700;
     color: var(--text-main);
-    font-size: 2rem;
-    margin-bottom: 5px;
+    font-size: 1.65rem;
+    margin-bottom: 4px;
 }
 
 p.subtitle {
     color: var(--text-muted);
-    font-size: 1rem;
+    font-size: 0.9rem;
 }
 
-/* Barra de Estado de Base de Datos Inteligente (SQLite + Outbox + Plataforma) */
+.desktop-top-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .system-status-bar {
     display: flex;
     align-items: center;
-    justify-content: center;
     flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
+    gap: 6px;
+    margin-top: 4px;
 }
 
 .card {
     background: var(--bg-card);
     border-radius: var(--radius);
-    padding: 20px;
-    margin-bottom: 20px;
+    padding: 18px;
+    margin-bottom: 18px;
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
 }
 
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 18px;
 }
 
-/* Botones con ergonomía táctil */
+/* Botones y enlaces estilo botón */
 button,
-.btn-link {
-    padding: 10px 16px;
-    min-height: 44px;
+.btn-primary,
+.btn-secondary,
+.btn-danger,
+.btn-outline {
+    padding: 9px 14px;
+    min-height: 42px;
     border-radius: 8px;
     border: none;
     cursor: pointer;
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     transition: all 0.2s ease;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
     text-decoration: none;
 }
 
@@ -125,26 +186,26 @@ button:active {
 }
 
 .btn-outline {
-    background: transparent;
+    background: var(--bg-card);
     border: 1.5px solid var(--border);
     color: var(--text-main);
 }
 
 .btn-outline:hover {
-    background: var(--bg-main);
-    border-color: var(--text-muted);
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
-/* Form Elements */
+/* Formularios */
 .form-group {
-    margin-bottom: 15px;
+    margin-bottom: 12px;
 }
 
 label {
     display: block;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     font-weight: 600;
-    margin-bottom: 5px;
+    margin-bottom: 4px;
     color: var(--text-muted);
 }
 
@@ -152,15 +213,16 @@ input,
 select,
 textarea {
     width: 100%;
-    padding: 10px 12px;
-    min-height: 44px;
+    padding: 9px 12px;
+    min-height: 42px;
     border-radius: 8px;
     border: 1px solid var(--border);
     font-family: inherit;
     font-size: 16px;
     outline: none;
     transition: border-color 0.2s;
-    background-color: #fff;
+    background-color: var(--bg-card);
+    color: var(--text-main);
 }
 
 input:focus,
@@ -169,50 +231,316 @@ textarea:focus {
     border-color: var(--primary);
 }
 
-/* Calendario Custom */
+/* ============================================================================
+   CALENDARIO REESTRUCTURADO Y TARJETAS DE EVENTOS (EMPRESA, HORARIO, POLICÍA)
+   ============================================================================ */
 #calendar {
-    min-height: 580px;
-    background: white;
+    background: var(--bg-card);
     border-radius: var(--radius);
 }
 
 .fc {
     font-family: inherit;
-    height: 100%;
+}
+
+.fc .fc-toolbar.fc-header-toolbar {
+    margin-bottom: 10px !important;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
 .fc .fc-toolbar-title {
-    font-size: 1.25rem;
+    font-size: 1.15rem !important;
     font-weight: 700;
+    text-transform: capitalize;
 }
 
 .fc .fc-button-primary {
-    background-color: var(--primary);
-    border-color: var(--primary);
+    background-color: var(--primary) !important;
+    border-color: var(--primary) !important;
+    padding: 5px 10px !important;
+    font-size: 0.82rem !important;
+    min-height: 36px !important;
 }
 
-.fc-event-title {
-    white-space: normal !important;
-    overflow: hidden;
+.fc-theme-standard td,
+.fc-theme-standard th,
+.fc-theme-standard .fc-scrollgrid {
+    border-color: var(--border) !important;
+}
+
+.fc .fc-col-header-cell-cushion {
+    padding: 6px 2px !important;
     font-size: 0.75rem;
-    font-weight: 600;
-    line-height: 1.15;
-    padding: 2px 4px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
 }
 
-.fc-v-event .fc-event-title {
-    padding: 4px;
+.fc .fc-daygrid-day-number {
+    padding: 3px 5px !important;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-main);
 }
+
+.fc .fc-daygrid-body-unbalanced .fc-daygrid-day-events {
+    min-height: 1.4em !important;
+}
+
+.fc-daygrid-event-harness {
+    margin-bottom: 2px !important;
+}
+
+.fc-h-event {
+    border-radius: 5px !important;
+    padding: 1px 2px !important;
+    overflow: hidden;
+}
+
+/* Tarjeta interna estructurada de cada evento: 1. Empresa, 2. Horario, 3. Policía */
+.alfa-cal-event-card {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    padding: 2px 3px;
+    color: #ffffff;
+    overflow: hidden;
+}
+
+.alfa-cal-event-card .ev-line-emp {
+    font-weight: 800;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -0.01em;
+}
+
+.alfa-cal-event-card .ev-line-time {
+    font-weight: 600;
+    font-size: 0.65rem;
+    opacity: 0.95;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.alfa-cal-event-card .ev-line-pol {
+    font-weight: 500;
+    font-size: 0.65rem;
+    opacity: 0.92;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ============================================================================
+   GRÁFICOS DE BARRAS (MENSUAL Y ANUAL APILADO)
+   ============================================================================ */
+.chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 250px;
+    width: 100%;
+}
+
+.chart-total-footer {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    font-size: 0.85rem;
+    text-align: center;
+    color: var(--text-main);
+}
+
+/* ============================================================================
+   HISTORIAL EN TABLA COMPACTA (5 COLUMNAS) + BOTONES RÁPIDOS DE PERÍODO
+   ============================================================================ */
+.quick-period-pills {
+    display: inline-flex;
+    background: var(--bg-main);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.pill-btn {
+    padding: 6px 12px !important;
+    min-height: 36px !important;
+    font-size: 0.8rem !important;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-muted);
+    border: none;
+    font-weight: 600;
+}
+
+.pill-btn.active {
+    background: var(--primary);
+    color: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.historial-filters-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.table-container {
+    overflow-x: auto;
+    margin-top: 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+table.compact-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.85rem;
+}
+
+table.compact-history-table th,
+table.compact-history-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+table.compact-history-table th {
+    background: var(--bg-main);
+    font-weight: 700;
+    color: var(--text-muted);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+table.compact-history-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* ============================================================================
+   PÁGINA DE CONFIGURACIONES Y SELECTOR DE TEMAS
+   ============================================================================ */
+.theme-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.theme-option-btn {
+    background: var(--bg-main);
+    color: var(--text-main);
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    font-weight: 600;
+}
+
+.theme-option-btn.active {
+    border-color: var(--primary);
+    background: rgba(37, 99, 235, 0.08);
+}
+
+.theme-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid rgba(0, 0, 0, 0.15);
+}
+
+.swatch-light { background: linear-gradient(135deg, #f8fafc 50%, #2563eb 50%); }
+.swatch-dark { background: linear-gradient(135deg, #0f172a 50%, #3b82f6 50%); }
+.swatch-police { background: linear-gradient(135deg, #eff6ff 50%, #1e3a8a 50%); }
+.swatch-emerald { background: linear-gradient(135deg, #ecfdf5 50%, #059669 50%); }
+
+.config-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 10px;
+}
+
+/* KPIs Dashboard Summary */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.stat-card {
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+}
+
+.stat-val {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.stat-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+/* Badges */
+.badge {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+.badge-a { background: #dcfce7; color: #166534; }
+.badge-ap { background: #fee2e2; color: #991b1b; }
+.badge-b { background: #e0f2fe; color: #0369a1; }
+.badge-bp { background: #fef3c7; color: #92400e; }
+.badge-e { background: #f1f5f9; color: #475569; }
+.badge-he { background: #ffedd5; color: #9a3412; }
+.badge-ho { background: #d1fae5; color: #065f46; }
+.badge-empresa { background: #eef2ff; color: #4338ca; }
 
 /* Notificaciones */
 #notificacion {
     position: fixed;
     bottom: 24px;
     right: 20px;
-    padding: 14px 22px;
+    padding: 13px 20px;
     border-radius: var(--radius);
     color: white;
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.15);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
     transform: translateY(150px);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 9999;
@@ -227,44 +555,14 @@ textarea:focus {
     transform: translateY(0);
 }
 
-/* Tablas */
-.table-container {
-    overflow-x: auto;
-    margin-top: 16px;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    text-align: left;
-}
-
-th,
-td {
-    padding: 12px 15px;
-    border-bottom: 1px solid var(--border);
-}
-
-th {
-    background: var(--bg-main);
-    font-weight: 600;
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    text-transform: uppercase;
-}
-
-tr:hover {
-    background: #f1f5f9;
-}
-
-/* Modales / Formularios flotantes */
+/* Modales */
 .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(15, 23, 42, 0.55);
+    background: rgba(15, 23, 42, 0.6);
     backdrop-filter: blur(2px);
     display: none;
     align-items: center;
@@ -274,341 +572,281 @@ tr:hover {
 }
 
 .modal {
-    background: white;
-    padding: 28px;
+    background: var(--bg-card);
+    color: var(--text-main);
+    padding: 24px;
     border-radius: var(--radius);
     width: 100%;
-    max-width: 460px;
+    max-width: 450px;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: var(--shadow);
     position: relative;
+    border: 1px solid var(--border);
 }
 
 .close-modal {
     position: absolute;
-    top: 12px;
-    right: 14px;
+    top: 10px;
+    right: 12px;
     cursor: pointer;
-    font-size: 1.6rem;
+    font-size: 1.5rem;
     color: var(--text-muted);
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
 }
 
-.close-modal:hover {
-    background: var(--bg-main);
-}
+.event-past-month { opacity: 1 !important; }
+.fc-day-other .fc-event { display: none !important; }
+body.pdf-mode .event-past-month { opacity: 1 !important; }
 
-/* Dashboard Summary */
-.stat-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 15px;
-    margin-bottom: 20px;
-}
-
-.stat-card {
-    padding: 15px;
-    border-radius: 10px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-}
-
-.stat-val {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--primary);
-}
-
-.stat-label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-}
-
-.chart-wrapper {
-    position: relative;
-    height: 280px;
-    width: 100%;
-}
-
-#grafico {
-    max-height: 280px;
-    margin: 0 auto;
-}
-
-.badge {
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.badge-a { background: #dcfce7; color: #166534; }
-.badge-ap { background: #fee2e2; color: #991b1b; }
-.badge-b { background: #e0f2fe; color: #0369a1; }
-.badge-bp { background: #fef3c7; color: #92400e; }
-.badge-e { background: #f1f5f9; color: #475569; }
-.badge-he { background: #ffedd5; color: #9a3412; }
-.badge-ho { background: #d1fae5; color: #065f46; }
-.badge-empresa { background: #eef2ff; color: #4338ca; }
-
-/* Efecto hover en celdas del calendario */
-.fc-daygrid-day:hover {
-    background-color: rgba(37, 99, 235, 0.05) !important;
-    cursor: pointer;
-}
-
-.fc-daygrid-day.fc-day-today:hover {
-    background-color: rgba(37, 99, 235, 0.1) !important;
-}
-
-.event-past-month {
-    opacity: 1 !important;
-}
-
-.fc-day-other .fc-event {
-    display: none !important;
-}
-
-body.pdf-mode .event-past-month {
-    opacity: 1 !important;
-}
-
-/* Clases de Utilidad y Accesibilidad */
+/* Utilidades */
 .title-accent { border-bottom: 3px solid var(--primary); }
-.text-muted-sm { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px; }
-.panel-costos-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.btn-full { width: 100%; margin-top: 15px; }
+.text-muted-sm { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; }
+.panel-costos-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.btn-full { width: 100%; margin-top: 12px; }
 .btn-full-sm { width: 100%; margin-top: 10px; }
 .btn-full-xs { width: 100%; margin-top: 6px; }
-.flex-gap-10 { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+.flex-gap-10 { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .flex-wrap-gap-10 { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-.btn-slate { flex: 1; background: #475569; color: #fff; }
-.btn-green { flex: 1; background: #16a34a; color: #fff; }
-.btn-indigo { flex: 1; background: #4f46e5; color: #fff; }
-.btn-outline-green { flex: 1; background: #f0fdf4; border-color: #16a34a; color: #166534; }
+.btn-slate { background: #475569; color: #fff; }
+.btn-green { background: #16a34a; color: #fff; }
+.btn-indigo { background: #4f46e5; color: #fff; }
+.btn-outline-green { background: #f0fdf4; border-color: #16a34a; color: #166534; }
 .display-none { display: none !important; }
-.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
-.margin-0 { margin: 0; }
-.flex-center-gap-10 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.label-filter { font-size: 0.85rem; font-weight: 600; margin-bottom: 0; }
-.select-auto { width: auto; min-width: 180px; margin: 0; }
-.select-auto-only { width: auto; min-width: 160px; }
-.dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
-.dashboard-title { font-size: 1.25rem; font-weight: 700; margin: 0; }
-.resumen-lista { margin-top: 15px; font-size: 0.9rem; display: grid; gap: 6px; }
-.historial-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; }
-.mb-20 { margin-bottom: 20px; }
-.font-muted-sub { font-size: 0.75rem; color: var(--text-muted); }
-.modal-sm { max-width: 480px; }
-.mb-12 { margin-bottom: 12px; }
-.mb-8 { margin-bottom: 8px; }
-.mb-10 { margin-bottom: 10px; }
-.mb-6 { margin-bottom: 6px; }
+.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+.margin-0 { margin: 0 !important; }
+.flex-center-gap-10 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.label-filter { font-size: 0.82rem; font-weight: 600; margin-bottom: 0; }
+.select-auto { width: auto; min-width: 170px; margin: 0; }
+.select-auto-only { width: auto; min-width: 150px; flex: 1; }
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+.dashboard-title { font-size: 1.15rem; font-weight: 700; margin: 0; }
+.historial-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.mb-20 { margin-bottom: 18px; }
 .mb-14 { margin-bottom: 14px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-10 { margin-bottom: 10px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-6 { margin-bottom: 6px; }
+.font-muted-sub { font-size: 0.74rem; color: var(--text-muted); }
 .banner-edit { display: none; font-size: 0.8rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; color: #1d4ed8; }
 .flex-start-gap-10 { display: flex; gap: 10px; align-items: flex-start; }
 .select-list { height: auto; min-height: 150px; flex: 1; }
 .btn-nowrap { white-space: nowrap; padding: 8px 14px; }
-.modal-lg { max-width: 820px; width: 95%; max-height: 90vh; overflow-y: auto; }
 .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.grid-4col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-.grid-3col-end { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: flex-end; }
-.font-italic-muted { font-size: 0.78rem; color: var(--text-muted); margin: 2px 0 6px; font-style: italic; }
-.btn-h42 { width: 100%; min-height: 44px; }
 .info-turnos { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.6; }
 .modal-xs { max-width: 420px; }
 .font-weight-normal { font-weight: normal; font-size: 0.75rem; }
-.checkbox-container { max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 8px; background: #fff; }
+.checkbox-container { max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 8px; background: var(--bg-card); }
 .chk-export-row { margin-bottom: 6px; }
 .chk-export-label { display: flex; align-items: center; gap: 10px; font-weight: normal; cursor: pointer; min-height: 36px; color: var(--text-main); }
 .chk-export-label input[type="checkbox"] { width: 20px; height: 20px; min-height: 20px; }
 .flex-1 { flex: 1; }
-.btn-modificar { white-space: nowrap; min-height: 44px; padding: 0 14px; }
-.policia-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.policia-cell { display: flex; align-items: center; gap: 8px; }
+.btn-modificar { white-space: nowrap; min-height: 42px; padding: 0 14px; }
 .nowrap-cell { white-space: nowrap; }
 .font-weight-600 { font-weight: 600; }
 
-/* Elementos exclusivos del Modo Móvil (ocultos en PC de escritorio > 768px) */
+/* Elementos exclusivos del Modo Móvil (ocultos en PC > 768px) */
 .mobile-bottom-nav,
 .mobile-fab-add {
     display: none;
 }
 
 /* ============================================================================
-   DIRECTIVAS @sitio-mobile-adapter: MODO MÓVIL EXCLUSIVO & ANDROID APK (<= 768px)
+   MODO MÓVIL EXCLUSIVO & ANDROID APK (<= 768px)
+   Corregido a partir del video del APK:
+   - Margen superior anti-solapamiento con barra de estado de Android (reloj/batería)
+   - Calendario completo en pantalla con toolbar en 1 sola línea y eventos de 3 líneas legibles
+   - Tabla de Historial de 5 columnas visible directamente como tabla compacta
    ============================================================================ */
 @media (max-width: 768px) {
     body {
-        padding-top: calc(12px + var(--sat));
-        padding-left: calc(12px + var(--sal));
-        padding-right: calc(12px + var(--sar));
-        /* Espacio inferior reservado para la barra de navegación nativa móvil */
-        padding-bottom: calc(90px + var(--sab));
+        /* Evita que la barra de notificaciones de Android (00:30, batería) tape el título */
+        padding-top: calc(max(var(--sat), 28px) + 8px);
+        padding-left: calc(8px + var(--sal));
+        padding-right: calc(8px + var(--sar));
+        padding-bottom: calc(82px + var(--sab));
+    }
+
+    .desktop-top-nav {
+        display: none !important;
+    }
+
+    .app-header-bar {
+        margin-bottom: 8px;
+        justify-content: center;
+    }
+
+    .header-titles {
+        text-align: center;
+        width: 100%;
     }
 
     h1 {
-        font-size: 1.35rem;
+        font-size: 1.18rem;
+        margin-bottom: 2px;
     }
 
-    p.subtitle {
-        font-size: 0.85rem;
-    }
-
-    /* 1. Ergonomía Táctil Mínima de 48px x 48px y separación de 8px */
-    button,
-    .btn-link,
-    select,
-    input[type="text"],
-    input[type="number"],
-    input[type="date"],
-    input[type="search"],
-    textarea {
-        min-height: 48px !important;
-        font-size: 16px !important; /* Previene auto-zoom forzado en Android/iOS WebView */
+    .system-status-bar {
+        justify-content: center;
     }
 
     .stat-grid {
         grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
-        margin-bottom: 14px;
+        gap: 6px;
+        margin-bottom: 8px;
     }
 
     .stat-card {
-        padding: 10px 8px;
+        padding: 7px 4px;
         text-align: center;
     }
 
     .stat-val {
-        font-size: 1.1rem;
+        font-size: 0.98rem;
     }
 
     .stat-label {
-        font-size: 0.68rem;
+        font-size: 0.62rem;
     }
 
-    /* 2. Navegación por Pestañas en Modo Móvil Exclusivo (App Shell) */
+    .card {
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+
+    /* Navegación por Pestañas en Modo Móvil Exclusivo */
     body[data-mobile-tab="agenda"] [data-mobile-section="resumen"],
-    body[data-mobile-tab="agenda"] [data-mobile-section="historial"],
-    body[data-mobile-tab="agenda"] [data-mobile-section="gestion"] {
+    body[data-mobile-tab="agenda"] [data-mobile-section="historial"] {
         display: none !important;
     }
 
     body[data-mobile-tab="resumen"] [data-mobile-section="agenda"],
-    body[data-mobile-tab="resumen"] [data-mobile-section="historial"],
-    body[data-mobile-tab="resumen"] [data-mobile-section="gestion"] {
+    body[data-mobile-tab="resumen"] [data-mobile-section="historial"] {
         display: none !important;
     }
 
     body[data-mobile-tab="historial"] [data-mobile-section="agenda"],
-    body[data-mobile-tab="historial"] [data-mobile-section="resumen"],
-    body[data-mobile-tab="historial"] [data-mobile-section="gestion"] {
+    body[data-mobile-tab="historial"] [data-mobile-section="resumen"] {
         display: none !important;
     }
 
-    body[data-mobile-tab="gestion"] [data-mobile-section="agenda"],
-    body[data-mobile-tab="gestion"] [data-mobile-section="resumen"],
-    body[data-mobile-tab="gestion"] [data-mobile-section="historial"] {
-        display: none !important;
+    /* Calendario compacto que entra completo en pantalla móvil */
+    .calendar-card {
+        padding: 8px;
     }
 
-    /* Grillas a 1 sola columna fluida en móvil */
-    .grid,
-    .grid-2col,
-    .grid-4col,
-    .grid-3col-end {
-        grid-template-columns: 1fr !important;
+    .calendar-header {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
     }
 
-    .panel-costos-grid {
-        grid-template-columns: repeat(2, 1fr);
+    .calendar-header h3 {
+        font-size: 0.92rem;
     }
 
-    .calendar-header,
-    .dashboard-header,
-    .historial-header {
-        flex-direction: column;
-        align-items: stretch;
+    .calendar-header .select-auto {
+        min-width: 145px;
+        max-width: 55%;
+        min-height: 36px !important;
+        padding: 4px 8px;
+        font-size: 0.8rem !important;
     }
 
-    .select-auto,
-    .select-auto-only {
-        width: 100% !important;
+    .fc .fc-toolbar.fc-header-toolbar {
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 6px !important;
+        gap: 4px !important;
     }
 
-    #calendar {
-        min-height: 440px;
-    }
-
-    .fc .fc-toolbar {
-        flex-direction: column;
-        gap: 8px;
+    .fc .fc-toolbar-title {
+        font-size: 0.92rem !important;
+        text-align: center;
     }
 
     .fc .fc-button {
-        min-height: 42px;
-        padding: 6px 12px;
+        padding: 4px 7px !important;
+        font-size: 0.72rem !important;
+        min-height: 30px !important;
     }
 
-    /* 3. Transformación de Tablas a Tarjetas Apiladas (Stacked Card Layout) */
-    .table-responsive table.custom-table,
-    .table-responsive table.custom-table tbody {
-        display: block;
-        width: 100%;
+    .fc .fc-col-header-cell-cushion {
+        padding: 3px 1px !important;
+        font-size: 0.66rem !important;
     }
 
-    .table-responsive table.custom-table thead {
-        display: none;
+    .fc .fc-daygrid-day-top {
+        justify-content: center;
     }
 
-    .table-responsive table.custom-table tr {
-        display: block;
-        margin-bottom: 12px;
-        background: #ffffff;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 8px 10px;
-        box-shadow: 0 1px 3px rgb(0 0 0 / 0.05);
+    .fc .fc-daygrid-day-number {
+        padding: 1px 3px !important;
+        font-size: 0.68rem !important;
     }
 
-    .table-responsive table.custom-table td {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 6px;
-        border: none;
-        border-bottom: 1px solid #f1f5f9;
-        text-align: right;
-        gap: 10px;
+    .fc .fc-daygrid-day-frame {
+        min-height: 54px !important;
     }
 
-    .table-responsive table.custom-table td:last-child {
-        border-bottom: none;
+    /* Eventos dentro de cada celda del calendario móvil: Empresa, Horario y Policía claros y sin desborde */
+    .alfa-cal-event-card {
+        padding: 1px 2px;
+        line-height: 1.08;
     }
 
-    .table-responsive table.custom-table td::before {
-        content: attr(data-label);
-        font-weight: 700;
-        text-transform: uppercase;
+    .alfa-cal-event-card .ev-line-emp {
+        font-size: 0.56rem;
+        font-weight: 800;
+    }
+
+    .alfa-cal-event-card .ev-line-time {
+        font-size: 0.52rem;
+    }
+
+    .alfa-cal-event-card .ev-line-pol {
+        font-size: 0.52rem;
+    }
+
+    /* Tabla de Historial de 5 columnas visible como tabla compacta en Móvil */
+    table.compact-history-table {
         font-size: 0.72rem;
-        color: var(--text-muted);
-        text-align: left;
-        margin-right: 12px;
-        flex-shrink: 0;
     }
 
-    /* 4. Barra de Navegación Inferior Exclusiva Móvil (Bottom Navigation Bar) */
+    table.compact-history-table th,
+    table.compact-history-table td {
+        padding: 7px 5px;
+    }
+
+    table.compact-history-table th {
+        font-size: 0.66rem;
+    }
+
+    .quick-period-pills {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .quick-period-pills .pill-btn {
+        flex: 1;
+        text-align: center;
+        padding: 6px 4px !important;
+    }
+
+    .grid,
+    .grid-2col {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Barra de Navegación Inferior Exclusiva Móvil */
     .mobile-bottom-nav {
         display: grid;
         grid-template-columns: repeat(5, 1fr);
@@ -616,10 +854,10 @@ body.pdf-mode .event-past-month {
         bottom: 0;
         left: 0;
         right: 0;
-        background: #ffffff;
+        background: var(--bg-card);
         border-top: 1px solid var(--border);
-        padding-top: 6px;
-        padding-bottom: calc(6px + var(--sab));
+        padding-top: 5px;
+        padding-bottom: calc(5px + var(--sab));
         padding-left: var(--sal);
         padding-right: var(--sar);
         box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
@@ -630,52 +868,52 @@ body.pdf-mode .event-past-month {
         background: transparent;
         border: none;
         border-radius: 8px;
-        padding: 4px 2px;
-        min-height: 52px !important;
+        padding: 3px 2px;
+        min-height: 48px !important;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 3px;
+        gap: 2px;
         color: var(--text-muted);
-        font-size: 0.7rem !important;
+        font-size: 0.68rem !important;
         font-weight: 600;
         text-decoration: none;
     }
 
     .mobile-nav-btn .nav-icon {
-        font-size: 1.2rem;
+        font-size: 1.15rem;
         line-height: 1;
     }
 
     .mobile-nav-btn.active {
         color: var(--primary);
-        background: #eff6ff;
+        background: rgba(37, 99, 235, 0.1);
     }
 
-    /* 5. Botón Flotante Táctil (FAB) para Nuevo Servicio Rápido en Móvil */
+    /* Botón Flotante Táctil (FAB) */
     .mobile-fab-add {
         display: inline-flex;
         align-items: center;
         justify-content: center;
         position: fixed;
-        right: 18px;
-        bottom: calc(76px + var(--sab));
-        width: 56px;
-        height: 56px;
+        right: 14px;
+        bottom: calc(68px + var(--sab));
+        width: 50px;
+        height: 50px;
         border-radius: 50%;
         background: var(--primary);
         color: #ffffff;
-        font-size: 1.75rem;
+        font-size: 1.6rem;
         font-weight: 700;
-        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
         z-index: 1490;
         border: none;
     }
 
     #notificacion {
-        bottom: calc(78px + var(--sab));
-        left: 12px;
-        right: 12px;
+        bottom: calc(70px + var(--sab));
+        left: 10px;
+        right: 10px;
     }
 }

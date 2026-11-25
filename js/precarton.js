@@ -320,6 +320,9 @@
      */
     function init() {
         if (typeof document === 'undefined') return;
+        if (Utils.applyTheme && Utils.getSavedTheme) {
+            Utils.applyTheme(Utils.getSavedTheme());
+        }
         const hoy = new Date();
         const selMes = document.getElementById("selMes");
         const selAnio = document.getElementById("selAnio");

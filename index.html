@@ -34,32 +34,40 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=12">
-  <script src="js/utils/helpers.js?v=12"></script>
-  <script src="js/services/calculator.js?v=12"></script>
-  <script src="js/services/database.js?v=12"></script>
-  <script src="js/services/storage.js?v=12"></script>
-  <script src="js/services/cloudSync.js?v=12"></script>
-  <script src="js/services/exporter.js?v=12"></script>
-  <script src="js/scripts.js?v=12"></script>
+  <link rel="stylesheet" href="css/styles.css?v=14">
+  <script src="js/utils/helpers.js?v=14"></script>
+  <script src="js/services/calculator.js?v=14"></script>
+  <script src="js/services/database.js?v=14"></script>
+  <script src="js/services/storage.js?v=14"></script>
+  <script src="js/services/cloudSync.js?v=14"></script>
+  <script src="js/services/exporter.js?v=14"></script>
+  <script src="js/scripts.js?v=14"></script>
 </head>
 
 <body data-mobile-tab="agenda">
 
   <div class="container">
-    <header>
-      <h1>Gestión de Servicios Adicionales</h1>
-      <p class="subtitle">Control de turnos, costos, reportes y sincronización híbrida</p>
-      <div class="system-status-bar">
-        <span id="platformModeBadge" class="badge badge-empresa">🖥️ Modo Escritorio PC</span>
-        <span id="dbEngineBadge" class="badge badge-b">SQLite/IndexedDB Local Activo</span>
-        <span id="dbOutboxBadge" class="badge badge-a">Sincronizado con Sheets</span>
+    <!-- CABECERA COMPACTA CON ACCESOS EN PC Y RESPETO DE SAFE-AREA EN APK -->
+    <header class="app-header-bar">
+      <div class="header-titles">
+        <h1>Gestión de Servicios Adicionales</h1>
+        <div class="system-status-bar">
+          <span id="platformModeBadge" class="badge badge-empresa">🖥️ PC</span>
+          <span id="dbEngineBadge" class="badge badge-b">SQLite Local</span>
+          <span id="dbOutboxBadge" class="badge badge-a">Sincronizado</span>
+        </div>
+      </div>
+      <div class="desktop-top-nav no-print">
+        <button type="button" class="btn-outline" onclick="cargarServiciosDesdeCloud()">🔄 Sincronizar Sheets</button>
+        <a href="Precarton_Adcionales.html" class="btn-outline">🗂️ Precartón Mensual</a>
+        <a href="Configuraciones.html" class="btn-primary">⚙️ Configuraciones</a>
       </div>
     </header>
 
+    <!-- TARJETAS KPI RESUMEN RÁPIDO -->
     <div class="stat-grid">
       <div class="stat-card">
-        <div class="stat-label">Total Turnos (Mes)</div>
+        <div class="stat-label">Turnos (Mes)</div>
         <div id="stat-turnos" class="stat-val">0</div>
       </div>
       <div class="stat-card">
@@ -72,108 +80,108 @@
       </div>
     </div>
 
-    <!-- SECCIÓN GESTIÓN Y BASE DE DATOS LOCAL (PC siempre visible / Móvil tab 'gestion') -->
-    <div class="grid" data-mobile-section="gestion">
-      <!-- Configuraciones -->
-      <div class="card">
-        <h3><span class="title-accent">Configuración</span> de Tarifas</h3>
-        <p class="text-muted-sm">Ajuste los valores de la hora por categoría.</p>
-        <div id="panelCostos" class="grid panel-costos-grid">
-          <!-- Generado por JS -->
-        </div>
-        <button class="btn-primary btn-full" onclick="guardarConfig()">Actualizar Precios</button>
-      </div>
-
-      <div class="card">
-        <h3>Administración y Base de Datos Local</h3>
-        <div class="flex-gap-10">
-          <button class="btn-outline" onclick="abrirModal('modalPolicias')">👮 Gestionar Policías</button>
-          <button class="btn-outline" onclick="abrirModal('modalEmpresas')">🏢 Gestionar Empresas</button>
-          <button class="btn-primary" onclick="window.location.href='Precarton_Adcionales.html'">🗂️ Cargar Precartón</button>
-        </div>
-        <div class="flex-wrap-gap-10">
-          <button class="btn-primary btn-slate" onclick="abrirModalExportar()">🖨️ Exportar Reportes</button>
-          <button class="btn-primary btn-green" onclick="cargarServiciosDesdeCloud()">🔄 Leer Google Sheets</button>
-          <button class="btn-outline btn-outline-green" onclick="document.getElementById('importarJson').click()">⬇️ Importar alfas.json</button>
-          <input type="file" id="importarJson" title="Seleccionar archivo de servicios JSON para importar" aria-label="Seleccionar archivo JSON" class="display-none" accept=".json" onchange="cargarAlfasJSON(event)">
-        </div>
-        <div class="flex-wrap-gap-10">
-          <button class="btn-primary btn-indigo" onclick="exportarBaseDatosSQL()">🗄️ Exportar Base SQL (.sql)</button>
-          <button class="btn-outline" onclick="sincronizarColaOutbox()">☁️ Sincronizar Cola Outbox</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- SECCIÓN AGENDA / CALENDARIO PRINCIPAL (PC siempre visible / Móvil tab 'agenda') -->
-    <div class="card" data-mobile-section="agenda">
+    <!-- 1. SECCIÓN AGENDA / CALENDARIO COMPLETO EN PANTALLA -->
+    <div class="card calendar-card" data-mobile-section="agenda">
       <div class="calendar-header">
-        <h3 class="margin-0">Calendario de Servicios</h3>
+        <h3 class="margin-0">📅 Calendario de Servicios</h3>
         <div class="flex-center-gap-10">
-          <label for="filtroCalPolicia" class="label-filter">Filtrar por Policía:</label>
-          <select id="filtroCalPolicia" title="Filtrar eventos de calendario por Policía seleccionado" class="select-auto" onchange="filtrarCalendario()"></select>
+          <select id="filtroCalPolicia" title="Filtrar eventos de calendario por Policía" class="select-auto" onchange="filtrarCalendario()"></select>
         </div>
       </div>
       <div id="calendar"></div>
     </div>
 
-    <!-- SECCIÓN RESUMEN / DASHBOARD DE ESTADÍSTICAS (PC siempre visible / Móvil tab 'resumen') -->
+    <!-- 2. SECCIÓN GRÁFICOS: 2 GRÁFICOS DE BARRAS (MENSUAL Y ANUAL APILADO POR DÍA DE LA SEMANA) -->
     <div data-mobile-section="resumen">
       <div class="dashboard-header">
-        <h2 class="dashboard-title">Dashboard de Estadísticas</h2>
+        <h2 class="dashboard-title">📊 Estadísticas por Día de la Semana</h2>
         <div class="flex-center-gap-10">
-          <label for="filtroMesDashboard" class="label-filter">Filtrar Mes:</label>
-          <select id="filtroMesDashboard" title="Filtrar cuadro de estadísticas del Dashboard por Mes" class="select-auto" onchange="calcularResumen()"></select>
+          <label for="filtroMesDashboard" class="label-filter">Mes:</label>
+          <select id="filtroMesDashboard" title="Seleccionar Mes para Gráfico Mensual" class="select-auto" onchange="calcularResumen()"></select>
         </div>
       </div>
 
       <div class="grid">
+        <!-- Gráfico de Barras 1: Mes Actual / Seleccionado por Día de la Semana -->
         <div class="card">
-          <h3>Distribución de Turnos</h3>
-          <div class="chart-wrapper">
-            <canvas id="grafico"></canvas>
+          <div class="chart-card-header">
+            <h3>Turnos por Día de la Semana (Mes)</h3>
+            <span id="subtituloGraficoMes" class="badge badge-empresa">Mes Actual</span>
           </div>
-          <div id="resumenLista" class="resumen-lista"></div>
+          <div class="chart-wrapper">
+            <canvas id="graficoMensual"></canvas>
+          </div>
+          <div id="footerTotalMensual" class="chart-total-footer">
+            Total Mensual: <strong>0 turnos</strong> | Monto: <strong>$0</strong>
+          </div>
         </div>
 
+        <!-- Gráfico de Barras 2: Anual Apilado por Día de la Semana -->
         <div class="card">
-          <h3>Resumen por Policía</h3>
-          <div class="table-container table-responsive">
-            <table class="custom-table">
-              <thead>
-                <tr>
-                  <th>Policía</th>
-                  <th>Turnos</th>
-                  <th>Monto</th>
-                </tr>
-              </thead>
-              <tbody id="totalesBody"></tbody>
-            </table>
+          <div class="chart-card-header">
+            <h3>Acumulado Anual Apilado por Día</h3>
+            <span id="subtituloGraficoAnual" class="badge badge-b">Año Vigente</span>
           </div>
+          <div class="chart-wrapper">
+            <canvas id="graficoAnual"></canvas>
+          </div>
+          <div id="footerTotalAnual" class="chart-total-footer">
+            Total Anual Vigente: <strong>0 turnos</strong> | Monto: <strong>$0</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla de Resumen por Policía -->
+      <div class="card">
+        <h3>Resumen por Policía (Mes Seleccionado)</h3>
+        <div class="table-container">
+          <table class="compact-history-table">
+            <thead>
+              <tr>
+                <th>Policía</th>
+                <th>Turnos</th>
+                <th>Monto Acumulado</th>
+              </tr>
+            </thead>
+            <tbody id="totalesBody"></tbody>
+          </table>
         </div>
       </div>
     </div>
 
-    <!-- SECCIÓN HISTORIAL DE SERVICIOS (PC siempre visible / Móvil tab 'historial') -->
+    <!-- 3. SECCIÓN HISTORIAL: TABLA COMPACTA (FECHA, EMPRESA, TURNO, CATEGORÍA, COSTO) + BOTONES RÁPIDOS -->
     <div class="card" data-mobile-section="historial">
       <div class="historial-header">
-        <h3>Historial de Servicios</h3>
-        <div class="flex-wrap-gap-10">
-          <select id="filtroMesHistorial" title="Filtrar historial por Mes" class="select-auto-only" onchange="aplicarFiltros()"></select>
-          <select id="filtroPolicia" title="Filtrar historial por Policía" class="select-auto-only" onchange="aplicarFiltros()"></select>
-          <select id="filtroEmpresa" title="Filtrar historial por Empresa" class="select-auto-only" onchange="aplicarFiltros()"></select>
-          <button class="btn-outline" onclick="limpiarFiltros()">Limpiar</button>
+        <div>
+          <h3>📋 Historial de Servicios</h3>
+          <p class="text-muted-sm margin-0" id="historialSubtituloConteo">Mostrando todos los registros</p>
+        </div>
+
+        <!-- Botones rápidos de período (Semanal, Mes, Anual, Todos) -->
+        <div class="quick-period-pills" role="group" aria-label="Filtros rápidos de período">
+          <button type="button" class="pill-btn" data-period="semanal" onclick="aplicarPeriodoRapidoHistorial('semanal')">Semanal</button>
+          <button type="button" class="pill-btn" data-period="mensual" onclick="aplicarPeriodoRapidoHistorial('mensual')">Mes</button>
+          <button type="button" class="pill-btn" data-period="anual" onclick="aplicarPeriodoRapidoHistorial('anual')">Anual</button>
+          <button type="button" class="pill-btn active" data-period="todos" onclick="aplicarPeriodoRapidoHistorial('todos')">Todos</button>
         </div>
       </div>
-      <div class="table-container table-responsive">
-        <table id="tablaServicios" class="custom-table">
+
+      <div class="historial-filters-row">
+        <select id="filtroMesHistorial" title="Filtrar historial por Mes específico" class="select-auto-only" onchange="onCambioSelectMesHistorial()"></select>
+        <select id="filtroPolicia" title="Filtrar historial por Policía" class="select-auto-only" onchange="aplicarFiltros()"></select>
+        <select id="filtroEmpresa" title="Filtrar historial por Empresa" class="select-auto-only" onchange="aplicarFiltros()"></select>
+        <button type="button" class="btn-outline" onclick="limpiarFiltros()">Limpiar</button>
+      </div>
+
+      <div class="table-container">
+        <table id="tablaServicios" class="compact-history-table">
           <thead>
             <tr>
               <th>Fecha</th>
               <th>Empresa</th>
-              <th>Policía</th>
               <th>Turno</th>
-              <th>Cat.</th>
-              <th>Total</th>
+              <th>Categoría</th>
+              <th>Costo</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -193,7 +201,7 @@
     </button>
     <button type="button" class="mobile-nav-btn" data-tab="resumen" onclick="cambiarTabMovil('resumen')">
       <span class="nav-icon">📊</span>
-      <span>Resumen</span>
+      <span>Gráficos</span>
     </button>
     <button type="button" class="mobile-nav-btn" data-tab="historial" onclick="cambiarTabMovil('historial')">
       <span class="nav-icon">📋</span>
@@ -203,10 +211,10 @@
       <span class="nav-icon">🗂️</span>
       <span>Precartón</span>
     </a>
-    <button type="button" class="mobile-nav-btn" data-tab="gestion" onclick="cambiarTabMovil('gestion')">
+    <a href="Configuraciones.html" class="mobile-nav-btn">
       <span class="nav-icon">⚙️</span>
-      <span>Gestión</span>
-    </button>
+      <span>Config.</span>
+    </a>
   </nav>
 
   <!-- MODAL SERVICIO -->
@@ -242,173 +250,7 @@
           <option value="HO">Cat. HO</option>
         </select>
       </div>
-      <button class="btn-primary btn-full-sm" onclick="guardarEvento()">Guardar Servicio</button>
-    </div>
-  </div>
-
-  <!-- MODAL POLICIAS -->
-  <div id="modalPolicias" class="modal-overlay">
-    <div class="modal modal-sm">
-      <span class="close-modal" onclick="cerrarModal('modalPolicias')">&times;</span>
-      <h3 class="mb-12">Gestionar Policías</h3>
-
-      <div class="form-group mb-8">
-        <label for="nuevoPolicia">Nombre Completo</label>
-        <input type="text" id="nuevoPolicia" placeholder="Ej: Perez Juan">
-      </div>
-      <div class="form-group mb-10">
-        <label for="jerarquiaPolicia">Jerarquía</label>
-        <select id="jerarquiaPolicia" title="Seleccionar Jerarquía del agente de policía">
-          <option value="">— Sin especificar —</option>
-          <option value="Of. Ayte.">Of. Ayte.</option>
-          <option value="Of. Sub. Insp.">Of. Sub. Insp.</option>
-          <option value="Of. Insp.">Of. Insp.</option>
-          <option value="Of. Ppal">Of. Ppal</option>
-          <option value="Subof. My">Subof. My</option>
-          <option value="Subof. Ppal">Subof. Ppal</option>
-          <option value="Sgto. Ayte.">Sgto. Ayte.</option>
-          <option value="Sgto 1°">Sgto 1°</option>
-          <option value="Sgto.">Sgto.</option>
-          <option value="Cabo 1°">Cabo 1°</option>
-          <option value="Cabo">Cabo</option>
-          <option value="Agente">Agente</option>
-        </select>
-      </div>
-
-      <button id="btnAgregarPolicia" class="btn-secondary btn-full-xs mb-14" onclick="agregarPolicia()">+ Agregar Policía</button>
-
-      <div id="editandoBannerPol" class="banner-edit">
-        ✏️ Editando: <strong id="editandoNombrePol"></strong> — Modificá los campos y hacé click en <b>Actualizar</b>
-      </div>
-
-      <div class="form-group mb-6">
-        <label for="listaPolicias">Lista Actual</label>
-        <div class="flex-start-gap-10">
-          <select id="listaPolicias" size="6" title="Lista de Policías registrados en el sistema" class="select-list"></select>
-          <button class="btn-outline btn-nowrap" onclick="modificarPolicia()" title="Cargar datos para editar">✏️ Modificar</button>
-        </div>
-      </div>
-      <button class="btn-danger btn-full-xs" onclick="eliminarPolicia()">Eliminar Seleccionado</button>
-    </div>
-  </div>
-
-  <!-- MODAL EMPRESAS -->
-  <div id="modalEmpresas" class="modal-overlay">
-    <div class="modal modal-lg">
-      <span class="close-modal" onclick="cerrarModal('modalEmpresas')">&times;</span>
-      <h3 class="mb-12">Gestionar Empresas</h3>
-
-      <div class="grid-2col">
-        <div class="form-group mb-8">
-          <label for="nuevoEmpresa">Nombre Empresa</label>
-          <input type="text" id="nuevoEmpresa" placeholder="Ej: PALADINI">
-        </div>
-        <div class="form-group mb-8">
-          <label for="rangoTurnos">Turnos (separados por coma)</label>
-          <input type="text" id="rangoTurnos" placeholder="06-14, 14-22, 22-06">
-        </div>
-      </div>
-      <div class="grid-4col">
-        <div class="form-group mb-8">
-          <label for="catSemana">Cat. Lun–Vie</label>
-          <select id="catSemana" title="Categoría de tarifa aplicable de Lunes a Viernes">
-            <option value="A">Cat. A</option>
-            <option value="B">Cat. B</option>
-            <option value="E">Cat. E</option>
-            <option value="HE">Cat. HE</option>
-            <option value="HO">Cat. HO</option>
-          </select>
-        </div>
-        <div class="form-group mb-8">
-          <label for="catFinde">Cat. Sáb–Dom</label>
-          <select id="catFinde" title="Categoría de tarifa aplicable fines de semana (Sábados y Domingos)">
-            <option value="AP">Cat. AP</option>
-            <option value="BP">Cat. BP</option>
-            <option value="E">Cat. E</option>
-            <option value="HE">Cat. HE</option>
-            <option value="HO">Cat. HO</option>
-          </select>
-        </div>
-        <div class="form-group mb-8">
-          <label for="empNroServicio">N° de Servicio</label>
-          <input type="text" id="empNroServicio" placeholder="Ej: 1023">
-        </div>
-        <div class="form-group mb-8">
-          <label for="empTelefono">Teléfono Empresa</label>
-          <input type="text" id="empTelefono" placeholder="Ej: 0341-4123456">
-        </div>
-      </div>
-      <p class="font-italic-muted">Campos opcionales</p>
-      <div class="grid-4col">
-        <div class="form-group mb-8">
-          <label for="empDomicilio">Domicilio</label>
-          <input type="text" id="empDomicilio" placeholder="Ej: Av. Mitre 500">
-        </div>
-        <div class="form-group mb-8">
-          <label for="empBarrio">Barrio</label>
-          <input type="text" id="empBarrio" placeholder="Ej: Centro">
-        </div>
-        <div class="form-group mb-8">
-          <label for="empReferente">Referente de la Entidad</label>
-          <input type="text" id="empReferente" placeholder="Ej: Juan Pérez">
-        </div>
-        <div class="form-group mb-8">
-          <label for="empTelReferente">Teléfono Referente</label>
-          <input type="text" id="empTelReferente" placeholder="Ej: 341-1234567">
-        </div>
-      </div>
-      <div class="grid-3col-end">
-        <div class="form-group mb-8">
-          <label for="empPoliciaEncargado">Policía Encargado</label>
-          <input type="text" id="empPoliciaEncargado" placeholder="Ej: García Roberto">
-        </div>
-        <div class="form-group mb-8">
-          <label for="empTelPoliciaEncargado">Teléfono Policía Encargado</label>
-          <input type="text" id="empTelPoliciaEncargado" placeholder="Ej: 341-9876543">
-        </div>
-        <div class="mb-8">
-          <button class="btn-primary btn-h42" onclick="agregarEmpresa()">Agregar Empresa</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="listaEmpresas">Empresas Registradas</label>
-        <div class="flex-center-gap-10">
-          <select id="listaEmpresas" title="Lista de Empresas registradas en el sistema" class="flex-1" onchange="verTurnosEmpresa()"></select>
-          <button class="btn-outline btn-modificar" onclick="modificarEmpresa()" title="Cargar datos en el formulario para editar">✏️ Modificar</button>
-        </div>
-      </div>
-      <div id="infoTurnos" class="info-turnos"></div>
-      <div id="editandoBanner" class="banner-edit">
-        ✏️ Editando empresa: <strong id="editandoNombre"></strong> — Modificá los campos y hacé click en <b>Actualizar Empresa</b>
-      </div>
-      <button class="btn-danger btn-full-xs" onclick="eliminarEmpresa()">Eliminar Empresa</button>
-    </div>
-  </div>
-
-  <!-- MODAL EXPORTAR -->
-  <div id="modalExportar" class="modal-overlay">
-    <div class="modal modal-xs">
-      <span class="close-modal" onclick="cerrarModal('modalExportar')">&times;</span>
-      <h3 class="mb-20">Exportar Reportes</h3>
-      <div class="form-group mb-10">
-        <label for="exportMes">Seleccionar Mes <span class="font-weight-normal">(Opcional)</span></label>
-        <select id="exportMes" title="Seleccionar Mes de servicios a exportar"></select>
-      </div>
-      <div class="form-group mb-10">
-        <label for="exportPolicia">Seleccionar Policía <span class="font-weight-normal">(Opcional)</span></label>
-        <select id="exportPolicia" title="Seleccionar Policía de servicios a exportar"></select>
-      </div>
-      <div class="form-group mb-6">
-        <label>Seleccionar Empresa(s) <span class="font-weight-normal">(Marcar para incluir)</span></label>
-        <div id="containerExportEmpresa" class="checkbox-container">
-          <!-- Checkboxes dinámicos sanitizados -->
-        </div>
-      </div>
-      <div class="flex-gap-10">
-        <button class="btn-danger flex-1" onclick="exportPDF()">📄 PDF</button>
-        <button class="btn-secondary flex-1" onclick="exportExcel()">📊 Excel</button>
-      </div>
+      <button type="button" class="btn-primary btn-full-sm" onclick="guardarEvento()">Guardar Servicio</button>
     </div>
   </div>
 

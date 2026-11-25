@@ -3,21 +3,23 @@
  * @description Service Worker Offline-First para soporte PWA y caché de activos en móvil/PC.
  */
 
-const CACHE_NAME = 'alfas-caminera-v12';
+const CACHE_NAME = 'alfas-caminera-v14';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
+    './Configuraciones.html',
     './Precarton_Adcionales.html',
     './manifest.webmanifest',
-    './css/styles.css?v=12',
-    './js/utils/helpers.js?v=12',
-    './js/services/calculator.js?v=12',
-    './js/services/database.js?v=12',
-    './js/services/storage.js?v=12',
-    './js/services/cloudSync.js?v=12',
-    './js/services/exporter.js?v=12',
-    './js/scripts.js?v=12',
-    './js/precarton.js?v=12'
+    './css/styles.css?v=14',
+    './js/utils/helpers.js?v=14',
+    './js/services/calculator.js?v=14',
+    './js/services/database.js?v=14',
+    './js/services/storage.js?v=14',
+    './js/services/cloudSync.js?v=14',
+    './js/services/exporter.js?v=14',
+    './js/scripts.js?v=14',
+    './js/configuraciones.js?v=14',
+    './js/precarton.js?v=14'
 ];
 
 self.addEventListener('install', (event) => {
@@ -36,7 +38,6 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
     const reqUrl = new URL(event.request.url);
-    // Las peticiones hacia Google Apps Script siempre van directo a red (el Outbox de AlfaDatabase maneja el offline)
     if (reqUrl.hostname.includes('script.google.com') || reqUrl.hostname.includes('googleusercontent.com')) {
         return;
     }

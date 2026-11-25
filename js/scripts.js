@@ -1,8 +1,7 @@
 /**
  * @file scripts.js
- * @description Orquestador principal de UI, navegación adaptativa PC/Móvil Exclusivo, manipulación segura del DOM (Anti-XSS)
- * y coordinación de servicios (Storage, SQLite/IndexedDB Local Database, CloudSync Outbox y Exporter).
- * Refactorizado aplicando arquitectura modular SOLID, directivas @sitio-mobile-adapter y JSDoc estricto.
+ * @description Orquestador principal de UI para Dashboard, Calendario Adaptativo Completo,
+ * 2 Gráficos de Barras por Día de la Semana (Mensual + Anual Apilado) y Tabla de Historial de 5 Columnas con Filtros Rápidos.
  */
 
 // --- SERVICIOS MODULARES E INICIALIZACIÓN ---
@@ -24,6 +23,13 @@ function getLocalYM(dateObj) { return Utils.getLocalYM(dateObj); }
 function colorAleatorio() { return Utils.colorAleatorio(); }
 
 const CATEGORIAS = Storage.CATEGORIAS;
+const DIAS_SEMANA_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const COLORES_MESES = [
+    '#2563eb', '#0ea5e9', '#10b981', '#84cc16',
+    '#eab308', '#f59e0b', '#f97316', '#ef4444',
+    '#ec4899', '#d946ef', '#8b5cf6', '#6366f1'
+];
 
 // Inicialización de estado centralizado desde Storage Service
 const initialState = Storage.initStorage(Utils);
@@ -32,10 +38,11 @@ let policias = initialState.policias;
 let empresas = initialState.empresas;
 let coloresPolicia = initialState.coloresPolicia;
 
-let miGrafico = null;
+let graficoMensualInstance = null;
+let graficoAnualInstance = null;
 let calendar = null;
-let _editandoPolicia = null;
 let _currentMobileTab = 'agenda';
+let _periodoRapidoHistorial = 'todos'; // 'semanal' | 'mensual' | 'anual' | 'todos'
 
 /**
  * Obtiene la lista simplificada de nombres de policías.
@@ -53,70 +60,6 @@ function nombresPolicias() {
 function etiquetaPolicia(policiaObj) {
     if (!policiaObj) return "";
     return policiaObj.jerarquia ? `[${policiaObj.jerarquia}] ${policiaObj.nombre}` : policiaObj.nombre;
-}
-
-/**
- * Inicializa los inputs de configuración del panel de tarifas en el DOM.
- */
-function initInputs() {
-    const container = document.getElementById("panelCostos");
-    if (!container) return;
-    container.innerHTML = "";
-    CATEGORIAS.forEach(categoriaKey => {
-        const safeKey = escapeHTML(categoriaKey);
-        const safeVal = Number(config[categoriaKey]) || 0;
-        const group = document.createElement("div");
-        group.className = "form-group";
-        group.innerHTML = `
-            <label for="costo_${safeKey}">Cat. ${safeKey}</label>
-            <input type="number" id="costo_${safeKey}" value="${safeVal}" step="0.01" inputmode="decimal">
-        `;
-        container.appendChild(group);
-    });
-}
-
-/**
- * Guarda la configuración de tarifas, recalcula los montos locales y sincroniza con SQLite/IndexedDB y la nube.
- */
-function guardarConfig() {
-    CATEGORIAS.forEach(categoriaKey => {
-        const inputElem = document.getElementById(`costo_${categoriaKey}`);
-        if (inputElem) {
-            const val = parseFloat(inputElem.value);
-            config[categoriaKey] = (Number.isFinite(val) && val >= 0) ? val : 0;
-        }
-    });
-    Storage.saveConfig(config);
-    mostrarNotificacion("Tarifas actualizadas en Base Local y Nube...", "var(--secondary)");
-    recalcularMontosServicios();
-    CloudSync.sincronizarTarifasCloud(config).then(() => actualizarEstadoBaseDatosUI());
-}
-
-/**
- * Recalcula el costo acumulado de los eventos cargados en el calendario según las nuevas tarifas.
- */
-function recalcularMontosServicios() {
-    if (!calendar) return;
-    calendar.getEvents().forEach(eventoItem => {
-        let props = eventoItem.extendedProps || {};
-        if (props.turno && props.empresa && eventoItem.startStr) {
-            let empData = empresas[props.empresa];
-            if (empData) {
-                let nuevoCosto = Calculator.calcularCostoTurno(props.turno, eventoItem.startStr, empData, config);
-                if (!props.cat || props.cat === nuevoCosto.cat) {
-                    props.cost = nuevoCosto.cost;
-                    props.vh = nuevoCosto.vh;
-                    props.detail = nuevoCosto.detail;
-                } else if (config[props.cat]) {
-                    let valorHora = config[props.cat];
-                    props.vh = valorHora;
-                    props.cost = valorHora * (props.h || 8);
-                }
-            }
-        }
-    });
-    guardarEventosLocal();
-    actualizarTodo();
 }
 
 /**
@@ -172,18 +115,15 @@ function inicializarSelects() {
     const sPol = document.getElementById("selPolicia");
     const fPol = document.getElementById("filtroPolicia");
     const cPol = document.getElementById("filtroCalPolicia");
-    const lPol = document.getElementById("listaPolicias");
     const sEmp = document.getElementById("selEmpresa");
     const fEmp = document.getElementById("filtroEmpresa");
-    const lEmp = document.getElementById("listaEmpresas");
 
     [
         { el: sPol, data: nombresPolicias(), first: "-- Seleccione Policía --" },
         { el: fPol, data: nombresPolicias(), first: "Todos los Policías" },
         { el: cPol, data: nombresPolicias(), first: "Todos los Policías" },
         { el: sEmp, data: Object.keys(empresas), first: "-- Seleccione Empresa --" },
-        { el: fEmp, data: Object.keys(empresas), first: "Todas las Empresas" },
-        { el: lEmp, data: Object.keys(empresas) }
+        { el: fEmp, data: Object.keys(empresas), first: "Todas las Empresas" }
     ].forEach(s => {
         if (!s.el) return;
         s.el.innerHTML = "";
@@ -201,197 +141,9 @@ function inicializarSelects() {
         });
     });
 
-    if (lPol) {
-        lPol.innerHTML = "";
-        policias.forEach(p => {
-            let op = document.createElement("option");
-            op.value = p.nombre;
-            op.textContent = etiquetaPolicia(p);
-            lPol.appendChild(op);
-        });
-    }
-
     cambiarTurnos();
     const statPol = document.getElementById("stat-policias");
     if (statPol) statPol.textContent = policias.length;
-}
-
-/**
- * Añade o actualiza un policía en la lista de gestión.
- */
-function agregarPolicia() {
-    let n = document.getElementById("nuevoPolicia").value.trim();
-    let j = document.getElementById("jerarquiaPolicia").value;
-    if (!n) return mostrarNotificacion("Ingrese un nombre válido", "var(--danger)");
-
-    if (_editandoPolicia) {
-        let idx = policias.findIndex(p => p.nombre === _editandoPolicia);
-        if (idx !== -1) {
-            if (_editandoPolicia !== n) {
-                coloresPolicia[n] = coloresPolicia[_editandoPolicia] || colorAleatorio();
-                delete coloresPolicia[_editandoPolicia];
-            }
-            policias[idx] = { nombre: n, jerarquia: j };
-        }
-        _editandoPolicia = null;
-        document.getElementById("editandoBannerPol").style.display = "none";
-        document.getElementById("btnAgregarPolicia").textContent = "+ Agregar Policía";
-        mostrarNotificacion("Policía actualizado", "var(--secondary)");
-    } else {
-        if (nombresPolicias().includes(n)) return mostrarNotificacion("Ya existe este efectivo", "var(--warning)");
-        coloresPolicia[n] = colorAleatorio();
-        policias.push({ nombre: n, jerarquia: j });
-        mostrarNotificacion("Policía añadido");
-    }
-
-    Storage.saveColores(coloresPolicia);
-    Storage.savePolicias(policias, coloresPolicia);
-    document.getElementById("nuevoPolicia").value = "";
-    document.getElementById("jerarquiaPolicia").value = "";
-    inicializarSelects();
-    CloudSync.sincronizarPoliciasCloud(policias).then(() => actualizarEstadoBaseDatosUI());
-}
-
-/**
- * Carga los datos de un policía seleccionado en el formulario para su edición.
- */
-function modificarPolicia() {
-    let nombre = document.getElementById("listaPolicias").value;
-    if (!nombre) return mostrarNotificacion("Seleccione un policía", "var(--warning)");
-    let pol = policias.find(p => p.nombre === nombre);
-    if (!pol) return;
-    document.getElementById("nuevoPolicia").value = pol.nombre;
-    document.getElementById("jerarquiaPolicia").value = pol.jerarquia || "";
-    _editandoPolicia = pol.nombre;
-    document.getElementById("editandoNombrePol").textContent = pol.nombre;
-    document.getElementById("editandoBannerPol").style.display = "";
-    document.getElementById("btnAgregarPolicia").textContent = "✔ Actualizar Policía";
-    mostrarNotificacion("Datos cargados — editá y guardá", "var(--primary)");
-}
-
-/**
- * Elimina el policía seleccionado de la lista de gestión.
- */
-function eliminarPolicia() {
-    let n = document.getElementById("listaPolicias").value;
-    if (!n) return;
-    if (!confirm(`¿Eliminar al policía "${n}"?`)) return;
-    policias = policias.filter(p => p.nombre !== n);
-    Storage.savePolicias(policias, coloresPolicia);
-    inicializarSelects();
-    mostrarNotificacion("Policía eliminado", "var(--danger)");
-    CloudSync.sincronizarPoliciasCloud(policias).then(() => actualizarEstadoBaseDatosUI());
-}
-
-/**
- * Añade o actualiza una empresa en la lista de gestión.
- */
-function agregarEmpresa() {
-    let n = document.getElementById("nuevoEmpresa").value.trim().toUpperCase();
-    let t = document.getElementById("rangoTurnos").value.split(",").map(x => x.trim()).filter(x => x);
-    let catS = document.getElementById("catSemana").value;
-    let catF = document.getElementById("catFinde").value;
-    if (!n || t.length === 0) return mostrarNotificacion("Complete nombre y turnos", "var(--danger)");
-
-    let nroServicio = document.getElementById("empNroServicio").value.trim();
-    let domicilio = document.getElementById("empDomicilio").value.trim();
-    let barrio = document.getElementById("empBarrio").value.trim();
-    let telefono = document.getElementById("empTelefono").value.trim();
-    let referente = document.getElementById("empReferente").value.trim();
-    let telReferente = document.getElementById("empTelReferente").value.trim();
-    let policiaEnc = document.getElementById("empPoliciaEncargado").value.trim();
-    let telPoliciaEnc = document.getElementById("empTelPoliciaEncargado").value.trim();
-    const esActualizacion = !!empresas[n];
-
-    empresas[n] = {
-        turnos: t, catSemana: catS, catFinde: catF,
-        nroServicio, domicilio, barrio, telefono,
-        referente, telReferente, policiaEnc, telPoliciaEnc
-    };
-    Storage.saveEmpresas(empresas);
-
-    ["nuevoEmpresa", "rangoTurnos", "empNroServicio", "empDomicilio", "empBarrio",
-        "empTelefono", "empReferente", "empTelReferente", "empPoliciaEncargado", "empTelPoliciaEncargado"
-    ].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.value = "";
-    });
-    const editBanner = document.getElementById("editandoBanner");
-    if (editBanner) editBanner.style.display = "none";
-    const btnAgregar = document.querySelector("button[onclick='agregarEmpresa()']");
-    if (btnAgregar) btnAgregar.textContent = "Agregar Empresa";
-
-    inicializarSelects();
-    mostrarNotificacion(esActualizacion ? "Empresa actualizada" : "Empresa añadida", "var(--secondary)");
-    CloudSync.sincronizarEmpresasCloud(empresas).then(() => actualizarEstadoBaseDatosUI());
-}
-
-/**
- * Muestra el detalle de la empresa seleccionada en el contenedor de información (100% sanitizado contra XSS).
- */
-function verTurnosEmpresa() {
-    let empresaKey = document.getElementById("listaEmpresas").value;
-    const infoContainer = document.getElementById("infoTurnos");
-    if (!infoContainer) return;
-    if (!empresaKey || !empresas[empresaKey]) {
-        infoContainer.textContent = "";
-        return;
-    }
-    let emp = empresas[empresaKey];
-    let turnosTexto = (emp.turnos || []).map(t => escapeHTML(t)).join(", ");
-    let html = `<b>Turnos:</b> ${turnosTexto} &nbsp;|&nbsp; <b>Cat. Sem:</b> ${escapeHTML(emp.catSemana)} &nbsp;|&nbsp; <b>Cat. Fin:</b> ${escapeHTML(emp.catFinde)}`;
-    if (emp.nroServicio) html += `<br><b>N° Servicio:</b> ${escapeHTML(emp.nroServicio)}`;
-    if (emp.domicilio) html += ` &nbsp;|&nbsp; <b>Domicilio:</b> ${escapeHTML(emp.domicilio)}`;
-    if (emp.barrio) html += ` &nbsp;|&nbsp; <b>Barrio:</b> ${escapeHTML(emp.barrio)}`;
-    if (emp.telefono) html += ` &nbsp;|&nbsp; <b>Teléfono:</b> ${escapeHTML(emp.telefono)}`;
-    if (emp.referente) html += `<br><b>Referente:</b> ${escapeHTML(emp.referente)}`;
-    if (emp.telReferente) html += ` &nbsp;|&nbsp; <b>Tel. Referente:</b> ${escapeHTML(emp.telReferente)}`;
-    if (emp.policiaEnc) html += `<br><b>Policía Encargado:</b> ${escapeHTML(emp.policiaEnc)}`;
-    if (emp.telPoliciaEnc) html += ` &nbsp;|&nbsp; <b>Tel. Policía Enc.:</b> ${escapeHTML(emp.telPoliciaEnc)}`;
-    infoContainer.innerHTML = html;
-}
-
-/**
- * Carga los datos de una empresa seleccionada en el formulario para su edición.
- */
-function modificarEmpresa() {
-    let nombre = document.getElementById("listaEmpresas").value;
-    if (!nombre || !empresas[nombre]) return mostrarNotificacion("Seleccione una empresa", "var(--warning)");
-    let emp = empresas[nombre];
-    document.getElementById("nuevoEmpresa").value = nombre;
-    document.getElementById("rangoTurnos").value = (emp.turnos || []).join(", ");
-    document.getElementById("catSemana").value = emp.catSemana || "A";
-    document.getElementById("catFinde").value = emp.catFinde || "AP";
-    document.getElementById("empNroServicio").value = emp.nroServicio || "";
-    document.getElementById("empTelefono").value = emp.telefono || "";
-    document.getElementById("empDomicilio").value = emp.domicilio || "";
-    document.getElementById("empBarrio").value = emp.barrio || "";
-    document.getElementById("empReferente").value = emp.referente || "";
-    document.getElementById("empTelReferente").value = emp.telReferente || "";
-    document.getElementById("empPoliciaEncargado").value = emp.policiaEnc || "";
-    document.getElementById("empTelPoliciaEncargado").value = emp.telPoliciaEnc || "";
-
-    document.getElementById("editandoNombre").textContent = nombre;
-    document.getElementById("editandoBanner").style.display = "";
-    const btnAgregar = document.querySelector("button[onclick='agregarEmpresa()']");
-    if (btnAgregar) btnAgregar.textContent = "✔ Actualizar Empresa";
-    const modalEmp = document.querySelector("#modalEmpresas .modal");
-    if (modalEmp) modalEmp.scrollTo({ top: 0, behavior: "smooth" });
-    mostrarNotificacion("Datos cargados — editá y guardá", "var(--primary)");
-}
-
-/**
- * Elimina la empresa seleccionada de la lista de gestión.
- */
-function eliminarEmpresa() {
-    let e = document.getElementById("listaEmpresas").value;
-    if (!e) return;
-    if (!confirm(`¿Eliminar la empresa "${e}"?`)) return;
-    delete empresas[e];
-    Storage.saveEmpresas(empresas);
-    inicializarSelects();
-    mostrarNotificacion("Empresa eliminada", "var(--danger)");
-    CloudSync.sincronizarEmpresasCloud(empresas).then(() => actualizarEstadoBaseDatosUI());
 }
 
 /**
@@ -468,7 +220,41 @@ const defaultEventos = defaultServiciosRaw.map(s => ({
 }));
 
 /**
- * Inicializa el componente de FullCalendar en el DOM con adaptación inteligente para Móvil Exclusivo vs PC.
+ * Extrae de forma estructurada (Empresa, Horario, Policía) los datos de un evento de FullCalendar
+ * incluso si proviene de un formato anterior guardado solo con `title`.
+ * @param {Object} eventObj - Instancia de evento de FullCalendar.
+ * @returns {{empresa: string, horarioCorto: string, horarioLargo: string, policiaCorto: string, policiaLargo: string}}
+ */
+function extractStructuredEventInfo(eventObj) {
+    const props = (eventObj && eventObj.extendedProps) ? eventObj.extendedProps : {};
+    let empresa = String(props.empresa || "").trim();
+    let policia = String(props.policia || "").trim();
+    let turnoRaw = String(props.turno || "").trim();
+
+    if ((!empresa || !policia) && eventObj && eventObj.title) {
+        const lines = String(eventObj.title).split('\n');
+        if (!policia && lines[0]) policia = lines[0].trim();
+        if (!empresa && lines[1]) {
+            empresa = lines[1].split('(')[0].trim();
+        }
+    }
+
+    const horarioCorto = Utils.formatearTurnoCorto ? Utils.formatearTurnoCorto(turnoRaw) : formatearTurno(turnoRaw);
+    const horarioLargo = formatearTurno(turnoRaw);
+    const policiaCorto = Utils.abreviarNombrePolicia ? Utils.abreviarNombrePolicia(policia) : policia;
+
+    return {
+        empresa: empresa || "S/E",
+        horarioCorto: horarioCorto || "-",
+        horarioLargo: horarioLargo || "-",
+        policiaCorto: policiaCorto || "S/P",
+        policiaLargo: policia || "S/P"
+    };
+}
+
+/**
+ * Inicializa el componente de FullCalendar diseñado para verse completo en la pantalla actual (PC o Móvil APK)
+ * y renderizar cada registro con estructura clara: Empresa, Horario y Policía.
  */
 function initCalendar() {
     const calendarEl = document.getElementById("calendar");
@@ -485,19 +271,36 @@ function initCalendar() {
     calendar = new FullCalendar.Calendar(calendarEl, {
         locale: 'es',
         initialView: 'dayGridMonth',
+        fixedWeekCount: false,
+        showNonCurrentDates: true,
+        expandRows: true,
         buttonText: {
             today: 'Hoy',
             month: 'Mes',
-            week: 'Semana'
+            week: 'Sem'
         },
-        headerToolbar: platform.isMobileViewport
-            ? { left: 'prev,next', center: 'title', right: 'today,dayGridMonth,dayGridWeek' }
-            : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,dayGridWeek' },
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,dayGridWeek'
+        },
         height: 'auto',
         contentHeight: 'auto',
         editable: !platform.isMobileViewport,
-        dayMaxEvents: platform.isMobileViewport ? 2 : false,
+        dayMaxEvents: false,
         events: eventosGuardados,
+        eventContent: function (arg) {
+            const info = extractStructuredEventInfo(arg.event);
+            const isMobile = window.innerWidth <= 768;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'alfa-cal-event-card';
+            wrapper.innerHTML = `
+                <div class="ev-line-emp">${escapeHTML(info.empresa)}</div>
+                <div class="ev-line-time">${escapeHTML(isMobile ? info.horarioCorto : info.horarioLargo)}</div>
+                <div class="ev-line-pol">${escapeHTML(isMobile ? info.policiaCorto : info.policiaLargo)}</div>
+            `;
+            return { domNodes: [wrapper] };
+        },
         eventClassNames: function (arg) {
             if (!arg.event.start) return [];
             let eventYear = arg.event.start.getFullYear();
@@ -510,10 +313,7 @@ function initCalendar() {
             let isPastMonth = (eventYear < currentYear) ||
                 (eventYear === currentYear && eventMonth < currentMonth);
 
-            if (isPastMonth) {
-                return ['event-past-month'];
-            }
-            return [];
+            return isPastMonth ? ['event-past-month'] : [];
         },
         dateClick: function (info) {
             window.fechaSeleccionada = info.dateStr;
@@ -525,10 +325,11 @@ function initCalendar() {
             abrirModal('modalServicio');
         },
         eventClick: function (info) {
-            if (confirm(`¿Desea eliminar el servicio de ${info.event.title}?`)) {
+            const evInfo = extractStructuredEventInfo(info.event);
+            if (confirm(`¿Eliminar turno de ${evInfo.policiaLargo} en ${evInfo.empresa} (${evInfo.horarioLargo})?`)) {
                 let props = info.event.extendedProps || {};
-                let policia = props.policia || "";
-                let empresa = props.empresa || "";
+                let policia = props.policia || evInfo.policiaLargo;
+                let empresa = props.empresa || evInfo.empresa;
                 let turno = props.turno || "";
                 let fecha = info.event.startStr || "";
 
@@ -544,19 +345,6 @@ function initCalendar() {
         }
     });
     calendar.render();
-}
-
-/**
- * Elimina una fila de servicio en Google Sheets.
- */
-function eliminarServicioCloud(policia, empresa, turno, fecha) {
-    mostrarNotificacion("Eliminando servicio en la nube...", "var(--warning)");
-    CloudSync.eliminarServicioCloud(policia, empresa, turno, fecha)
-        .then(() => {
-            mostrarNotificacion("Servicio eliminado de la nube", "var(--secondary)");
-            actualizarEstadoBaseDatosUI();
-        })
-        .catch(() => mostrarNotificacion("Eliminado en base local (Encolado para sincronización)", "var(--warning)"));
 }
 
 /**
@@ -636,7 +424,7 @@ function guardarEvento() {
             if (synced) {
                 mostrarNotificacion("Servicio guardado en Base Local y Google Sheets", "var(--secondary)");
             } else {
-                mostrarNotificacion("Guardado en Base Local SQLite (Pendiente en cola Outbox)", "var(--warning)");
+                mostrarNotificacion("Guardado en Base Local SQLite (Encolado en Outbox)", "var(--warning)");
             }
             actualizarEstadoBaseDatosUI();
         });
@@ -655,12 +443,6 @@ function guardarEventosLocal() {
     }));
     Storage.saveEventos(evs);
 }
-
-// --- SINCRONIZACIÓN Y UI ---
-
-function sincronizarTarifasCloud() { CloudSync.sincronizarTarifasCloud(config); }
-function sincronizarPoliciasCloud() { CloudSync.sincronizarPoliciasCloud(policias); }
-function sincronizarEmpresasCloud() { CloudSync.sincronizarEmpresasCloud(empresas); }
 
 /**
  * Puebla dinámicamente los selectores de meses en los filtros del Dashboard e Historial.
@@ -695,12 +477,18 @@ function popularFiltroMeses() {
         optionsHTML += `<option value="${escapeHTML(m)}">${escapeHTML(text)}</option>`;
     });
 
-    if (selectDash) { selectDash.innerHTML = optionsHTML; selectDash.value = valDash; }
-    if (selectHist) { selectHist.innerHTML = optionsHTML; selectHist.value = valHist; }
+    if (selectDash) {
+        selectDash.innerHTML = optionsHTML;
+        selectDash.value = valDash || todayYyyyMm;
+    }
+    if (selectHist) {
+        selectHist.innerHTML = optionsHTML;
+        selectHist.value = valHist;
+    }
 }
 
 /**
- * Actualiza todos los componentes dependientes del estado (Filtros, Tabla, Gráfico, Totales, Estado BD).
+ * Actualiza todos los componentes dependientes del estado (Filtros, Tabla Historial, 2 Gráficos de Barras, Totales).
  */
 function actualizarTodo() {
     popularFiltroMeses();
@@ -710,8 +498,14 @@ function actualizarTodo() {
     actualizarEstadoBaseDatosUI();
 }
 
+// =============================================================================
+// 3. TABLA DE HISTORIAL DE 5 COLUMNAS (FECHA, EMPRESA, TURNO, CATEGORÍA, COSTO)
+//    + BOTONES RÁPIDOS (SEMANAL, MES, ANUAL, TODOS)
+// =============================================================================
+
 /**
- * Renderiza las filas de la tabla de historial de servicios con sanitización XSS y atributos `data-label` para tarjetas móviles.
+ * Renderiza las filas de la tabla de historial con los 5 campos solicitados:
+ * Fecha, Empresa, Turno, Categoría y Costo.
  */
 function actualizarTabla() {
     const tbody = document.querySelector("#tablaServicios tbody");
@@ -725,153 +519,389 @@ function actualizarTabla() {
         let costVal = (p.cost !== undefined) ? Number(p.cost) : (p.costo !== undefined ? Number(p.costo) : 0);
         let polNombre = String(p.policia || p.Policia || "S/D");
         let empNombre = String(p.empresa || p.Empresa || "S/D");
+        let fechaIso = getLocalYMD(e.start);
+
         let tr = document.createElement("tr");
+        tr.setAttribute("data-fecha", fechaIso);
+        tr.setAttribute("data-empresa", empNombre);
+        tr.setAttribute("data-policia", polNombre);
 
-        let catBadge = "";
-        if (p.detail && Array.isArray(p.detail) && p.detail.length > 1) {
-            catBadge = p.detail.map(d => {
-                const dCat = String(d.cat || "A").replace(/[^a-zA-Z0-9]/g, "");
-                const dHours = Number(d.h) || 0;
-                const dVh = Number(d.vh) || 0;
-                return `<span class="badge badge-${escapeHTML(dCat.toLowerCase())}" title="${escapeHTML(dHours)}h × $${escapeHTML(dVh.toLocaleString('es-AR'))}">${escapeHTML(dCat)} (${escapeHTML(dHours)}h)</span>`;
-            }).join(" ");
-        } else {
-            let rawCat = String(p.cat || "A");
-            let catSafeClass = rawCat.split("+")[0].replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "a";
-            catBadge = `<span class="badge badge-${escapeHTML(catSafeClass)}">${escapeHTML(rawCat)}</span>`;
-        }
+        let rawCat = String(p.cat || "A");
+        let catSafeClass = rawCat.split("+")[0].replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "a";
+        let catBadge = `<span class="badge badge-${escapeHTML(catSafeClass)}">${escapeHTML(rawCat)}</span>`;
 
-        const safeColor = sanitizeColor(e.backgroundColor, '#2563eb');
-        const safeFecha = escapeHTML(getLocalYMD(e.start));
+        const safeFecha = escapeHTML(fechaIso);
         const safeEmp = escapeHTML(empNombre);
-        const safePol = escapeHTML(polNombre);
-        const safeTurno = escapeHTML(formatearTurno(p.turno));
+        const safeTurno = escapeHTML(Utils.formatearTurnoCorto ? Utils.formatearTurnoCorto(p.turno) : formatearTurno(p.turno));
         const safeCosto = escapeHTML((Number.isFinite(costVal) ? costVal : 0).toLocaleString('es-AR'));
 
         tr.innerHTML = `
-            <td data-label="Fecha">${safeFecha}</td>
-            <td data-label="Empresa"><span class="badge badge-empresa">${safeEmp}</span></td>
-            <td data-label="Policía"><div class="policia-cell">
-                <div class="policia-dot" style="background:${safeColor}"></div>
-                <span>${safePol}</span>
-            </div></td>
-            <td data-label="Turno">${safeTurno}</td>
-            <td data-label="Categoría" class="nowrap-cell">${catBadge}</td>
-            <td data-label="Costo Total" class="font-weight-600">$${safeCosto}</td>
+            <td>${safeFecha}</td>
+            <td><span class="badge badge-empresa">${safeEmp}</span></td>
+            <td>${safeTurno}</td>
+            <td>${catBadge}</td>
+            <td class="font-weight-600">$${safeCosto}</td>
         `;
         tbody.appendChild(tr);
     });
 }
 
 /**
- * Calcula los totales acumulados del Dashboard y actualiza el gráfico circular con sanitización XSS.
+ * Activa uno de los botones rápidos de período en la solapa Historial ('semanal', 'mensual', 'anual', 'todos').
+ * @param {'semanal'|'mensual'|'anual'|'todos'} periodo
  */
-function calcularResumen() {
-    if (!calendar) return;
-    let stats = { turnos: 0, costo: 0, porPol: {} };
-    let mesFiltroElem = document.getElementById("filtroMesDashboard");
-    let mesFiltro = mesFiltroElem ? mesFiltroElem.value : "";
-
-    calendar.getEvents().forEach(e => {
-        let ym = getLocalYM(e.start);
-        if (mesFiltro && ym !== mesFiltro) return;
-
-        let p = e.extendedProps || {};
-        let costVal = (p.cost !== undefined) ? Number(p.cost) : (p.costo !== undefined ? Number(p.costo) : 0);
-        let polNombre = String(p.policia || p.Policia || "Desconocido");
-
-        stats.turnos++;
-        stats.costo += (Number.isFinite(costVal) ? costVal : 0);
-
-        if (!stats.porPol[polNombre]) stats.porPol[polNombre] = { turnos: 0, total: 0 };
-        stats.porPol[polNombre].turnos++;
-        stats.porPol[polNombre].total += (Number.isFinite(costVal) ? costVal : 0);
+function aplicarPeriodoRapidoHistorial(periodo) {
+    _periodoRapidoHistorial = periodo;
+    const pills = document.querySelectorAll(".quick-period-pills .pill-btn");
+    pills.forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-period") === periodo);
     });
 
-    const statTurnos = document.getElementById("stat-turnos");
-    const statCosto = document.getElementById("stat-costo");
-    if (statTurnos) statTurnos.textContent = stats.turnos;
-    if (statCosto) statCosto.textContent = `$${stats.costo.toLocaleString('es-AR')}`;
-
-    const tBody = document.getElementById("totalesBody");
-    if (!tBody) return;
-    tBody.innerHTML = "";
-    let labels = [], data = [], colors = [];
-    let resumenHtml = "";
-
-    for (let name in stats.porPol) {
-        let row = stats.porPol[name];
-        let safeName = escapeHTML(name);
-        let safeTurnos = escapeHTML(row.turnos);
-        let safeTotal = escapeHTML(row.total.toLocaleString('es-AR'));
-
-        let tr = document.createElement("tr");
-        tr.innerHTML = `
-            <td data-label="Policía">${safeName}</td>
-            <td data-label="Turnos">${safeTurnos}</td>
-            <td data-label="Monto" class="font-weight-600">$${safeTotal}</td>
-        `;
-        tBody.appendChild(tr);
-
-        labels.push(name);
-        data.push(row.turnos);
-        colors.push(sanitizeColor(coloresPolicia[name], '#2563eb'));
-        resumenHtml += `<div><strong>${safeName}</strong>: ${safeTurnos} turnos ($${safeTotal})</div>`;
+    const mesEl = document.getElementById("filtroMesHistorial");
+    if (mesEl && periodo !== 'mensual') {
+        mesEl.value = "";
     }
-    const resLista = document.getElementById("resumenLista");
-    if (resLista) resLista.innerHTML = resumenHtml;
-
-    const graficoCanvas = document.getElementById('grafico');
-    if (!graficoCanvas || typeof Chart === 'undefined') return;
-
-    if (miGrafico) miGrafico.destroy();
-    const ctx = graficoCanvas.getContext('2d');
-    miGrafico = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: data,
-                backgroundColor: colors,
-                borderWidth: 0,
-                hoverOffset: 10
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16 } }
-            },
-            cutout: '70%'
-        }
-    });
+    aplicarFiltros();
 }
 
 /**
- * Aplica los filtros seleccionados a las filas de la tabla de servicios.
+ * Cuando el usuario elige manualmente un mes del desplegable en Historial, desactiva los otros botones rápidos.
+ */
+function onCambioSelectMesHistorial() {
+    const mesEl = document.getElementById("filtroMesHistorial");
+    if (mesEl && mesEl.value) {
+        _periodoRapidoHistorial = 'mensual-select';
+        document.querySelectorAll(".quick-period-pills .pill-btn").forEach(btn => {
+            btn.classList.toggle("active", btn.getAttribute("data-period") === 'mensual');
+        });
+    }
+    aplicarFiltros();
+}
+
+/**
+ * Obtiene la fecha de referencia más reciente (hoy o el último mes con eventos cargados) para filtros rápidos.
+ * @returns {Date}
+ */
+function obtenerFechaReferenciaActiva() {
+    const now = new Date();
+    const ymNow = getLocalYM(now);
+    if (!calendar) return now;
+
+    const events = calendar.getEvents();
+    const hasCurrentMonth = events.some(e => e.start && getLocalYM(e.start) === ymNow);
+    if (hasCurrentMonth || events.length === 0) return now;
+
+    // Si en el mes del reloj del sistema no hay eventos, usar la fecha del evento más reciente del año vigente
+    const sorted = [...events].filter(e => e.start).sort((a, b) => b.start - a.start);
+    return sorted[0] ? sorted[0].start : now;
+}
+
+/**
+ * Aplica los filtros seleccionados (Botones rápidos Semanal/Mes/Anual + Policía + Empresa) a la tabla de Historial.
  */
 function aplicarFiltros() {
     const polEl = document.getElementById("filtroPolicia");
     const empEl = document.getElementById("filtroEmpresa");
     const mesEl = document.getElementById("filtroMesHistorial");
 
-    let pol = polEl ? polEl.value : "";
-    let emp = empEl ? empEl.value : "";
-    let mes = mesEl ? mesEl.value : "";
-    let filas = document.querySelectorAll("#tablaServicios tbody tr");
+    const pol = polEl ? polEl.value : "";
+    const emp = empEl ? empEl.value : "";
+    const mesSelect = mesEl ? mesEl.value : "";
+    const filas = document.querySelectorAll("#tablaServicios tbody tr");
+
+    const refDate = obtenerFechaReferenciaActiva();
+    const activeYM = mesSelect || getLocalYM(refDate);
+    const activeYear = String(refDate.getFullYear());
+
+    // Rango de 7 días para filtro Semanal
+    const weekStart = new Date(refDate);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const weekEnd = new Date(refDate);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    let visiblesCount = 0;
 
     filas.forEach(f => {
-        let fFecha = f.children[0].textContent.trim();
-        let fEmp = f.children[1].textContent.trim();
-        let fPol = f.children[2].textContent.trim();
+        const fFecha = f.getAttribute("data-fecha") || "";
+        const fEmp = f.getAttribute("data-empresa") || "";
+        const fPol = f.getAttribute("data-policia") || "";
         let match = true;
 
-        if (mes && !fFecha.startsWith(mes)) match = false;
+        if (mesSelect) {
+            if (!fFecha.startsWith(mesSelect)) match = false;
+        } else if (_periodoRapidoHistorial === 'mensual') {
+            if (!fFecha.startsWith(activeYM)) match = false;
+        } else if (_periodoRapidoHistorial === 'anual') {
+            if (!fFecha.startsWith(activeYear)) match = false;
+        } else if (_periodoRapidoHistorial === 'semanal') {
+            const dObj = new Date(fFecha + "T12:00:00");
+            if (isNaN(dObj.getTime()) || dObj < weekStart || dObj > weekEnd) {
+                match = false;
+            }
+        }
+
         if (pol && fPol !== pol) match = false;
         if (emp && fEmp !== emp) match = false;
+
         f.style.display = match ? "" : "none";
+        if (match) visiblesCount++;
     });
+
+    const subConteo = document.getElementById("historialSubtituloConteo");
+    if (subConteo) {
+        const etiquetasPeriodo = {
+            'semanal': `Período Semanal (${getLocalYMD(weekStart)} a ${getLocalYMD(weekEnd)})`,
+            'mensual': `Mes (${activeYM})`,
+            'mensual-select': `Mes (${activeYM})`,
+            'anual': `Año Vigente (${activeYear})`,
+            'todos': 'Todos los períodos'
+        };
+        subConteo.textContent = `${etiquetasPeriodo[_periodoRapidoHistorial] || 'Historial'} — ${visiblesCount} registros`;
+    }
+}
+
+/**
+ * Limpia todos los filtros activos del Historial y vuelve a 'Todos'.
+ */
+function limpiarFiltros() {
+    const polEl = document.getElementById("filtroPolicia");
+    const empEl = document.getElementById("filtroEmpresa");
+    const mesEl = document.getElementById("filtroMesHistorial");
+
+    if (polEl) polEl.value = "";
+    if (empEl) empEl.value = "";
+    if (mesEl) mesEl.value = "";
+    aplicarPeriodoRapidoHistorial('todos');
+}
+
+// =============================================================================
+// 2. SOLAPA GRÁFICOS: 2 GRÁFICOS DE BARRAS POR DÍA DE LA SEMANA
+//    (1. MES ACTUAL / SELECCIONADO + 2. ANUAL APILADO POR MES)
+// =============================================================================
+
+/**
+ * Calcula las estadísticas por día de la semana (Dom a Sáb) para un mes y para todo el año vigente.
+ * @param {Array} eventsList - Lista de objetos evento con `.start` y `.extendedProps`.
+ * @param {string} targetYM - Mes objetivo en formato 'YYYY-MM'.
+ * @param {number} targetYear - Año objetivo (ej. 2026).
+ * @returns {{
+ *   mensualPorDia: number[],
+ *   totalTurnosMes: number,
+ *   totalCostoMes: number,
+ *   anualPorMesYDia: number[][],
+ *   totalTurnosAnual: number,
+ *   totalCostoAnual: number,
+ *   porPoliciaMes: Record<string, {turnos: number, total: number}>
+ * }}
+ */
+function computeWeekdayBarStats(eventsList, targetYM, targetYear) {
+    const mensualPorDia = [0, 0, 0, 0, 0, 0, 0]; // Dom(0) a Sáb(6)
+    let totalTurnosMes = 0;
+    let totalCostoMes = 0;
+
+    // 12 meses x 7 días de la semana para el gráfico anual apilado
+    const anualPorMesYDia = Array.from({ length: 12 }, () => [0, 0, 0, 0, 0, 0, 0]);
+    let totalTurnosAnual = 0;
+    let totalCostoAnual = 0;
+
+    const porPoliciaMes = {};
+
+    (Array.isArray(eventsList) ? eventsList : []).forEach(e => {
+        const dObj = (e.start instanceof Date)
+            ? e.start
+            : new Date(String(e.start || "") + (String(e.start || "").includes("T") ? "" : "T00:00:00"));
+        if (!dObj || isNaN(dObj.getTime())) return;
+
+        const ym = getLocalYM(dObj);
+        const yr = dObj.getFullYear();
+        const monthIdx = dObj.getMonth(); // 0..11
+        const dayOfWeek = dObj.getDay(); // 0(Dom)..6(Sáb)
+
+        const p = e.extendedProps || {};
+        const rawCost = (p.cost !== undefined) ? Number(p.cost) : (p.costo !== undefined ? Number(p.costo) : 0);
+        const costVal = Number.isFinite(rawCost) ? rawCost : 0;
+        const polNombre = String(p.policia || p.Policia || "Desconocido");
+
+        // Acumular en Anual Vigente si coincide el año
+        if (yr === targetYear) {
+            anualPorMesYDia[monthIdx][dayOfWeek]++;
+            totalTurnosAnual++;
+            totalCostoAnual += costVal;
+        }
+
+        // Acumular en Mensual si coincide el mes seleccionado (o si targetYM está vacío)
+        if (!targetYM || ym === targetYM) {
+            mensualPorDia[dayOfWeek]++;
+            totalTurnosMes++;
+            totalCostoMes += costVal;
+
+            if (!porPoliciaMes[polNombre]) porPoliciaMes[polNombre] = { turnos: 0, total: 0 };
+            porPoliciaMes[polNombre].turnos++;
+            porPoliciaMes[polNombre].total += costVal;
+        }
+    });
+
+    return {
+        mensualPorDia,
+        totalTurnosMes,
+        totalCostoMes,
+        anualPorMesYDia,
+        totalTurnosAnual,
+        totalCostoAnual,
+        porPoliciaMes
+    };
+}
+
+/**
+ * Calcula los totales del Dashboard y renderiza los 2 Gráficos de Barras (Mensual y Anual Apilado).
+ */
+function calcularResumen() {
+    if (!calendar) return;
+    const mesFiltroElem = document.getElementById("filtroMesDashboard");
+    const refDate = obtenerFechaReferenciaActiva();
+    let mesFiltro = (mesFiltroElem && mesFiltroElem.value) ? mesFiltroElem.value : getLocalYM(refDate);
+
+    // Si en el mes seleccionado no hay ningún evento y fue autoseleccionado, tomar el mes del evento más reciente
+    const allEvents = calendar.getEvents();
+    if (mesFiltroElem && !mesFiltroElem.dataset.userChanged) {
+        const hasInMonth = allEvents.some(e => e.start && getLocalYM(e.start) === mesFiltro);
+        if (!hasInMonth && allEvents.length > 0) {
+            mesFiltro = getLocalYM(refDate);
+            mesFiltroElem.value = mesFiltro;
+        }
+    }
+
+    const activeYear = mesFiltro && mesFiltro.includes("-")
+        ? parseInt(mesFiltro.split("-")[0], 10)
+        : refDate.getFullYear();
+
+    const stats = computeWeekdayBarStats(allEvents, mesFiltro, activeYear);
+
+    // 1. Actualizar KPIs superiores
+    const statTurnos = document.getElementById("stat-turnos");
+    const statCosto = document.getElementById("stat-costo");
+    if (statTurnos) statTurnos.textContent = stats.totalTurnosMes;
+    if (statCosto) statCosto.textContent = `$${stats.totalCostoMes.toLocaleString('es-AR')}`;
+
+    // 2. Actualizar subtítulos y pies de total de los 2 gráficos
+    const subMes = document.getElementById("subtituloGraficoMes");
+    if (subMes) subMes.textContent = mesFiltro || "Todos los meses";
+    const footerMes = document.getElementById("footerTotalMensual");
+    if (footerMes) {
+        footerMes.innerHTML = `Total Mensual: <strong>${escapeHTML(stats.totalTurnosMes)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoMes.toLocaleString('es-AR'))}</strong>`;
+    }
+
+    const subAnual = document.getElementById("subtituloGraficoAnual");
+    if (subAnual) subAnual.textContent = `Año ${activeYear}`;
+    const footerAnual = document.getElementById("footerTotalAnual");
+    if (footerAnual) {
+        footerAnual.innerHTML = `Total Anual Vigente (${escapeHTML(activeYear)}): <strong>${escapeHTML(stats.totalTurnosAnual)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoAnual.toLocaleString('es-AR'))}</strong>`;
+    }
+
+    // 3. Actualizar tabla de Resumen por Policía
+    const tBody = document.getElementById("totalesBody");
+    if (tBody) {
+        tBody.innerHTML = "";
+        for (let name in stats.porPoliciaMes) {
+            let row = stats.porPoliciaMes[name];
+            let tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${escapeHTML(name)}</td>
+                <td>${escapeHTML(row.turnos)}</td>
+                <td class="font-weight-600">$${escapeHTML(row.total.toLocaleString('es-AR'))}</td>
+            `;
+            tBody.appendChild(tr);
+        }
+    }
+
+    if (typeof Chart === 'undefined') return;
+
+    // 4. Renderizar Gráfico de Barras 1: Mensual por Día de la Semana
+    const canvasMensual = document.getElementById('graficoMensual');
+    if (canvasMensual) {
+        if (graficoMensualInstance) graficoMensualInstance.destroy();
+        graficoMensualInstance = new Chart(canvasMensual.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: DIAS_SEMANA_LABELS,
+                datasets: [{
+                    label: `Turnos (${mesFiltro || 'Mes'})`,
+                    data: stats.mensualPorDia,
+                    backgroundColor: ['#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#0ea5e9', '#10b981', '#f59e0b'],
+                    borderRadius: 6,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, precision: 0 }
+                    }
+                }
+            }
+        });
+    }
+
+    // 5. Renderizar Gráfico de Barras 2: Anual Apilado por Día de la Semana
+    const canvasAnual = document.getElementById('graficoAnual');
+    if (canvasAnual) {
+        if (graficoAnualInstance) graficoAnualInstance.destroy();
+
+        // Incluir como series apiladas los meses que tengan al menos 1 turno en el año (o todos si está vacío)
+        const activeDatasets = [];
+        stats.anualPorMesYDia.forEach((countsByDay, mIdx) => {
+            const sumMonth = countsByDay.reduce((a, b) => a + b, 0);
+            if (sumMonth > 0) {
+                activeDatasets.push({
+                    label: MESES_CORTOS[mIdx],
+                    data: countsByDay,
+                    backgroundColor: COLORES_MESES[mIdx % COLORES_MESES.length],
+                    borderRadius: 3
+                });
+            }
+        });
+
+        if (activeDatasets.length === 0) {
+            activeDatasets.push({
+                label: `Año ${activeYear}`,
+                data: [0, 0, 0, 0, 0, 0, 0],
+                backgroundColor: '#2563eb'
+            });
+        }
+
+        graficoAnualInstance = new Chart(canvasAnual.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: DIAS_SEMANA_LABELS,
+                datasets: activeDatasets
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, padding: 10, font: { size: 11 } }
+                    }
+                },
+                scales: {
+                    x: { stacked: true },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, precision: 0 }
+                    }
+                }
+            }
+        });
+    }
 }
 
 /**
@@ -893,140 +923,6 @@ function filtrarCalendario() {
 }
 
 /**
- * Limpia todos los filtros activos y resetea las vistas.
- */
-function limpiarFiltros() {
-    const polEl = document.getElementById("filtroPolicia");
-    const empEl = document.getElementById("filtroEmpresa");
-    const mesEl = document.getElementById("filtroMesHistorial");
-
-    if (polEl) polEl.value = "";
-    if (empEl) empEl.value = "";
-    if (mesEl) mesEl.value = "";
-    aplicarFiltros();
-}
-
-// --- EXPORTACIÓN Y BASE DE DATOS LOCAL INTELIGENTE ---
-
-/**
- * Prepara y abre el modal de opciones de exportación (100% sanitizado contra XSS).
- */
-function abrirModalExportar() {
-    let selMes = document.getElementById("exportMes");
-    let selPol = document.getElementById("exportPolicia");
-    let contEmp = document.getElementById("containerExportEmpresa");
-
-    if (document.getElementById("filtroMesHistorial") && selMes) {
-        selMes.innerHTML = document.getElementById("filtroMesHistorial").innerHTML;
-    }
-    if (document.getElementById("filtroPolicia") && selPol) {
-        selPol.innerHTML = document.getElementById("filtroPolicia").innerHTML;
-    }
-
-    if (contEmp) {
-        contEmp.innerHTML = "";
-        Object.keys(empresas).forEach(item => {
-            const safeItem = escapeHTML(item);
-            let div = document.createElement("div");
-            div.className = "chk-export-row";
-            div.innerHTML = `
-                <label class="chk-export-label">
-                    <input type="checkbox" class="chk-export-emp" value="${safeItem}">
-                    <span>${safeItem}</span>
-                </label>
-            `;
-            contEmp.appendChild(div);
-        });
-    }
-    abrirModal("modalExportar");
-}
-
-/**
- * Genera el reporte Excel invocando a Exporter.exportExcel.
- */
-function exportExcel() {
-    const mesFiltroValue = document.getElementById("exportMes") ? document.getElementById("exportMes").value : "";
-    const polFiltroValue = document.getElementById("exportPolicia") ? document.getElementById("exportPolicia").value : "";
-    const chks = document.querySelectorAll(".chk-export-emp:checked");
-    const empFiltros = Array.from(chks).map(c => c.value);
-    const rawEvents = safeParse("eventos", []);
-
-    Exporter.exportExcel({
-        mesFiltroValue,
-        polFiltroValue,
-        empFiltros,
-        rawEvents,
-        utils: Utils,
-        onNotification: mostrarNotificacion,
-        onCloseModal: () => cerrarModal("modalExportar")
-    });
-}
-
-/**
- * Genera el reporte PDF invocando a Exporter.exportPDF.
- */
-async function exportPDF() {
-    const mesFiltro = document.getElementById("exportMes") ? document.getElementById("exportMes").value : "";
-    const polFiltro = document.getElementById("exportPolicia") ? document.getElementById("exportPolicia").value : "";
-    const chks = document.querySelectorAll(".chk-export-emp:checked");
-    const empFiltros = Array.from(chks).map(c => c.value);
-    const rawEvents = safeParse("eventos", []);
-
-    await Exporter.exportPDF({
-        mesFiltro,
-        polFiltro,
-        empFiltros,
-        rawEvents,
-        empresasMap: empresas,
-        calendarInstance: calendar,
-        utils: Utils,
-        onNotification: mostrarNotificacion,
-        onCloseModal: () => cerrarModal("modalExportar")
-    });
-}
-
-/**
- * Exporta un Dump SQL completo (.sql compatible con SQLite 3 y PostgreSQL) desde la base de datos local.
- */
-function exportarBaseDatosSQL() {
-    if (!Database || typeof Database.exportSQLDump !== 'function') {
-        return mostrarNotificacion("Motor AlfaDatabase no disponible", "var(--danger)");
-    }
-    const evs = safeParse("eventos", []);
-    const sqlContent = Database.exportSQLDump({
-        config,
-        policias,
-        empresas,
-        coloresPolicia,
-        eventos: evs
-    });
-    const blob = new Blob([sqlContent], { type: "application/sql;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `alfas_database_${new Date().toISOString().slice(0, 10)}.sql`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    mostrarNotificacion("Dump SQL (SQLite / PostgreSQL) descargado con éxito", "var(--secondary)");
-}
-
-/**
- * Sincroniza manualmente la cola Outbox pendiente hacia Google Sheets.
- */
-async function sincronizarColaOutbox() {
-    mostrarNotificacion("Sincronizando base local con Google Sheets...", "var(--primary)");
-    const result = await CloudSync.flushOutboxCloud();
-    actualizarEstadoBaseDatosUI();
-    if (result.remaining === 0) {
-        mostrarNotificacion(`Base local 100% sincronizada (${result.processed} envíos completados)`, "var(--secondary)");
-    } else {
-        mostrarNotificacion(`Quedan ${result.remaining} registros en cola Outbox (Modo Offline)`, "var(--warning)");
-    }
-}
-
-/**
  * Actualiza los indicadores visuales del estado de la Base de Datos Local (SQLite/IndexedDB) y Cola Outbox.
  */
 function actualizarEstadoBaseDatosUI() {
@@ -1038,9 +934,9 @@ function actualizarEstadoBaseDatosUI() {
 
     if (badgeEngine) {
         const labelMap = {
-            "capacitor-sqlite-native": "SQLite Nativo (Android APK)",
-            "indexeddb-sql-mirror": "SQLite/IndexedDB Local Activo",
-            "localstorage-mirror": "LocalStorage Mirror",
+            "capacitor-sqlite-native": "SQLite APK",
+            "indexeddb-sql-mirror": "SQLite/IndexedDB",
+            "localstorage-mirror": "Base Local",
             "memory-localstorage": "Memoria Local"
         };
         badgeEngine.textContent = labelMap[status.engine] || status.engine;
@@ -1048,10 +944,10 @@ function actualizarEstadoBaseDatosUI() {
 
     if (badgeOutbox) {
         if (status.pendingOutboxCount > 0) {
-            badgeOutbox.textContent = `${status.pendingOutboxCount} pendientes de nube`;
+            badgeOutbox.textContent = `${status.pendingOutboxCount} en cola`;
             badgeOutbox.className = "badge badge-bp";
         } else {
-            badgeOutbox.textContent = status.isOnline ? "Sincronizado con Sheets" : "Modo Offline Seguro";
+            badgeOutbox.textContent = status.isOnline ? "Sincronizado" : "Offline Seguro";
             badgeOutbox.className = status.isOnline ? "badge badge-a" : "badge badge-b";
         }
     }
@@ -1060,72 +956,11 @@ function actualizarEstadoBaseDatosUI() {
         const ctx = Utils.detectPlatformContext();
         const modeLabels = {
             "apk": "📱 Android APK",
-            "mobile-web": "📱 Modo Móvil Exclusivo",
-            "desktop": "🖥️ Modo Escritorio PC"
+            "mobile-web": "📱 Móvil",
+            "desktop": "🖥️ PC"
         };
-        platformBadge.textContent = modeLabels[ctx.mode] || "🖥️ PC / Móvil";
+        platformBadge.textContent = modeLabels[ctx.mode] || "🖥️ PC";
     }
-}
-
-/**
- * Importa archivo JSON local de eventos/servicios validando estrictamente su esquema para prevenir ataques.
- * @param {Event} evt 
- */
-function cargarAlfasJSON(evt) {
-    let file = evt && evt.target && evt.target.files ? evt.target.files[0] : null;
-    if (!file) return;
-    let reader = new FileReader();
-    reader.onload = function (e) {
-        try {
-            let parsed = JSON.parse(e.target.result);
-            if (Array.isArray(parsed)) {
-                let eventosFinales = [];
-                parsed.forEach(item => {
-                    const validation = Utils.validateServicioRecord(item);
-                    if (validation.valid && validation.record) {
-                        const r = validation.record;
-                        eventosFinales.push({
-                            title: `${r.policia}\n${r.empresa} (${formatearTurno(r.turno)})`,
-                            start: r.fecha,
-                            allDay: true,
-                            backgroundColor: sanitizeColor(coloresPolicia[r.policia], '#2563eb'),
-                            borderColor: 'transparent',
-                            extendedProps: {
-                                policia: r.policia,
-                                empresa: r.empresa,
-                                turno: r.turno,
-                                cat: r.cat,
-                                cost: r.cost,
-                                h: r.h,
-                                vh: r.vh,
-                                detail: r.detail
-                            }
-                        });
-                    }
-                });
-
-                if (eventosFinales.length === 0 && parsed.length > 0) {
-                    mostrarNotificacion("Ningún registro del archivo cumplió el esquema de seguridad", "var(--danger)");
-                    return;
-                }
-
-                Storage.saveEventos(eventosFinales);
-                mostrarNotificacion(`${eventosFinales.length} servicios importados a la Base Local`, "var(--secondary)");
-                if (calendar) {
-                    calendar.removeAllEvents();
-                    eventosFinales.forEach(ev => calendar.addEvent(ev));
-                    actualizarTodo();
-                }
-            } else {
-                mostrarNotificacion("El archivo no tiene el formato de lista esperado", "var(--danger)");
-            }
-        } catch (err) {
-            mostrarNotificacion("Error al leer archivo de servicios/alfas.json", "var(--danger)");
-        }
-        const impJson = document.getElementById('importarJson');
-        if (impJson) impJson.value = "";
-    };
-    reader.readAsText(file);
 }
 
 /**
@@ -1138,7 +973,7 @@ async function cargarServiciosDesdeCloud() {
         const data = await CloudSync.obtenerServiciosCloud();
         if (data && Array.isArray(data) && data.length > 0) {
             procesarYMostrarServiciosCloud(data);
-            mostrarNotificacion("Servicios sincronizados desde Google Sheets a Base Local", "var(--secondary)");
+            mostrarNotificacion("Servicios sincronizados desde Google Sheets", "var(--secondary)");
             return;
         }
     } catch (err) {
@@ -1149,7 +984,7 @@ async function cargarServiciosDesdeCloud() {
         let eventosLocales = safeParse("eventos", null);
         if (Array.isArray(eventosLocales) && eventosLocales.length > 0) {
             procesarYMostrarServiciosCloud(eventosLocales);
-            mostrarNotificacion("Servicios cargados desde Base de Datos Local (Offline-First)", "var(--secondary)");
+            mostrarNotificacion("Servicios cargados desde Base Local SQLite", "var(--secondary)");
             return;
         }
     } catch (e) {
@@ -1158,7 +993,6 @@ async function cargarServiciosDesdeCloud() {
 
     if (typeof defaultServiciosRaw !== "undefined" && Array.isArray(defaultServiciosRaw)) {
         procesarYMostrarServiciosCloud(defaultServiciosRaw);
-        mostrarNotificacion("Datos iniciales cargados en Base Local", "var(--secondary)");
     }
 }
 
@@ -1217,7 +1051,7 @@ function procesarYMostrarServiciosCloud(serviciosList) {
 
 /**
  * Cambia la pestaña activa en el Modo Móvil Exclusivo sin afectar la vista multipanel de escritorio (PC).
- * @param {'agenda'|'resumen'|'historial'|'gestion'} tabName
+ * @param {'agenda'|'resumen'|'historial'} tabName
  */
 function cambiarTabMovil(tabName) {
     _currentMobileTab = tabName;
@@ -1240,23 +1074,43 @@ function cambiarTabMovil(tabName) {
 // INICIALIZACIÓN AUTOMÁTICA EN NAVEGADOR / CAPACITOR WEBVIEW
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
-        initInputs();
+        // Aplicar tema visual persistido
+        if (Utils.applyTheme && Utils.getSavedTheme) {
+            Utils.applyTheme(Utils.getSavedTheme());
+        }
+
+        const mesFiltroElem = document.getElementById("filtroMesDashboard");
+        if (mesFiltroElem) {
+            mesFiltroElem.addEventListener('change', () => {
+                mesFiltroElem.dataset.userChanged = "true";
+            });
+        }
+
         initCalendar();
         inicializarSelects();
-        cambiarTabMovil('agenda');
+
+        // Verificar si se solicitó una pestaña específica por URL (?tab=resumen o ?tab=historial)
+        const params = new URLSearchParams(window.location.search || "");
+        const requestedTab = params.get("tab");
+        if (requestedTab && ['agenda', 'resumen', 'historial'].includes(requestedTab)) {
+            cambiarTabMovil(requestedTab);
+        } else {
+            cambiarTabMovil('agenda');
+        }
+
         cargarServiciosDesdeCloud();
-        sincronizarPoliciasCloud();
         actualizarEstadoBaseDatosUI();
 
         window.addEventListener('online', () => {
-            sincronizarColaOutbox();
+            CloudSync.flushOutboxCloud().then(() => actualizarEstadoBaseDatosUI());
         });
         window.addEventListener('offline', () => {
             actualizarEstadoBaseDatosUI();
-            mostrarNotificacion("Modo Offline Activo — Guardando en SQLite/IndexedDB Local", "var(--warning)");
+            mostrarNotificacion("Modo Offline Activo — Guardando en SQLite Local", "var(--warning)");
         });
         window.addEventListener('resize', () => {
             actualizarEstadoBaseDatosUI();
+            if (calendar) calendar.render();
         });
     });
 }
@@ -1275,6 +1129,8 @@ if (typeof module !== 'undefined' && module.exports) {
         calcularCostoTurno,
         nombresPolicias,
         etiquetaPolicia,
+        extractStructuredEventInfo,
+        computeWeekdayBarStats,
         defaultServiciosRaw,
         defaultEventos
     };

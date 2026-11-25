@@ -11,11 +11,13 @@ const WWW_DIR = path.join(ROOT_DIR, 'www');
 
 const FILES_TO_COPY = [
     'index.html',
+    'Configuraciones.html',
     'Precarton_Adcionales.html',
     'manifest.webmanifest',
     'sw.js',
     'css/styles.css',
     'js/scripts.js',
+    'js/configuraciones.js',
     'js/precarton.js',
     'js/utils/helpers.js',
     'js/services/calculator.js',

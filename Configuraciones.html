@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#2563eb">
+  <title>Configuraciones | Web Alfas 2026</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- jsPDF y SheetJS para exportación desde Configuraciones -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <link rel="stylesheet" href="css/styles.css?v=14">
+  <script src="js/utils/helpers.js?v=14"></script>
+  <script src="js/services/calculator.js?v=14"></script>
+  <script src="js/services/database.js?v=14"></script>
+  <script src="js/services/storage.js?v=14"></script>
+  <script src="js/services/cloudSync.js?v=14"></script>
+  <script src="js/services/exporter.js?v=14"></script>
+  <script src="js/configuraciones.js?v=14"></script>
+</head>
+
+<body>
+  <div class="container">
+    <header class="app-header-bar">
+      <div class="header-titles">
+        <h1>⚙️ Centro de Configuraciones</h1>
+        <p class="subtitle">Montos tarifarios, temas visuales, empresas, policías y base de datos local</p>
+      </div>
+      <div class="desktop-top-nav no-print">
+        <a href="index.html" class="btn-outline">📅 Dashboard y Calendario</a>
+        <a href="Precarton_Adcionales.html" class="btn-outline">🗂️ Precartón Mensual</a>
+      </div>
+    </header>
+
+    <!-- 1. TEMAS PARA LA APLICACIÓN -->
+    <div class="card">
+      <h3><span class="title-accent">1. Temas Visuales</span> de la Aplicación</h3>
+      <p class="text-muted-sm">Seleccione la paleta visual. El tema se aplica y guarda automáticamente en todas las pantallas (PC y APK).</p>
+      <div class="theme-selector-grid">
+        <button type="button" class="theme-option-btn" data-theme-val="light" onclick="seleccionarTemaApp('light')">
+          <span class="theme-swatch swatch-light"></span>
+          <span>☀️ Claro Institucional</span>
+        </button>
+        <button type="button" class="theme-option-btn" data-theme-val="dark" onclick="seleccionarTemaApp('dark')">
+          <span class="theme-swatch swatch-dark"></span>
+          <span>🌙 Oscuro Nocturno</span>
+        </button>
+        <button type="button" class="theme-option-btn" data-theme-val="police" onclick="seleccionarTemaApp('police')">
+          <span class="theme-swatch swatch-police"></span>
+          <span>🚓 Azul Policial</span>
+        </button>
+        <button type="button" class="theme-option-btn" data-theme-val="emerald" onclick="seleccionarTemaApp('emerald')">
+          <span class="theme-swatch swatch-emerald"></span>
+          <span>🌲 Esmeralda Táctico</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 2. ACTUALIZACIÓN DE MONTOS / TARIFAS -->
+    <div class="card">
+      <h3><span class="title-accent">2. Actualización de Montos</span> por Categoría</h3>
+      <p class="text-muted-sm">Ajuste los valores de la hora por categoría. Al guardar se recalculan los servicios y se sincroniza con SQLite y Google Sheets.</p>
+      <div id="panelCostos" class="grid panel-costos-grid">
+        <!-- Generado dinámicamente -->
+      </div>
+      <button type="button" class="btn-primary btn-full" onclick="guardarConfiguracionTarifas()">💾 Actualizar Montos y Recalcular</button>
+    </div>
+
+    <!-- 3. BASE DE DATOS LOCAL Y EXPORTACIÓN -->
+    <div class="card">
+      <h3><span class="title-accent">3. Base de Datos Local</span> y Reportes</h3>
+      <p class="text-muted-sm">Gestione respaldos SQL (SQLite / PostgreSQL), sincronización con Google Sheets y exportación de reportes.</p>
+      <div class="system-status-bar mb-12">
+        <span id="dbEngineBadge" class="badge badge-b">SQLite/IndexedDB Local Activo</span>
+        <span id="dbOutboxBadge" class="badge badge-a">Sincronizado con Sheets</span>
+      </div>
+      <div class="config-actions-grid">
+        <button type="button" class="btn-primary btn-indigo" onclick="exportarBaseDatosSQL()">🗄️ Exportar Base SQL (.sql)</button>
+        <button type="button" class="btn-primary btn-slate" onclick="abrirModal('modalExportar')">🖨️ Exportar Reportes (PDF/Excel)</button>
+        <button type="button" class="btn-primary btn-green" onclick="sincronizarDesdeSheets()">🔄 Leer Solapa Servicios (Sheets)</button>
+        <button type="button" class="btn-outline" onclick="sincronizarColaOutbox()">☁️ Sincronizar Cola Outbox</button>
+        <button type="button" class="btn-outline btn-outline-green" onclick="descargarRespaldoJSON()">📤 Exportar alfas.json</button>
+        <button type="button" class="btn-outline btn-outline-green" onclick="document.getElementById('importarJson').click()">📥 Importar alfas.json</button>
+        <input type="file" id="importarJson" title="Importar archivo alfas.json" class="display-none" accept=".json" onchange="cargarAlfasJSONConfig(event)">
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- 4. GESTIÓN DE POLICÍAS -->
+      <div class="card">
+        <h3><span class="title-accent">4. Gestión</span> de Policías</h3>
+        <p class="text-muted-sm">Agregue, modifique o elimine efectivos policiales y sus jerarquías.</p>
+
+        <div class="form-group mb-8">
+          <label for="nuevoPolicia">Nombre Completo</label>
+          <input type="text" id="nuevoPolicia" placeholder="Ej: Perez Juan">
+        </div>
+        <div class="form-group mb-10">
+          <label for="jerarquiaPolicia">Jerarquía</label>
+          <select id="jerarquiaPolicia" title="Seleccionar Jerarquía del agente de policía">
+            <option value="">— Sin especificar —</option>
+            <option value="Of. Ayte.">Of. Ayte.</option>
+            <option value="Of. Sub. Insp.">Of. Sub. Insp.</option>
+            <option value="Of. Insp.">Of. Insp.</option>
+            <option value="Of. Ppal">Of. Ppal</option>
+            <option value="Subof. My">Subof. My</option>
+            <option value="Subof. Ppal">Subof. Ppal</option>
+            <option value="Sgto. Ayte.">Sgto. Ayte.</option>
+            <option value="Sgto 1°">Sgto 1°</option>
+            <option value="Sgto.">Sgto.</option>
+            <option value="Cabo 1°">Cabo 1°</option>
+            <option value="Cabo">Cabo</option>
+            <option value="Agente">Agente</option>
+          </select>
+        </div>
+
+        <button type="button" id="btnAgregarPolicia" class="btn-secondary btn-full-xs mb-14" onclick="agregarPolicia()">+ Agregar Policía</button>
+
+        <div id="editandoBannerPol" class="banner-edit">
+          ✏️ Editando: <strong id="editandoNombrePol"></strong> — Modificá los campos y presioná <b>Actualizar</b>
+        </div>
+
+        <div class="form-group mb-6">
+          <label for="listaPolicias">Efectivos Registrados (<span id="countPolicias">0</span>)</label>
+          <div class="flex-start-gap-10">
+            <select id="listaPolicias" size="6" title="Lista de Policías registrados" class="select-list"></select>
+            <button type="button" class="btn-outline btn-nowrap" onclick="modificarPolicia()">✏️ Editar</button>
+          </div>
+        </div>
+        <button type="button" class="btn-danger btn-full-xs" onclick="eliminarPolicia()">🗑️ Eliminar Policía Seleccionado</button>
+      </div>
+
+      <!-- 5. GESTIÓN DE EMPRESAS -->
+      <div class="card">
+        <h3><span class="title-accent">5. Gestión</span> de Empresas</h3>
+        <p class="text-muted-sm">Configure empresas, turnos horarios, categorías tarifarias y datos de contacto.</p>
+
+        <div class="grid-2col">
+          <div class="form-group mb-8">
+            <label for="nuevoEmpresa">Nombre Empresa</label>
+            <input type="text" id="nuevoEmpresa" placeholder="Ej: PALADINI">
+          </div>
+          <div class="form-group mb-8">
+            <label for="rangoTurnos">Turnos (separados por coma)</label>
+            <input type="text" id="rangoTurnos" placeholder="06-14, 14-22, 22-06">
+          </div>
+        </div>
+
+        <div class="grid-2col">
+          <div class="form-group mb-8">
+            <label for="catSemana">Cat. Lun–Vie</label>
+            <select id="catSemana" title="Categoría de Lunes a Viernes">
+              <option value="A">Cat. A</option>
+              <option value="B">Cat. B</option>
+              <option value="E">Cat. E</option>
+              <option value="HE">Cat. HE</option>
+              <option value="HO">Cat. HO</option>
+            </select>
+          </div>
+          <div class="form-group mb-8">
+            <label for="catFinde">Cat. Sáb–Dom</label>
+            <select id="catFinde" title="Categoría Sábados y Domingos">
+              <option value="AP">Cat. AP</option>
+              <option value="BP">Cat. BP</option>
+              <option value="E">Cat. E</option>
+              <option value="HE">Cat. HE</option>
+              <option value="HO">Cat. HO</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2col">
+          <div class="form-group mb-8">
+            <label for="empNroServicio">N° de Servicio</label>
+            <input type="text" id="empNroServicio" placeholder="Ej: 1023">
+          </div>
+          <div class="form-group mb-8">
+            <label for="empTelefono">Teléfono Empresa</label>
+            <input type="text" id="empTelefono" placeholder="Ej: 0341-4123456">
+          </div>
+        </div>
+
+        <div class="grid-2col">
+          <div class="form-group mb-8">
+            <label for="empDomicilio">Domicilio</label>
+            <input type="text" id="empDomicilio" placeholder="Ej: Av. Mitre 500">
+          </div>
+          <div class="form-group mb-8">
+            <label for="empBarrio">Barrio</label>
+            <input type="text" id="empBarrio" placeholder="Ej: Centro">
+          </div>
+        </div>
+
+        <div class="grid-2col">
+          <div class="form-group mb-8">
+            <label for="empReferente">Referente Entidad</label>
+            <input type="text" id="empReferente" placeholder="Ej: Juan Pérez">
+          </div>
+          <div class="form-group mb-8">
+            <label for="empTelReferente">Tel. Referente</label>
+            <input type="text" id="empTelReferente" placeholder="Ej: 341-1234567">
+          </div>
+        </div>
+
+        <div class="grid-2col">
+          <div class="form-group mb-8">
+            <label for="empPoliciaEncargado">Policía Encargado</label>
+            <input type="text" id="empPoliciaEncargado" placeholder="Ej: García Roberto">
+          </div>
+          <div class="form-group mb-8">
+            <label for="empTelPoliciaEncargado">Tel. Policía Enc.</label>
+            <input type="text" id="empTelPoliciaEncargado" placeholder="Ej: 341-9876543">
+          </div>
+        </div>
+
+        <button type="button" id="btnAgregarEmpresa" class="btn-primary btn-full-xs mb-12" onclick="agregarEmpresa()">+ Guardar Empresa</button>
+
+        <div id="editandoBanner" class="banner-edit">
+          ✏️ Editando empresa: <strong id="editandoNombre"></strong> — Modificá los campos y presioná <b>Actualizar Empresa</b>
+        </div>
+
+        <div class="form-group mb-6">
+          <label for="listaEmpresas">Empresas Registradas</label>
+          <div class="flex-center-gap-10">
+            <select id="listaEmpresas" title="Empresas registradas" class="flex-1" onchange="verTurnosEmpresa()"></select>
+            <button type="button" class="btn-outline btn-modificar" onclick="modificarEmpresa()">✏️ Editar</button>
+          </div>
+        </div>
+        <div id="infoTurnos" class="info-turnos"></div>
+        <button type="button" class="btn-danger btn-full-xs" onclick="eliminarEmpresa()">🗑️ Eliminar Empresa Seleccionada</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL EXPORTAR REPORTES -->
+  <div id="modalExportar" class="modal-overlay">
+    <div class="modal modal-xs">
+      <span class="close-modal" onclick="cerrarModal('modalExportar')">&times;</span>
+      <h3 class="mb-20">Exportar Reportes</h3>
+      <div class="form-group mb-10">
+        <label for="exportMes">Seleccionar Mes <span class="font-weight-normal">(Opcional)</span></label>
+        <select id="exportMes" title="Seleccionar Mes de servicios a exportar"></select>
+      </div>
+      <div class="form-group mb-10">
+        <label for="exportPolicia">Seleccionar Policía <span class="font-weight-normal">(Opcional)</span></label>
+        <select id="exportPolicia" title="Seleccionar Policía de servicios a exportar"></select>
+      </div>
+      <div class="form-group mb-6">
+        <label>Seleccionar Empresa(s) <span class="font-weight-normal">(Marcar para incluir)</span></label>
+        <div id="containerExportEmpresa" class="checkbox-container"></div>
+      </div>
+      <div class="flex-gap-10">
+        <button type="button" class="btn-danger flex-1" onclick="exportPDFConfig()">📄 PDF</button>
+        <button type="button" class="btn-secondary flex-1" onclick="exportExcelConfig()">📊 Excel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL -->
+  <nav class="mobile-bottom-nav" aria-label="Navegación principal móvil">
+    <a href="index.html?tab=agenda" class="mobile-nav-btn">
+      <span class="nav-icon">📅</span>
+      <span>Agenda</span>
+    </a>
+    <a href="index.html?tab=resumen" class="mobile-nav-btn">
+      <span class="nav-icon">📊</span>
+      <span>Gráficos</span>
+    </a>
+    <a href="index.html?tab=historial" class="mobile-nav-btn">
+      <span class="nav-icon">📋</span>
+      <span>Historial</span>
+    </a>
+    <a href="Precarton_Adcionales.html" class="mobile-nav-btn">
+      <span class="nav-icon">🗂️</span>
+      <span>Precartón</span>
+    </a>
+    <a href="Configuraciones.html" class="mobile-nav-btn active">
+      <span class="nav-icon">⚙️</span>
+      <span>Config.</span>
+    </a>
+  </nav>
+
+  <div id="notificacion"></div>
+</body>
+
+</html>
