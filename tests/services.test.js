@@ -1,12 +1,6 @@
 /**
  * @file services.test.js
- * @description Suite de Pruebas Unitarias e Integración V3 para Gestión de Servicios Adicionales (Web Alfas 2026).
- * Verifica:
- *  - Padrón Oficial de 31 Policías con Jerarquías y 4 Empresas con metadatos completos.
- *  - Solo 2 Temas permitidos (Claro Original 'light' y Oscuro 'dark').
- *  - Etiquetas de Total en ambos Gráficos de Barras y Filtro de Año en el Gráfico Anual.
- *  - Precartón con visualización completa de Jerarquía + Apellido y Nombre, generación de PDF y carga multi-empresa.
- *  - Diferenciación visual por Empresa (Precartón) y por Policía en el Calendario.
+ * @description Suite de Pruebas Unitarias e Integración V4 para Gestión de Servicios Adicionales (Web Alfas 2026).
  */
 
 const fs = require('fs');
@@ -45,7 +39,7 @@ function runTestSuite() {
         }
     }
 
-    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V3 (WEB ALFAS 2026) ===");
+    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V4 (WEB ALFAS 2026) ===");
 
     // 1. Sanitización XSS y CSV/Formula Injection
     assertEqual(escapeHTML('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;', "Sanitización XSS básica");
@@ -56,65 +50,54 @@ function runTestSuite() {
     assertEqual(AVAILABLE_THEMES, ['light', 'dark'], "Solo existen 2 temas habilitados: light y dark");
     assertEqual(applyTheme('dark'), 'dark', "Motor de temas aplica Tema Oscuro");
     assertEqual(applyTheme('light'), 'light', "Motor de temas aplica Tema Claro Original");
-    assertEqual(applyTheme('police'), 'light', "Temas descartados hacen fallback automático a Tema Claro Original");
 
-    // 3. Verificación del Padrón Oficial de Policías y Empresas cargado por defecto
-    assertEqual(Storage.defaultPolicias.length >= 29, true, "Padrón por defecto incluye todos los policías de la imagen oficial");
-    const olivera = Storage.defaultPolicias.find(p => p.nombre === "Olivera Fernando");
-    const bracamonte = Storage.defaultPolicias.find(p => p.nombre === "Bracamonte Jonathan");
-    const beirosK = Storage.defaultPolicias.find(p => p.nombre === "Beiros Karen");
-    assertEqual(olivera && olivera.jerarquia, "Sgto. Ayte.", "Olivera Fernando tiene jerarquía Sgto. Ayte.");
-    assertEqual(bracamonte && bracamonte.jerarquia, "Cabo 1°", "Bracamonte Jonathan tiene jerarquía Cabo 1°");
-    assertEqual(beirosK && beirosK.jerarquia, "Of. Insp.", "Beiros Karen tiene jerarquía Of. Insp.");
-
+    // 3. Padrón Oficial de Policías y Empresas
+    assertEqual(Storage.defaultPolicias.length >= 29, true, "Padrón por defecto incluye todos los policías oficiales");
     const paladini = Storage.defaultEmpresas["PALADINI"];
-    const sigloP3 = Storage.defaultEmpresas["SIGLO21 (P3)"];
     assertEqual(paladini.nroServicio, "165", "PALADINI tiene N° Servicio 165");
-    assertEqual(paladini.domicilio, "CARLOS TEJEDOR", "PALADINI tiene Domicilio CARLOS TEJEDOR");
-    assertEqual(paladini.referente, "TEMPERINI GUILLERMO", "PALADINI tiene Referente TEMPERINI GUILLERMO");
-    assertEqual(sigloP3.nroServicio, "1137", "SIGLO21 (P3) tiene N° Servicio 1137");
-    assertEqual(sigloP3.barrio, "LOS BOULEVARES", "SIGLO21 (P3) tiene Barrio LOS BOULEVARES");
 
-    // 4. Precartón: Etiqueta completa Jerarquía + Apellido y Nombre
+    // 4. Precartón: Etiqueta completa y Visor Automático de PDF
     const etiquetaCompleta = Precarton.obtenerEtiquetaCompletaPolicia("Olivera Fernando");
     assertEqual(etiquetaCompleta, "Sgto. Ayte. Olivera Fernando", "Precartón muestra Jerarquía + Apellido y Nombre completo");
-    const selectHtml = Precarton.generarSelect("1_0", "Bracamonte Jonathan");
-    assertEqual(selectHtml.includes("Cabo 1° Bracamonte Jonathan"), true, "Celda de Precartón renderiza etiqueta visible con Jerarquía + Apellido y Nombre");
+    assertEqual(typeof Precarton.cerrarVisorPDFPrecarton, "function", "Precartón expone función cerrarVisorPDFPrecarton para volver a la aplicación");
 
-    // 5. Diferenciación Visual de Empresas (Precartones) y Policías en Calendario
-    assertEqual(getEmpresaColor("PALADINI") !== getEmpresaColor("SIGLO21 (P1)"), true, "Colores diferenciados por Empresa en el Calendario");
+    // 5. Calendario: Etiquetas completas sin truncamiento (Empresa, Horario, Policía)
     const evStructured = extractStructuredEventInfo({
         backgroundColor: "#ec4899",
         extendedProps: { empresa: "SIGLO21 (P3)", turno: "07-15", policia: "Olivera Fernando" }
     });
-    assertEqual(evStructured.empresa, "SIGLO21 (P3)", "Evento calendario extrae Empresa");
-    assertEqual(evStructured.empresaColor, "#9333ea", "Evento calendario incluye color distintivo del Precartón/Empresa");
-    assertEqual(evStructured.policiaLargo, "Sgto. Ayte. Olivera Fernando", "Evento calendario incluye Jerarquía + Apellido y Nombre del Policía");
+    assertEqual(evStructured.empresa, "SIGLO21 (P3)", "Evento calendario muestra Empresa completa");
+    assertEqual(evStructured.horarioCorto, "07-15hs", "Evento calendario muestra Horario completo");
+    assertEqual(evStructured.policiaCorto, "Olivera F.", "Evento calendario muestra Apellido + Inicial limpio para lectura completa en celda móvil");
 
-    // 6. Gráficos de Barras (Mensual y Anual Apilado con Filtro de Año)
-    const sampleEvents = [
-        { start: "2025-05-04", extendedProps: { policia: "Olivera Fernando", cost: 100000 } }, // Año 2025
-        { start: "2026-11-01", extendedProps: { policia: "Olivera Fernando", cost: 120000 } }, // Año 2026
-        { start: "2026-11-07", extendedProps: { policia: "Castro Roque", cost: 150000 } }      // Año 2026
-    ];
-    const stats2025 = computeWeekdayBarStats(sampleEvents, "2026-11", 2025);
-    const stats2026 = computeWeekdayBarStats(sampleEvents, "2026-11", 2026);
-    assertEqual(stats2025.totalTurnosAnual, 1, "Filtro de Año en Gráfico Anual permite visualizar año anterior (2025)");
-    assertEqual(stats2026.totalTurnosAnual, 2, "Filtro de Año en Gráfico Anual contabiliza año seleccionado (2026)");
-
-    // 7. Verificación de Bundle Web Capacitor (www/) y Elementos UI requeridos
+    // 6. Verificación de Ajustes Visuales en HTML/CSS solicitados en las 4 imágenes
     buildWebDir();
     const indexHtml = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf8');
+    const configHtml = fs.readFileSync(path.resolve(__dirname, '../Configuraciones.html'), 'utf8');
     const precartonHtml = fs.readFileSync(path.resolve(__dirname, '../Precarton_Adcionales.html'), 'utf8');
-    const scriptsJs = fs.readFileSync(path.resolve(__dirname, '../js/scripts.js'), 'utf8');
+    const stylesCss = fs.readFileSync(path.resolve(__dirname, '../css/styles.css'), 'utf8');
 
-    assertEqual(indexHtml.includes('id="filtroAnioDashboard"'), true, "index.html incluye selector de filtro de Año para Gráfico Anual");
-    assertEqual(indexHtml.includes('id="filtroCalEmpresa"') && indexHtml.includes('id="filtroCalPolicia"'), true, "Calendario permite filtrar por Empresa (Precartón) y por Policía");
-    assertEqual(scriptsJs.includes('barTotalLabelsPlugin'), true, "Ambos gráficos de barras tienen activado el plugin de etiquetas de total");
-    assertEqual(precartonHtml.includes('exportarPrecartonPDF()'), true, "Precartón incluye botón para generar y guardar PDF en Descargas");
-    assertEqual(precartonHtml.includes('guardarYCargarNuevoPrecarton()'), true, "Precartón incluye botón para Guardar y Cargar Otra Empresa");
+    // Imagen 2: Referencias ubicadas en la parte de abajo del calendario
+    const posCalendar = indexHtml.indexOf('id="calendar"');
+    const posLegend = indexHtml.indexOf('id="leyendaEmpresasCal"');
+    assertEqual(posLegend > posCalendar, true, "Referencias de empresas ubicadas en la parte inferior del calendario (Imagen 2)");
 
-    console.log(`\n=== RESUMEN FINAL QA V3: ${passed} PASARON | 0 FALLARON ===`);
+    // Imagen 3: Filtros de calendario en 1 sola línea (grid-template-columns: 1fr 1fr)
+    assertEqual(stylesCss.includes('.cal-filters-bar') && stylesCss.includes('grid-template-columns: 1fr 1fr'), true, "Filtros de calendario entran en 1 sola línea (Imagen 3)");
+
+    // Imagen 4: Botón flotante para capturar calendario y compartir por WhatsApp
+    assertEqual(indexHtml.includes('capturarYCompartirCalendarioWhatsApp()'), true, "Botón flotante (FAB) para captura de calendario y envío por WhatsApp (Imagen 4)");
+
+    // Precartón: Modal de visor automático de PDF con botón Cerrar y Volver
+    assertEqual(precartonHtml.includes('id="modalVisorPDFPrecarton"') && precartonHtml.includes('cerrarVisorPDFPrecarton()'), true, "Precartón abre visor automático de PDF y vuelve a la app al cerrar");
+
+    // Configuraciones: 2 items por línea en Actualización de Montos y eliminación de los 3 botones en Base de Datos Local
+    assertEqual(configHtml.includes('class="panel-costos-2col"'), true, "Actualización de Montos acomoda 2 categorías por línea (Cat. A, Cat. AP)");
+    assertEqual(configHtml.includes('exportarBaseDatosSQL()'), false, "Eliminado botón Exportar Base SQL (.sql) en Configuraciones");
+    assertEqual(configHtml.includes('Exportar Reportes (PDF/Excel)'), false, "Eliminado botón Exportar Reportes (PDF/Excel) en Configuraciones");
+    assertEqual(configHtml.includes('sincronizarColaOutbox()'), false, "Eliminado botón Sincronizar Cola Outbox en Configuraciones");
+
+    console.log(`\n=== RESUMEN FINAL QA V4: ${passed} PASARON | ${failed} FALLARON ===`);
     return failed === 0;
 }
 

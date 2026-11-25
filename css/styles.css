@@ -33,43 +33,6 @@ html[data-theme="dark"] {
     --shadow: 0 4px 10px rgb(0 0 0 / 0.35);
 }
 
-/* Chips de leyenda de empresas (Precartones) sobre el Calendario */
-.cal-company-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 4px;
-}
-
-.cal-emp-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 7px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    background: var(--bg-main);
-    color: var(--text-main);
-    border: 1px solid var(--border);
-    border-left-width: 4px;
-    border-radius: 5px;
-}
-
-.cal-filters-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.ev-emp-dot {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    margin-right: 3px;
-    vertical-align: middle;
-}
-
 * {
     box-sizing: border-box;
     margin: 0;
@@ -100,8 +63,8 @@ body {
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 10px;
+    margin-bottom: 14px;
 }
 
 .header-titles {
@@ -111,13 +74,13 @@ body {
 h1 {
     font-weight: 700;
     color: var(--text-main);
-    font-size: 1.65rem;
-    margin-bottom: 4px;
+    font-size: 1.6rem;
+    margin-bottom: 3px;
 }
 
 p.subtitle {
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: 0.88rem;
 }
 
 .desktop-top-nav {
@@ -132,14 +95,14 @@ p.subtitle {
     align-items: center;
     flex-wrap: wrap;
     gap: 6px;
-    margin-top: 4px;
+    margin-top: 3px;
 }
 
 .card {
     background: var(--bg-card);
     border-radius: var(--radius);
-    padding: 18px;
-    margin-bottom: 18px;
+    padding: 16px;
+    margin-bottom: 16px;
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
 }
@@ -147,10 +110,10 @@ p.subtitle {
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 18px;
+    gap: 16px;
 }
 
-/* Botones y enlaces estilo botón */
+/* Botones */
 button,
 .btn-primary,
 .btn-secondary,
@@ -207,7 +170,7 @@ button:active {
 
 /* Formularios */
 .form-group {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 label {
@@ -222,8 +185,8 @@ input,
 select,
 textarea {
     width: 100%;
-    padding: 9px 12px;
-    min-height: 42px;
+    padding: 8px 10px;
+    min-height: 40px;
     border-radius: 8px;
     border: 1px solid var(--border);
     font-family: inherit;
@@ -241,11 +204,55 @@ textarea:focus {
 }
 
 /* ============================================================================
-   CALENDARIO REESTRUCTURADO Y TARJETAS DE EVENTOS (EMPRESA, HORARIO, POLICÍA)
+   CALENDARIO REESTRUCTURADO:
+   - Imagen 3: Filtros de Empresa y Policía en 1 sola línea horizontal
+   - Imagen 2: Referencias de Empresas en la parte inferior del calendario
+   - Imagen 1: Etiquetas (Empresa, Horario, Policía) visibles completas sin "..."
    ============================================================================ */
 #calendar {
     background: var(--bg-card);
     border-radius: var(--radius);
+}
+
+.cal-filters-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+    max-width: 480px;
+}
+
+.select-cal-inline {
+    width: 100%;
+    min-width: 0;
+    padding: 6px 8px;
+    min-height: 38px !important;
+    font-size: 0.82rem !important;
+}
+
+/* Referencias en la parte de abajo del calendario (Imagen 2) */
+.cal-company-legend-bottom {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.cal-emp-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: var(--bg-main);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: 5px;
 }
 
 .fc {
@@ -253,13 +260,13 @@ textarea:focus {
 }
 
 .fc .fc-toolbar.fc-header-toolbar {
-    margin-bottom: 10px !important;
-    gap: 8px;
-    flex-wrap: wrap;
+    margin-bottom: 8px !important;
+    gap: 6px;
+    flex-wrap: nowrap;
 }
 
 .fc .fc-toolbar-title {
-    font-size: 1.15rem !important;
+    font-size: 1.05rem !important;
     font-weight: 700;
     text-transform: capitalize;
 }
@@ -267,9 +274,9 @@ textarea:focus {
 .fc .fc-button-primary {
     background-color: var(--primary) !important;
     border-color: var(--primary) !important;
-    padding: 5px 10px !important;
-    font-size: 0.82rem !important;
-    min-height: 36px !important;
+    padding: 4px 9px !important;
+    font-size: 0.8rem !important;
+    min-height: 34px !important;
 }
 
 .fc-theme-standard td,
@@ -279,69 +286,76 @@ textarea:focus {
 }
 
 .fc .fc-col-header-cell-cushion {
-    padding: 6px 2px !important;
-    font-size: 0.75rem;
+    padding: 4px 2px !important;
+    font-size: 0.72rem;
     font-weight: 700;
     color: var(--text-muted);
     text-transform: uppercase;
 }
 
 .fc .fc-daygrid-day-number {
-    padding: 3px 5px !important;
-    font-size: 0.78rem;
+    padding: 2px 4px !important;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-main);
 }
 
 .fc .fc-daygrid-body-unbalanced .fc-daygrid-day-events {
-    min-height: 1.4em !important;
+    min-height: 1.2em !important;
+    margin-bottom: 1px !important;
 }
 
 .fc-daygrid-event-harness {
-    margin-bottom: 2px !important;
+    margin-bottom: 1px !important;
 }
 
 .fc-h-event {
-    border-radius: 5px !important;
-    padding: 1px 2px !important;
+    border-radius: 4px !important;
+    padding: 1px !important;
     overflow: hidden;
 }
 
-/* Tarjeta interna estructurada de cada evento: 1. Empresa, 2. Horario, 3. Policía */
+/* Tarjeta interna de evento en Calendario: Empresa, Horario y Policía COMPLETOS sin truncamiento */
 .alfa-cal-event-card {
     display: flex;
     flex-direction: column;
-    line-height: 1.15;
-    padding: 2px 3px;
+    line-height: 1.12;
+    padding: 1px 2px;
     color: #ffffff;
-    overflow: hidden;
+    overflow: visible;
+    word-break: break-word;
 }
 
 .alfa-cal-event-card .ev-line-emp {
     font-weight: 800;
-    font-size: 0.7rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    letter-spacing: -0.01em;
+    font-size: 0.68rem;
+    white-space: normal;
+    word-break: break-word;
+    letter-spacing: -0.02em;
 }
 
 .alfa-cal-event-card .ev-line-time {
-    font-weight: 600;
-    font-size: 0.65rem;
-    opacity: 0.95;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: 700;
+    font-size: 0.64rem;
+    opacity: 0.96;
+    white-space: normal;
 }
 
 .alfa-cal-event-card .ev-line-pol {
-    font-weight: 500;
-    font-size: 0.65rem;
-    opacity: 0.92;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-weight: 600;
+    font-size: 0.64rem;
+    opacity: 0.95;
+    white-space: normal;
+    word-break: break-word;
+}
+
+.ev-emp-dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    margin-right: 2px;
+    vertical-align: middle;
 }
 
 /* ============================================================================
@@ -358,17 +372,17 @@ textarea:focus {
 
 .chart-wrapper {
     position: relative;
-    height: 250px;
+    height: 240px;
     width: 100%;
 }
 
 .chart-total-footer {
-    margin-top: 12px;
-    padding: 10px 12px;
+    margin-top: 10px;
+    padding: 9px 12px;
     border-radius: 8px;
     background: var(--bg-main);
     border: 1px solid var(--border);
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     text-align: center;
     color: var(--text-main);
 }
@@ -405,14 +419,14 @@ textarea:focus {
 
 .historial-filters-row {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
 .table-container {
     overflow-x: auto;
-    margin-top: 8px;
+    margin-top: 6px;
     border-radius: 8px;
     border: 1px solid var(--border);
 }
@@ -421,12 +435,12 @@ table.compact-history-table {
     width: 100%;
     border-collapse: collapse;
     text-align: left;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
 }
 
 table.compact-history-table th,
 table.compact-history-table td {
-    padding: 10px 12px;
+    padding: 9px 10px;
     border-bottom: 1px solid var(--border);
     vertical-align: middle;
 }
@@ -435,7 +449,7 @@ table.compact-history-table th {
     background: var(--bg-main);
     font-weight: 700;
     color: var(--text-muted);
-    font-size: 0.76rem;
+    font-size: 0.74rem;
     text-transform: uppercase;
     white-space: nowrap;
 }
@@ -445,11 +459,18 @@ table.compact-history-table tr:last-child td {
 }
 
 /* ============================================================================
-   PÁGINA DE CONFIGURACIONES Y SELECTOR DE TEMAS
+   PÁGINA DE CONFIGURACIONES:
+   - 2. Actualización de Montos por Categoría: 2 items por línea (Cat. A | Cat. AP)
    ============================================================================ */
+.panel-costos-2col {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 14px;
+}
+
 .theme-selector-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
     margin-top: 10px;
 }
@@ -482,12 +503,10 @@ table.compact-history-table tr:last-child td {
 
 .swatch-light { background: linear-gradient(135deg, #f8fafc 50%, #2563eb 50%); }
 .swatch-dark { background: linear-gradient(135deg, #0f172a 50%, #3b82f6 50%); }
-.swatch-police { background: linear-gradient(135deg, #eff6ff 50%, #1e3a8a 50%); }
-.swatch-emerald { background: linear-gradient(135deg, #ecfdf5 50%, #059669 50%); }
 
 .config-actions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 10px;
 }
 
@@ -495,12 +514,12 @@ table.compact-history-table tr:last-child td {
 .stat-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    margin-bottom: 14px;
+    gap: 10px;
+    margin-bottom: 10px;
 }
 
 .stat-card {
-    padding: 12px 14px;
+    padding: 10px 12px;
     border-radius: 10px;
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -508,13 +527,13 @@ table.compact-history-table tr:last-child td {
 }
 
 .stat-val {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--primary);
 }
 
 .stat-label {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     color: var(--text-muted);
     text-transform: uppercase;
     font-weight: 600;
@@ -524,7 +543,7 @@ table.compact-history-table tr:last-child td {
 .badge {
     padding: 3px 8px;
     border-radius: 6px;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 600;
     display: inline-flex;
     align-items: center;
@@ -546,7 +565,7 @@ table.compact-history-table tr:last-child td {
     position: fixed;
     bottom: 24px;
     right: 20px;
-    padding: 13px 20px;
+    padding: 12px 18px;
     border-radius: var(--radius);
     color: white;
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
@@ -583,7 +602,7 @@ table.compact-history-table tr:last-child td {
 .modal {
     background: var(--bg-card);
     color: var(--text-main);
-    padding: 24px;
+    padding: 22px;
     border-radius: var(--radius);
     width: 100%;
     max-width: 450px;
@@ -615,71 +634,94 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
 
 /* Utilidades */
 .title-accent { border-bottom: 3px solid var(--primary); }
-.text-muted-sm { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px; }
-.panel-costos-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
-.btn-full { width: 100%; margin-top: 12px; }
+.text-muted-sm { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 10px; }
+.btn-full { width: 100%; margin-top: 10px; }
 .btn-full-sm { width: 100%; margin-top: 10px; }
 .btn-full-xs { width: 100%; margin-top: 6px; }
-.flex-gap-10 { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.flex-gap-10 { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .flex-wrap-gap-10 { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .btn-slate { background: #475569; color: #fff; }
 .btn-green { background: #16a34a; color: #fff; }
 .btn-indigo { background: #4f46e5; color: #fff; }
 .btn-outline-green { background: #f0fdf4; border-color: #16a34a; color: #166534; }
 .display-none { display: none !important; }
-.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px; }
 .margin-0 { margin: 0 !important; }
 .flex-center-gap-10 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.label-filter { font-size: 0.82rem; font-weight: 600; margin-bottom: 0; }
-.select-auto { width: auto; min-width: 170px; margin: 0; }
-.select-auto-only { width: auto; min-width: 150px; flex: 1; }
-.dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
-.dashboard-title { font-size: 1.15rem; font-weight: 700; margin: 0; }
-.historial-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-.mb-20 { margin-bottom: 18px; }
-.mb-14 { margin-bottom: 14px; }
-.mb-12 { margin-bottom: 12px; }
-.mb-10 { margin-bottom: 10px; }
-.mb-8 { margin-bottom: 8px; }
-.mb-6 { margin-bottom: 6px; }
-.font-muted-sub { font-size: 0.74rem; color: var(--text-muted); }
-.banner-edit { display: none; font-size: 0.8rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; color: #1d4ed8; }
-.flex-start-gap-10 { display: flex; gap: 10px; align-items: flex-start; }
+.label-filter { font-size: 0.8rem; font-weight: 600; margin-bottom: 0; }
+.select-auto { width: auto; min-width: 150px; margin: 0; }
+.select-auto-only { width: auto; min-width: 140px; flex: 1; }
+.dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+.dashboard-title { font-size: 1.1rem; font-weight: 700; margin: 0; }
+.historial-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.mb-20 { margin-bottom: 16px; }
+.mb-14 { margin-bottom: 12px; }
+.mb-12 { margin-bottom: 10px; }
+.mb-10 { margin-bottom: 8px; }
+.mb-8 { margin-bottom: 6px; }
+.mb-6 { margin-bottom: 5px; }
+.font-muted-sub { font-size: 0.72rem; color: var(--text-muted); }
+.banner-edit { display: none; font-size: 0.78rem; background: #eff6ff; border: 1px solid #93c5fd; border-radius: 6px; padding: 7px 10px; margin-bottom: 8px; color: #1d4ed8; }
+.flex-start-gap-10 { display: flex; gap: 8px; align-items: flex-start; }
 .select-list { height: auto; min-height: 150px; flex: 1; }
-.btn-nowrap { white-space: nowrap; padding: 8px 14px; }
+.btn-nowrap { white-space: nowrap; padding: 8px 12px; }
 .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.info-turnos { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.6; }
-.modal-xs { max-width: 420px; }
-.font-weight-normal { font-weight: normal; font-size: 0.75rem; }
-.checkbox-container { max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 8px; background: var(--bg-card); }
-.chk-export-row { margin-bottom: 6px; }
-.chk-export-label { display: flex; align-items: center; gap: 10px; font-weight: normal; cursor: pointer; min-height: 36px; color: var(--text-main); }
-.chk-export-label input[type="checkbox"] { width: 20px; height: 20px; min-height: 20px; }
+.info-turnos { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.5; }
 .flex-1 { flex: 1; }
-.btn-modificar { white-space: nowrap; min-height: 42px; padding: 0 14px; }
+.btn-modificar { white-space: nowrap; min-height: 40px; padding: 0 12px; }
 .nowrap-cell { white-space: nowrap; }
 .font-weight-600 { font-weight: 600; }
 
-/* Elementos exclusivos del Modo Móvil (ocultos en PC > 768px) */
-.mobile-bottom-nav,
-.mobile-fab-add {
+/* Botones flotantes (FABs) estilo Imagen 4 */
+.mobile-bottom-nav {
     display: none;
+}
+
+.mobile-fab-add,
+.mobile-fab-whatsapp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    right: 18px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    color: #ffffff;
+    font-weight: 700;
+    z-index: 1490;
+    border: none;
+    cursor: pointer;
+}
+
+.mobile-fab-add {
+    bottom: 24px;
+    background: var(--primary);
+    font-size: 1.55rem;
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+}
+
+.mobile-fab-whatsapp {
+    bottom: 82px;
+    background: #25d366;
+    font-size: 1.25rem;
+    box-shadow: 0 6px 16px rgba(37, 211, 102, 0.42);
 }
 
 /* ============================================================================
    MODO MÓVIL EXCLUSIVO & ANDROID APK (<= 768px)
-   Corregido a partir del video del APK:
-   - Margen superior anti-solapamiento con barra de estado de Android (reloj/batería)
-   - Calendario completo en pantalla con toolbar en 1 sola línea y eventos de 3 líneas legibles
-   - Tabla de Historial de 5 columnas visible directamente como tabla compacta
+   Optimizado a partir de las 4 capturas del APK:
+   - Cero scroll en la solapa Agenda (cabe 100% en la pantalla del teléfono)
+   - Imagen 3: Los 2 selectores de filtro entran en 1 sola línea (50% y 50%)
+   - Imagen 2: Referencias de empresas abajo del calendario en 1 fila compacta
+   - Imagen 1: Etiquetas de evento (Empresa, Horario, Policía) visibles completas
    ============================================================================ */
 @media (max-width: 768px) {
     body {
-        /* Evita que la barra de notificaciones de Android (00:30, batería) tape el título */
-        padding-top: calc(max(var(--sat), 28px) + 8px);
-        padding-left: calc(8px + var(--sal));
-        padding-right: calc(8px + var(--sar));
-        padding-bottom: calc(82px + var(--sab));
+        padding-top: calc(max(var(--sat), 26px) + 4px);
+        padding-left: calc(6px + var(--sal));
+        padding-right: calc(6px + var(--sar));
+        padding-bottom: calc(64px + var(--sab));
     }
 
     .desktop-top-nav {
@@ -687,7 +729,7 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
     }
 
     .app-header-bar {
-        margin-bottom: 8px;
+        margin-bottom: 4px;
         justify-content: center;
     }
 
@@ -697,36 +739,45 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
     }
 
     h1 {
-        font-size: 1.18rem;
-        margin-bottom: 2px;
+        font-size: 1.05rem;
+        margin-bottom: 1px;
     }
 
     .system-status-bar {
         justify-content: center;
+        gap: 4px;
+        margin-top: 1px;
+    }
+
+    .system-status-bar .badge {
+        font-size: 0.6rem;
+        padding: 1px 6px;
     }
 
     .stat-grid {
         grid-template-columns: repeat(3, 1fr);
-        gap: 6px;
-        margin-bottom: 8px;
+        gap: 5px;
+        margin-bottom: 5px;
     }
 
     .stat-card {
-        padding: 7px 4px;
+        padding: 4px 3px;
         text-align: center;
+        border-radius: 8px;
     }
 
     .stat-val {
-        font-size: 0.98rem;
+        font-size: 0.88rem;
+        line-height: 1.15;
     }
 
     .stat-label {
-        font-size: 0.62rem;
+        font-size: 0.56rem;
     }
 
     .card {
-        padding: 10px;
-        margin-bottom: 10px;
+        padding: 7px;
+        margin-bottom: 6px;
     }
 
     /* Navegación por Pestañas en Modo Móvil Exclusivo */
@@ -736,61 +787,73 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
     }
 
     body[data-mobile-tab="resumen"] [data-mobile-section="agenda"],
-    body[data-mobile-tab="resumen"] [data-mobile-section="historial"] {
+    body[data-mobile-tab="resumen"] [data-mobile-section="historial"],
+    body[data-mobile-tab="resumen"] .mobile-fab-whatsapp {
         display: none !important;
     }
 
     body[data-mobile-tab="historial"] [data-mobile-section="agenda"],
-    body[data-mobile-tab="historial"] [data-mobile-section="resumen"] {
+    body[data-mobile-tab="historial"] [data-mobile-section="resumen"],
+    body[data-mobile-tab="historial"] .mobile-fab-whatsapp {
         display: none !important;
     }
 
-    /* Calendario compacto que entra completo en pantalla móvil */
+    /* Cabecera del Calendario y Filtros en 1 sola línea (Imagen 3) */
     .calendar-card {
-        padding: 8px;
+        padding: 6px;
+        margin-bottom: 0;
     }
 
     .calendar-header {
-        flex-direction: row;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 6px;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        margin-bottom: 4px;
     }
 
     .calendar-header h3 {
-        font-size: 0.92rem;
+        font-size: 0.82rem;
     }
 
-    .calendar-header .select-auto {
-        min-width: 145px;
-        max-width: 55%;
-        min-height: 36px !important;
-        padding: 4px 8px;
-        font-size: 0.8rem !important;
+    .cal-filters-bar {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        width: 100%;
+        max-width: 100%;
     }
 
+    .select-cal-inline {
+        min-height: 30px !important;
+        height: 30px !important;
+        padding: 2px 6px !important;
+        font-size: 0.72rem !important;
+        border-radius: 6px;
+    }
+
+    /* Toolbar de FullCalendar en 1 sola línea compacta */
     .fc .fc-toolbar.fc-header-toolbar {
         flex-direction: row !important;
         justify-content: space-between !important;
         align-items: center !important;
-        margin-bottom: 6px !important;
+        margin-bottom: 4px !important;
         gap: 4px !important;
     }
 
     .fc .fc-toolbar-title {
-        font-size: 0.92rem !important;
+        font-size: 0.84rem !important;
         text-align: center;
     }
 
     .fc .fc-button {
-        padding: 4px 7px !important;
-        font-size: 0.72rem !important;
-        min-height: 30px !important;
+        padding: 2px 6px !important;
+        font-size: 0.68rem !important;
+        min-height: 26px !important;
     }
 
     .fc .fc-col-header-cell-cushion {
-        padding: 3px 1px !important;
-        font-size: 0.66rem !important;
+        padding: 2px 1px !important;
+        font-size: 0.6rem !important;
     }
 
     .fc .fc-daygrid-day-top {
@@ -798,34 +861,66 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
     }
 
     .fc .fc-daygrid-day-number {
-        padding: 1px 3px !important;
-        font-size: 0.68rem !important;
+        padding: 1px 2px !important;
+        font-size: 0.62rem !important;
+        line-height: 1;
     }
 
     .fc .fc-daygrid-day-frame {
-        min-height: 54px !important;
+        min-height: 44px !important;
     }
 
-    /* Eventos dentro de cada celda del calendario móvil: Empresa, Horario y Policía claros y sin desborde */
+    /* Etiquetas de Eventos en el Calendario APK (Imagen 1):
+       Sin text-overflow: ellipsis para que se lean completos Empresa, Horario y Policía */
+    .fc-daygrid-event-harness {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .fc-h-event {
+        padding: 0 !important;
+        border-radius: 3px !important;
+    }
+
     .alfa-cal-event-card {
         padding: 1px 2px;
-        line-height: 1.08;
+        line-height: 1.04;
     }
 
     .alfa-cal-event-card .ev-line-emp {
-        font-size: 0.56rem;
+        font-size: 0.5rem;
         font-weight: 800;
+        white-space: normal;
+        word-break: break-word;
     }
 
     .alfa-cal-event-card .ev-line-time {
-        font-size: 0.52rem;
+        font-size: 0.48rem;
+        font-weight: 700;
+        white-space: nowrap;
     }
 
     .alfa-cal-event-card .ev-line-pol {
-        font-size: 0.52rem;
+        font-size: 0.48rem;
+        font-weight: 600;
+        white-space: normal;
+        word-break: break-word;
     }
 
-    /* Tabla de Historial de 5 columnas visible como tabla compacta en Móvil */
+    /* Referencias en la parte de abajo (Imagen 2) sin generar scroll */
+    .cal-company-legend-bottom {
+        gap: 4px;
+        margin-top: 4px;
+        padding-top: 4px;
+    }
+
+    .cal-emp-chip {
+        padding: 1px 5px;
+        font-size: 0.58rem;
+        border-left-width: 3px;
+    }
+
+    /* Tabla de Historial de 5 columnas visible en Móvil */
     table.compact-history-table {
         font-size: 0.72rem;
     }
@@ -850,9 +945,14 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
         padding: 6px 4px !important;
     }
 
-    .grid,
-    .grid-2col {
+    .grid {
         grid-template-columns: 1fr !important;
+    }
+
+    /* Mantener 2 items por línea en Actualización de Montos incluso en móvil */
+    .panel-costos-2col {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
     }
 
     /* Barra de Navegación Inferior Exclusiva Móvil */
@@ -865,8 +965,8 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
         right: 0;
         background: var(--bg-card);
         border-top: 1px solid var(--border);
-        padding-top: 5px;
-        padding-bottom: calc(5px + var(--sab));
+        padding-top: 4px;
+        padding-bottom: calc(4px + var(--sab));
         padding-left: var(--sal);
         padding-right: var(--sar);
         box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.08);
@@ -877,21 +977,21 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
         background: transparent;
         border: none;
         border-radius: 8px;
-        padding: 3px 2px;
-        min-height: 48px !important;
+        padding: 2px;
+        min-height: 44px !important;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 2px;
+        gap: 1px;
         color: var(--text-muted);
-        font-size: 0.68rem !important;
+        font-size: 0.64rem !important;
         font-weight: 600;
         text-decoration: none;
     }
 
     .mobile-nav-btn .nav-icon {
-        font-size: 1.15rem;
+        font-size: 1.05rem;
         line-height: 1;
     }
 
@@ -900,28 +1000,25 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
         background: rgba(37, 99, 235, 0.1);
     }
 
-    /* Botón Flotante Táctil (FAB) */
+    /* Botones Flotantes (FAB) en Móvil: + y Captura WhatsApp (Imagen 4) */
     .mobile-fab-add {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        position: fixed;
-        right: 14px;
-        bottom: calc(68px + var(--sab));
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        background: var(--primary);
-        color: #ffffff;
-        font-size: 1.6rem;
-        font-weight: 700;
-        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
-        z-index: 1490;
-        border: none;
+        right: 12px;
+        bottom: calc(62px + var(--sab));
+        width: 44px;
+        height: 44px;
+        font-size: 1.45rem;
+    }
+
+    .mobile-fab-whatsapp {
+        right: 12px;
+        bottom: calc(114px + var(--sab));
+        width: 44px;
+        height: 44px;
+        font-size: 1.15rem;
     }
 
     #notificacion {
-        bottom: calc(70px + var(--sab));
+        bottom: calc(66px + var(--sab));
         left: 10px;
         right: 10px;
     }

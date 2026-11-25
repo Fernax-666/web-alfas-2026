@@ -1,8 +1,8 @@
 /**
  * @file scripts.js
- * @description Orquestador principal de UI para Dashboard, Calendario Adaptativo con diferenciación
- * por Empresa (Precartón) y Policía, 2 Gráficos de Barras con etiquetas de Total visibles y filtro de Año,
- * y Tabla de Historial de 5 Columnas con Filtros Rápidos.
+ * @description Orquestador principal de UI para Dashboard, Calendario Adaptativo sin scroll con referencias abajo,
+ * etiquetas completas (Empresa, Horario, Policía), botón flotante de captura para WhatsApp,
+ * 2 Gráficos de Barras con etiquetas de Total y filtro de Año, y Tabla de Historial de 5 Columnas.
  */
 
 // --- SERVICIOS MODULARES E INICIALIZACIÓN ---
@@ -86,40 +86,21 @@ let calendar = null;
 let _currentMobileTab = 'agenda';
 let _periodoRapidoHistorial = 'todos';
 
-/**
- * Obtiene la lista simplificada de nombres de policías.
- * @returns {string[]} Lista de nombres de policías.
- */
 function nombresPolicias() {
     return policias.map(policiaItem => policiaItem.nombre);
 }
 
-/**
- * Busca la jerarquía registrada para un nombre de policía.
- * @param {string} nombrePol 
- * @returns {string}
- */
 function obtenerJerarquiaPolicia(nombrePol) {
     const clean = String(nombrePol || "").trim().toLowerCase();
     const found = policias.find(p => p.nombre.toLowerCase() === clean);
     return found && found.jerarquia ? found.jerarquia : "";
 }
 
-/**
- * Genera la etiqueta formateada del policía con su jerarquía.
- * @param {{nombre: string, jerarquia?: string}} policiaObj - Objeto policía.
- * @returns {string} Etiqueta visible en select/interfaz.
- */
 function etiquetaPolicia(policiaObj) {
     if (!policiaObj) return "";
     return policiaObj.jerarquia ? `${policiaObj.jerarquia} ${policiaObj.nombre}` : policiaObj.nombre;
 }
 
-/**
- * Muestra una notificación flotante en la interfaz de usuario.
- * @param {string} msg - Texto a mostrar.
- * @param {string} [color="var(--primary)"] - Estilo CSS para el color de fondo.
- */
 function mostrarNotificacion(msg, color = "var(--primary)") {
     let notifElem = document.getElementById("notificacion");
     if (!notifElem) return;
@@ -151,7 +132,7 @@ function abrirNuevoServicioRapido() {
 }
 
 /**
- * Renderiza la leyenda de colores diferenciados por Empresa (Precartón) sobre el calendario.
+ * Renderiza la leyenda de colores diferenciados por Empresa (Precartón) en la parte inferior del calendario (Imagen 2).
  */
 function renderizarLeyendaEmpresasCalendario() {
     const cont = document.getElementById("leyendaEmpresasCal");
@@ -168,7 +149,7 @@ function renderizarLeyendaEmpresasCalendario() {
 }
 
 /**
- * Inicializa los selectores del DOM incluyendo el doble filtro del calendario (por Empresa/Precartón y por Policía).
+ * Inicializa los selectores del DOM incluyendo el doble filtro del calendario en una sola línea (Imagen 3).
  */
 function inicializarSelects() {
     const sPol = document.getElementById("selPolicia");
@@ -178,11 +159,10 @@ function inicializarSelects() {
     const sEmp = document.getElementById("selEmpresa");
     const fEmp = document.getElementById("filtroEmpresa");
 
-    // Selectores de Policía mostrando Jerarquía + Apellido y Nombre
     [
         { el: sPol, first: "-- Seleccione Policía --" },
         { el: fPol, first: "Todos los Policías" },
-        { el: cPol, first: "Todos los Policías" }
+        { el: cPol, first: "Policías: Todos" }
     ].forEach(s => {
         if (!s.el) return;
         s.el.innerHTML = "";
@@ -200,11 +180,10 @@ function inicializarSelects() {
         });
     });
 
-    // Selectores de Empresa
     [
         { el: sEmp, data: Object.keys(empresas), first: "-- Seleccione Empresa --" },
         { el: fEmp, data: Object.keys(empresas), first: "Todas las Empresas" },
-        { el: cEmp, data: Object.keys(empresas), first: "Todas las Empresas (Precartones)" }
+        { el: cEmp, data: Object.keys(empresas), first: "Empresas: Todas" }
     ].forEach(s => {
         if (!s.el) return;
         s.el.innerHTML = "";
@@ -289,7 +268,8 @@ const defaultEventos = defaultServiciosRaw.map(s => ({
 }));
 
 /**
- * Extrae de forma estructurada (Empresa, Horario, Policía con Jerarquía y Colores diferenciados) los datos de un evento.
+ * Extrae de forma estructurada (Empresa, Horario, Policía) los datos de un evento
+ * garantizando que en la celda del calendario se vean completos a simple vista sin truncarse ("SIGL...").
  * @param {Object} eventObj - Instancia de evento de FullCalendar.
  * @returns {{empresa: string, empresaColor: string, policiaColor: string, horarioCorto: string, horarioLargo: string, policiaCorto: string, policiaLargo: string}}
  */
@@ -311,7 +291,8 @@ function extractStructuredEventInfo(eventObj) {
     const horarioCorto = Utils.formatearTurnoCorto ? Utils.formatearTurnoCorto(turnoRaw) : formatearTurno(turnoRaw);
     const horarioLargo = formatearTurno(turnoRaw);
     const polBaseCorto = Utils.abreviarNombrePolicia ? Utils.abreviarNombrePolicia(policia) : policia;
-    const policiaCorto = jerarquia ? `${jerarquia} ${polBaseCorto}` : polBaseCorto;
+    // En la celda del calendario mostramos el Apellido + Inicial limpio (ej. "Olivera F.") para que se lea completo sin "Sgto. Ayt..."
+    const policiaCorto = polBaseCorto;
     const policiaLargo = jerarquia ? `${jerarquia} ${policia}` : policia;
 
     const empresaColor = Utils.getEmpresaColor ? Utils.getEmpresaColor(empresa) : '#16a34a';
@@ -329,7 +310,7 @@ function extractStructuredEventInfo(eventObj) {
 }
 
 /**
- * Inicializa FullCalendar diferenciando visualmente tanto la Empresa (Precartón) como el Policía asignado.
+ * Inicializa FullCalendar asegurando que en móvil y PC se visualicen completos Empresa, Horario y Policía.
  */
 function initCalendar() {
     const calendarEl = document.getElementById("calendar");
@@ -369,10 +350,9 @@ function initCalendar() {
             const isMobile = window.innerWidth <= 768;
             const wrapper = document.createElement('div');
             wrapper.className = 'alfa-cal-event-card';
-            // Franja lateral izquierda con el color de la Empresa (Precartón) y fondo con el color del Policía
-            wrapper.style.borderLeft = `4px solid ${info.empresaColor}`;
+            wrapper.style.borderLeft = `3px solid ${info.empresaColor}`;
             wrapper.innerHTML = `
-                <div class="ev-line-emp"><span class="ev-emp-dot" style="background:${info.empresaColor}"></span>${escapeHTML(info.empresa)}</div>
+                <div class="ev-line-emp">${escapeHTML(info.empresa)}</div>
                 <div class="ev-line-time">${escapeHTML(isMobile ? info.horarioCorto : info.horarioLargo)}</div>
                 <div class="ev-line-pol">${escapeHTML(isMobile ? info.policiaCorto : info.policiaLargo)}</div>
             `;
@@ -422,6 +402,61 @@ function initCalendar() {
         }
     });
     calendar.render();
+}
+
+/**
+ * Imagen 4: Captura la zona completa del Calendario como imagen PNG de alta resolución
+ * y abre el menú nativo de Android / Web Share API para enviarla directamente por WhatsApp.
+ */
+async function capturarYCompartirCalendarioWhatsApp() {
+    const targetEl = document.getElementById("zonaCapturaCalendario") || document.getElementById("calendar");
+    if (!targetEl || typeof html2canvas === 'undefined') {
+        return mostrarNotificacion("Herramienta de captura no disponible", "var(--danger)");
+    }
+
+    try {
+        mostrarNotificacion("📸 Capturando calendario para WhatsApp...", "var(--primary)");
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const canvas = await html2canvas(targetEl, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: isDark ? '#1e293b' : '#ffffff'
+        });
+
+        const fileName = `Calendario_Alfas_${new Date().toISOString().slice(0, 10)}.png`;
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
+
+        if (blob && typeof navigator !== 'undefined' && navigator.share && typeof File !== 'undefined') {
+            const file = new File([blob], fileName, { type: 'image/png' });
+            if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: 'Calendario de Servicios Adicionales',
+                    text: '📅 Calendario de Servicios Adicionales (Web Alfas 2026)',
+                    files: [file]
+                });
+                mostrarNotificacion("Calendario compartido con éxito", "var(--secondary)");
+                return;
+            }
+        }
+
+        // Fallback en PC o dispositivos sin Web Share de archivos: descarga la captura PNG y abre WhatsApp
+        const dataUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        const textoWa = encodeURIComponent("📅 Adjunto captura del Calendario de Servicios Adicionales (Web Alfas 2026).");
+        window.open(`https://api.whatsapp.com/send?text=${textoWa}`, '_blank');
+        mostrarNotificacion("Captura guardada en Descargas lista para enviar por WhatsApp", "var(--secondary)");
+    } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        console.error("Error al capturar calendario:", err);
+        mostrarNotificacion("No se pudo completar la captura del calendario", "var(--danger)");
+    }
 }
 
 function guardarEvento() {
@@ -515,9 +550,6 @@ function guardarEventosLocal() {
     Storage.saveEventos(evs);
 }
 
-/**
- * Puebla dinámicamente los selectores de Meses y de Años (incluyendo años anteriores para el gráfico anual).
- */
 function popularFiltroMeses() {
     let selectDash = document.getElementById("filtroMesDashboard");
     let selectAnioDash = document.getElementById("filtroAnioDashboard");
@@ -530,7 +562,6 @@ function popularFiltroMeses() {
     let mesesSet = new Set();
     let aniosSet = new Set();
     const currentYear = new Date().getFullYear();
-    // Incluir siempre el año actual y los 4 años anteriores para consulta histórica
     for (let y = currentYear; y >= currentYear - 4; y--) {
         aniosSet.add(String(y));
     }
@@ -587,10 +618,6 @@ function actualizarTodo() {
     calcularResumen();
     actualizarEstadoBaseDatosUI();
 }
-
-// =============================================================================
-// TABLA DE HISTORIAL DE 5 COLUMNAS (FECHA, EMPRESA, TURNO, CATEGORÍA, COSTO)
-// =============================================================================
 
 function actualizarTabla() {
     const tbody = document.querySelector("#tablaServicios tbody");
@@ -741,10 +768,6 @@ function limpiarFiltros() {
     aplicarPeriodoRapidoHistorial('todos');
 }
 
-// =============================================================================
-// SOLAPA GRÁFICOS: 2 GRÁFICOS DE BARRAS CON ETIQUETAS DE TOTAL Y FILTRO DE AÑO
-// =============================================================================
-
 function computeWeekdayBarStats(eventsList, targetYM, targetYear) {
     const mensualPorDia = [0, 0, 0, 0, 0, 0, 0];
     let totalTurnosMes = 0;
@@ -816,7 +839,6 @@ function calcularResumen() {
         }
     }
 
-    // Si el usuario seleccionó un año específico en el filtro de Año del gráfico anual, respetarlo
     let activeYear = refDate.getFullYear();
     if (anioFiltroElem && anioFiltroElem.value) {
         activeYear = parseInt(anioFiltroElem.value, 10);
@@ -865,7 +887,6 @@ function calcularResumen() {
 
     if (typeof Chart === 'undefined') return;
 
-    // 1. Gráfico de Barras Mensual con etiquetas de total visibles encima de cada barra
     const canvasMensual = document.getElementById('graficoMensual');
     if (canvasMensual) {
         if (graficoMensualInstance) graficoMensualInstance.destroy();
@@ -900,7 +921,6 @@ function calcularResumen() {
         });
     }
 
-    // 2. Gráfico de Barras Anual Apilado con etiquetas de total visibles encima de cada barra apilada
     const canvasAnual = document.getElementById('graficoAnual');
     if (canvasAnual) {
         if (graficoAnualInstance) graficoAnualInstance.destroy();
@@ -957,9 +977,6 @@ function calcularResumen() {
     }
 }
 
-/**
- * Filtra la visibilidad de eventos en FullCalendar tanto por Empresa (Precartón) como por Policía (ambos).
- */
 function filtrarCalendario() {
     if (!calendar) return;
     const filtroPolEl = document.getElementById("filtroCalPolicia");
@@ -1170,6 +1187,7 @@ if (typeof module !== 'undefined' && module.exports) {
         etiquetaPolicia,
         extractStructuredEventInfo,
         computeWeekdayBarStats,
+        capturarYCompartirCalendarioWhatsApp,
         defaultServiciosRaw,
         defaultEventos
     };

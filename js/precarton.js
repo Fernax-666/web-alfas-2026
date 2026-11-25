@@ -3,8 +3,9 @@
  * @description Controlador modularizado y seguro (Anti-XSS) para la Planilla Mensual de Turnos (Precartón).
  * - Posiciona automáticamente los grupos horarios de la empresa seleccionada.
  * - Visualiza claramente Jerarquía, Apellido y Nombre del policía seleccionado tanto en PC como en el APK móvil.
- * - Genera y descarga el PDF del Precartón en la carpeta de Descargas (Android y Windows).
- * - Permite guardar y cargar un nuevo Precartón (otra empresa) manteniendo múltiples precartones activos y diferenciados en el Calendario.
+ * - Genera y descarga el PDF del Precartón en la carpeta de Descargas y lo abre automáticamente en un visor integrado
+ *   (compatible con Android WebView y Windows) para que al cerrarlo vuelva instantáneamente a la aplicación.
+ * - Permite guardar y cargar un nuevo Precartón (otra empresa) manteniendo múltiples precartones activos.
  */
 
 (function (root, factory) {
@@ -31,6 +32,8 @@
     let empresas = state.empresas;
     let config = state.config;
     let coloresPolicia = state.coloresPolicia;
+    let _ultimoPdfFile = null;
+    let _ultimoPdfBlobUrl = null;
 
     function safeParse(key, fallback) {
         return Utils.safeParse(typeof localStorage !== 'undefined' ? localStorage : {}, key, fallback);
@@ -49,11 +52,6 @@
         return `planilla_${empresa}_${anio}_${mes}`;
     }
 
-    /**
-     * Retorna la etiqueta completa "Jerarquía Apellido Nombre" para un efectivo policial.
-     * @param {string} nombrePol 
-     * @returns {string}
-     */
     function obtenerEtiquetaCompletaPolicia(nombrePol) {
         if (!nombrePol) return "";
         if (nombrePol === "Feriado") return "FERIADO";
@@ -75,10 +73,6 @@
         });
     }
 
-    /**
-     * Renderiza la barra de estado de Precartones del mes actual, indicando qué empresas ya tienen
-     * turnos cargados y permitiendo saltar a otra empresa con un toque.
-     */
     function actualizarBarraPrecartonesMes() {
         const cont = document.getElementById("barraPrecartonesMes");
         const selEmp = document.getElementById("selEmpresa");
@@ -158,13 +152,6 @@
         bloque.style.display = hayAlgo ? "" : "none";
     }
 
-    /**
-     * Genera el selector de policía para una celda del Precartón junto con la etiqueta visible
-     * que muestra completo: Jerarquía + Apellido y Nombre en el APK y en PC.
-     * @param {string} cellKey 
-     * @param {string} valorActual 
-     * @returns {string}
-     */
     function generarSelect(cellKey, valorActual) {
         const safeKey = escapeHTML(cellKey);
         let opts = `<option value="">— Sin asignar —</option>`;
@@ -283,10 +270,6 @@
         });
     }
 
-    /**
-     * Actualiza en vivo la etiqueta completa de Jerarquía + Apellido y Nombre debajo del selector al cambiar un policía.
-     * @param {HTMLSelectElement} sel 
-     */
     function onCambioSelect(sel) {
         if (!sel) return;
         if (sel.value) sel.classList.add("asignado");
@@ -305,12 +288,6 @@
         }
     }
 
-    /**
-     * Persiste el Precartón actual en la base de datos local y en el Calendario global
-     * conservando intactos los precartones de las demás empresas.
-     * @param {boolean} [silent=false]
-     * @returns {{empresa: string, mes: number, anio: number, count: number}}
-     */
     function persistirPlanillaActual(silent = false) {
         const empresa = document.getElementById("selEmpresa").value;
         const mes = parseInt(document.getElementById("selMes").value, 10);
@@ -322,14 +299,12 @@
         const mesStr = (mes + 1).toString().padStart(2, '0');
         const prefijoFecha = `${anio}-${mesStr}-`;
 
-        // 1. Quitar únicamente los eventos previos de ESTA empresa en ESTE mes (mantiene todas las demás empresas en el calendario)
         eventos = eventos.filter(ev => {
             const enEsteMes = ev.start && String(ev.start).startsWith(prefijoFecha);
             const deEstaEmpresa = ev.extendedProps && ev.extendedProps.empresa === empresa;
             return !(enEsteMes && deEstaEmpresa);
         });
 
-        // 2. Recorrer la tabla y agregar los nuevos eventos asignados de esta empresa
         const empData = empresas[empresa] || {};
         const selects = document.querySelectorAll(".planilla-table select[data-key]");
         let assignedCount = 0;
@@ -388,10 +363,6 @@
         persistirPlanillaActual(false);
     }
 
-    /**
-     * Guarda el Precartón de la empresa actual y posiciona automáticamente la siguiente empresa
-     * para poder cargar un nuevo Precartón sin sobrescribir el anterior.
-     */
     function guardarYCargarNuevoPrecarton() {
         const res = persistirPlanillaActual(true);
         const listaEmpresas = Object.keys(empresas);
@@ -413,7 +384,8 @@
     }
 
     /**
-     * Genera y descarga el archivo PDF del Precartón actual en la carpeta de Descargas (compatible con Android y Windows).
+     * Genera el PDF del Precartón, lo guarda en Descargas y lo abre automáticamente en el Visor Integrado
+     * (y en nueva pestaña en PC) para que al cerrarlo vuelva de inmediato a la aplicación.
      */
     function exportarPrecartonPDF() {
         try {
@@ -435,7 +407,6 @@
             const orientacion = turnos.length > 2 ? 'landscape' : 'portrait';
             const doc = new jsPDF({ orientation: orientacion, unit: 'mm', format: 'a4' });
 
-            // Encabezado Institucional del Precartón
             doc.setFontSize(15);
             doc.setFont("helvetica", "bold");
             doc.text(`PRECARTÓN MENSUAL DE SERVICIOS ADICIONALES — ${empresa}`, 14, 15);
@@ -467,7 +438,6 @@
                 startTableY += 6;
             }
 
-            // Construir cabecera y filas de la tabla mensual con Jerarquía + Apellido y Nombre
             const headRow = ['Día', 'Fecha', ...turnos.map(t => formatearTurno(t))];
             const bodyRows = [];
             const diasEnMes = new Date(anio, mes + 1, 0).getDate();
@@ -499,11 +469,114 @@
 
             const safeEmpFile = empresa.replace(/[^a-zA-Z0-9_-]/g, '_');
             const fileName = `Precarton_${safeEmpFile}_${MESES[mes]}_${anio}.pdf`;
+
+            // 1. Guardar automáticamente en carpeta de Descargas
             doc.save(fileName);
-            mostrarNotificacion(`PDF guardado en Descargas: ${fileName}`, "var(--secondary)");
+
+            // 2. Preparar Blob / File para compartir o previsualizar y abrir automáticamente el visor del documento
+            const pdfBlob = doc.output('blob');
+            if (_ultimoPdfBlobUrl) URL.revokeObjectURL(_ultimoPdfBlobUrl);
+            _ultimoPdfBlobUrl = URL.createObjectURL(pdfBlob);
+            if (typeof File !== 'undefined') {
+                _ultimoPdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+            }
+
+            abrirVisorPDFAutomatico({
+                fileName,
+                empresa,
+                periodo: `${MESES[mes]} ${anio}`,
+                metaLine1,
+                metaLine2,
+                headRow,
+                bodyRows,
+                blobUrl: _ultimoPdfBlobUrl
+            });
+
+            mostrarNotificacion(`PDF guardado y abierto: ${fileName}`, "var(--secondary)");
         } catch (err) {
             console.error("Error generando PDF de Precartón:", err);
             mostrarNotificacion("Error al generar el PDF del Precartón", "var(--danger)");
+        }
+    }
+
+    /**
+     * Abre automáticamente el documento PDF generado dentro del modal de vista previa
+     * (funciona tanto en Android WebView como en PC) y al cerrarlo devuelve al usuario a la pantalla de Precartón.
+     */
+    function abrirVisorPDFAutomatico({ fileName, empresa, periodo, metaLine1, metaLine2, headRow, bodyRows, blobUrl }) {
+        const modal = document.getElementById("modalVisorPDFPrecarton");
+        const titulo = document.getElementById("tituloVisorPDF");
+        const subtitulo = document.getElementById("subtituloVisorPDF");
+        const cuerpo = document.getElementById("cuerpoVisorPDFPrecarton");
+        if (!modal || !cuerpo) return;
+
+        if (titulo) titulo.textContent = `📄 ${fileName}`;
+        if (subtitulo) subtitulo.textContent = `Guardado en Descargas — Al cerrar volverá a la planilla de ${empresa}`;
+
+        const platform = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isMobileViewport: true };
+
+        // Renderizar hoja de documento oficial de alta fidelidad (compatible 100% con Android WebView que no soporta <iframe src="blob:pdf">)
+        let tableHtml = `
+            <div style="background:#fff; padding:14px; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-family:Inter,sans-serif;">
+                <div style="border-bottom:2px solid #2563eb; padding-bottom:8px; margin-bottom:10px;">
+                    <h4 style="margin:0; color:#1e293b; font-size:1rem;">PRECARTÓN MENSUAL DE SERVICIOS ADICIONALES — ${escapeHTML(empresa)}</h4>
+                    <div style="font-size:0.78rem; color:#475569; margin-top:3px;"><b>Período:</b> ${escapeHTML(periodo)}</div>
+                    ${metaLine1 ? `<div style="font-size:0.72rem; color:#64748b; margin-top:2px;">${escapeHTML(metaLine1)}</div>` : ''}
+                    ${metaLine2 ? `<div style="font-size:0.72rem; color:#64748b; margin-top:2px;">${escapeHTML(metaLine2)}</div>` : ''}
+                </div>
+                <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.72rem; text-align:center;">
+                        <thead>
+                            <tr>
+                                ${headRow.map(h => `<th style="background:#2563eb; color:#fff; padding:6px 4px; border:1px solid #cbd5e1;">${escapeHTML(h)}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${bodyRows.map((r, rIdx) => `
+                                <tr style="background:${rIdx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                                    ${r.map((cell, cIdx) => `<td style="padding:5px 4px; border:1px solid #cbd5e1; font-weight:${cIdx < 2 || cell !== '—' ? '600' : '400'}; color:#0f172a;">${escapeHTML(cell)}</td>`).join('')}
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        if (!platform.isMobileViewport && blobUrl) {
+            tableHtml = `
+                <iframe src="${escapeHTML(blobUrl)}" style="width:100%; height:420px; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:12px;" title="Visor PDF"></iframe>
+            ` + tableHtml;
+        }
+
+        cuerpo.innerHTML = tableHtml;
+        modal.style.display = "flex";
+    }
+
+    function cerrarVisorPDFPrecarton() {
+        const modal = document.getElementById("modalVisorPDFPrecarton");
+        if (modal) modal.style.display = "none";
+    }
+
+    async function compartirUltimoPDFPrecarton() {
+        if (_ultimoPdfFile && typeof navigator !== 'undefined' && navigator.share) {
+            try {
+                if (!navigator.canShare || navigator.canShare({ files: [_ultimoPdfFile] })) {
+                    await navigator.share({
+                        title: _ultimoPdfFile.name,
+                        text: '📄 Precartón Mensual de Servicios Adicionales (PDF)',
+                        files: [_ultimoPdfFile]
+                    });
+                    return;
+                }
+            } catch (err) {
+                if (err && err.name === 'AbortError') return;
+            }
+        }
+        if (_ultimoPdfBlobUrl) {
+            window.open(_ultimoPdfBlobUrl, '_blank');
+        } else {
+            mostrarNotificacion("El PDF ya se encuentra guardado en su carpeta de Descargas", "var(--secondary)");
         }
     }
 
@@ -532,6 +605,8 @@
         window.guardarPlanilla = guardarPlanilla;
         window.guardarYCargarNuevoPrecarton = guardarYCargarNuevoPrecarton;
         window.exportarPrecartonPDF = exportarPrecartonPDF;
+        window.cerrarVisorPDFPrecarton = cerrarVisorPDFPrecarton;
+        window.compartirUltimoPDFPrecarton = compartirUltimoPDFPrecarton;
         window.seleccionarEmpresaRapido = seleccionarEmpresaRapido;
         window.onCambioSelect = onCambioSelect;
         window.filtrarDiaPlanillaMovil = filtrarDiaPlanillaMovil;
@@ -545,6 +620,7 @@
         generarPlanilla,
         guardarPlanilla,
         guardarYCargarNuevoPrecarton,
-        exportarPrecartonPDF
+        exportarPrecartonPDF,
+        cerrarVisorPDFPrecarton
     };
 }));

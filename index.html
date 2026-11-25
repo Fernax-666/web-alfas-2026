@@ -27,27 +27,27 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-  <!-- html2canvas -->
+  <!-- html2canvas para Captura de Calendario y Compartir por WhatsApp -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=15">
-  <script src="js/utils/helpers.js?v=15"></script>
-  <script src="js/services/calculator.js?v=15"></script>
-  <script src="js/services/database.js?v=15"></script>
-  <script src="js/services/storage.js?v=15"></script>
-  <script src="js/services/cloudSync.js?v=15"></script>
-  <script src="js/services/exporter.js?v=15"></script>
-  <script src="js/scripts.js?v=15"></script>
+  <link rel="stylesheet" href="css/styles.css?v=16">
+  <script src="js/utils/helpers.js?v=16"></script>
+  <script src="js/services/calculator.js?v=16"></script>
+  <script src="js/services/database.js?v=16"></script>
+  <script src="js/services/storage.js?v=16"></script>
+  <script src="js/services/cloudSync.js?v=16"></script>
+  <script src="js/services/exporter.js?v=16"></script>
+  <script src="js/scripts.js?v=16"></script>
 </head>
 
 <body data-mobile-tab="agenda">
 
   <div class="container">
-    <!-- CABECERA COMPACTA CON ACCESOS EN PC Y RESPETO DE SAFE-AREA EN APK -->
+    <!-- CABECERA COMPACTA -->
     <header class="app-header-bar">
       <div class="header-titles">
         <h1>Gestión de Servicios Adicionales</h1>
@@ -80,19 +80,21 @@
       </div>
     </div>
 
-    <!-- 1. SECCIÓN AGENDA / CALENDARIO COMPLETO CON DIFERENCIACIÓN POR EMPRESA (PRECARTÓN) Y POLICÍA -->
-    <div class="card calendar-card" data-mobile-section="agenda">
+    <!-- 1. SECCIÓN AGENDA / CALENDARIO COMPLETO SIN SCROLL Y CON REFERENCIAS ABAJO -->
+    <div class="card calendar-card" id="zonaCapturaCalendario" data-mobile-section="agenda">
       <div class="calendar-header">
-        <div>
-          <h3 class="margin-0">📅 Calendario de Servicios</h3>
-          <div id="leyendaEmpresasCal" class="cal-company-legend"></div>
-        </div>
+        <h3 class="margin-0">📅 Calendario de Servicios</h3>
+        <!-- Imagen 3: Los 2 selectores de filtro entran en 1 sola línea horizontal -->
         <div class="cal-filters-bar">
-          <select id="filtroCalEmpresa" title="Filtrar calendario por Empresa / Precartón" class="select-auto" onchange="filtrarCalendario()"></select>
-          <select id="filtroCalPolicia" title="Filtrar calendario por Policía" class="select-auto" onchange="filtrarCalendario()"></select>
+          <select id="filtroCalEmpresa" title="Filtrar calendario por Empresa / Precartón" class="select-cal-inline" onchange="filtrarCalendario()"></select>
+          <select id="filtroCalPolicia" title="Filtrar calendario por Policía" class="select-cal-inline" onchange="filtrarCalendario()"></select>
         </div>
       </div>
+
       <div id="calendar"></div>
+
+      <!-- Imagen 2: Referencias de Empresas (Precartones) ubicadas en la parte inferior del calendario -->
+      <div id="leyendaEmpresasCal" class="cal-company-legend-bottom"></div>
     </div>
 
     <!-- 2. SECCIÓN GRÁFICOS: 2 GRÁFICOS DE BARRAS CON ETIQUETAS DE TOTAL Y FILTRO DE AÑO -->
@@ -102,7 +104,7 @@
       </div>
 
       <div class="grid">
-        <!-- Gráfico de Barras 1: Mes Actual / Seleccionado por Día de la Semana con etiquetas de total -->
+        <!-- Gráfico de Barras 1: Mes Actual / Seleccionado -->
         <div class="card">
           <div class="chart-card-header">
             <div>
@@ -122,7 +124,7 @@
           </div>
         </div>
 
-        <!-- Gráfico de Barras 2: Anual Apilado por Día de la Semana con Filtro de Año y etiquetas de total -->
+        <!-- Gráfico de Barras 2: Anual Apilado con Filtro de Año -->
         <div class="card">
           <div class="chart-card-header">
             <div>
@@ -169,7 +171,6 @@
           <p class="text-muted-sm margin-0" id="historialSubtituloConteo">Mostrando todos los registros</p>
         </div>
 
-        <!-- Botones rápidos de período (Semanal, Mes, Anual, Todos) -->
         <div class="quick-period-pills" role="group" aria-label="Filtros rápidos de período">
           <button type="button" class="pill-btn" data-period="semanal" onclick="aplicarPeriodoRapidoHistorial('semanal')">Semanal</button>
           <button type="button" class="pill-btn" data-period="mensual" onclick="aplicarPeriodoRapidoHistorial('mensual')">Mes</button>
@@ -202,10 +203,13 @@
     </div>
   </div>
 
-  <!-- BOTÓN FLOTANTE (FAB) EXCLUSIVO MÓVIL PARA CARGA RÁPIDA DE SERVICIO -->
+  <!-- Imagen 4: BOTONES FLOTANTES (FAB) EN ZONA DEL CALENDARIO:
+       1. Capturar Calendario y Compartir por WhatsApp
+       2. Registrar Nuevo Servicio (+) -->
+  <button type="button" class="mobile-fab-whatsapp" id="btnFabCapturaWhatsapp" onclick="capturarYCompartirCalendarioWhatsApp()" title="Capturar Calendario y Compartir por WhatsApp" aria-label="Capturar Calendario y Compartir por WhatsApp">📸</button>
   <button type="button" class="mobile-fab-add" onclick="abrirNuevoServicioRapido()" title="Registrar Nuevo Servicio" aria-label="Registrar Nuevo Servicio">+</button>
 
-  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL (APP SHELL ANDROID APK / MOBILE) -->
+  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL -->
   <nav class="mobile-bottom-nav" aria-label="Navegación principal móvil">
     <button type="button" class="mobile-nav-btn active" data-tab="agenda" onclick="cambiarTabMovil('agenda')">
       <span class="nav-icon">📅</span>

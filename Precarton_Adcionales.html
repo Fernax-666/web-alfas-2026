@@ -10,17 +10,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-  <!-- jsPDF y AutoTable para generar el PDF del Precartón en la carpeta de Descargas (Android y Windows) -->
+  <!-- jsPDF y AutoTable para generar el PDF del Precartón y abrirlo automáticamente -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 
-  <link rel="stylesheet" href="css/styles.css?v=15">
-  <script src="js/utils/helpers.js?v=15"></script>
-  <script src="js/services/calculator.js?v=15"></script>
-  <script src="js/services/database.js?v=15"></script>
-  <script src="js/services/storage.js?v=15"></script>
-  <script src="js/services/cloudSync.js?v=15"></script>
-  <script src="js/precarton.js?v=15"></script>
+  <link rel="stylesheet" href="css/styles.css?v=16">
+  <script src="js/utils/helpers.js?v=16"></script>
+  <script src="js/services/calculator.js?v=16"></script>
+  <script src="js/services/database.js?v=16"></script>
+  <script src="js/services/storage.js?v=16"></script>
+  <script src="js/services/cloudSync.js?v=16"></script>
+  <script src="js/precarton.js?v=16"></script>
   <style>
     .planilla-controls {
       display: flex;
@@ -68,7 +68,6 @@
       box-shadow: 0 0 0 2px var(--primary);
     }
 
-    /* Tabla de Precartón optimizada para verse completa en PC y APK mostrando Jerarquía, Apellido y Nombre */
     .planilla-table {
       width: 100%;
       border-collapse: collapse;
@@ -102,7 +101,6 @@
       font-size: 0.75rem;
     }
 
-    /* Celda de turno con etiqueta completa visible de Jerarquía + Apellido y Nombre */
     .turno-cell-wrap {
       display: flex;
       flex-direction: column;
@@ -156,6 +154,33 @@
     .info-empresa-box { margin-top: 6px; font-size: 0.78rem; color: var(--text-muted); line-height: 1.55; display: none; }
     .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .input-year { width: 100px !important; min-width: 100px !important; }
+
+    /* Visor Automático de PDF Integrado (para Android APK y Windows) */
+    .pdf-viewer-modal {
+      max-width: 960px !important;
+      width: 96% !important;
+      height: 88vh;
+      display: flex;
+      flex-direction: column;
+      padding: 14px !important;
+    }
+    .pdf-viewer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 10px;
+    }
+    .pdf-viewer-body {
+      flex: 1;
+      overflow-y: auto;
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 10px;
+      color: #0f172a;
+    }
 
     @media print {
       .no-print, .mobile-bottom-nav { display: none !important; }
@@ -234,7 +259,6 @@
       </div>
     </div>
 
-    <!-- Barra de Precartones Cargados en el Mes para cambiar o iniciar otra empresa con un toque -->
     <div id="barraPrecartonesMes" class="precarton-loaded-bar"></div>
   </div>
 
@@ -245,6 +269,23 @@
         <tbody id="cuerpoPlanilla"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<!-- MODAL VISOR AUTOMÁTICO DEL PDF GENERADO (SE ABRE AUTOMÁTICAMENTE Y AL CERRAR VUELVE A LA APLICACIÓN) -->
+<div id="modalVisorPDFPrecarton" class="modal-overlay">
+  <div class="modal pdf-viewer-modal">
+    <div class="pdf-viewer-header">
+      <div>
+        <h3 id="tituloVisorPDF" class="margin-0">📄 Vista Previa de PDF Guardado</h3>
+        <p class="text-muted-sm margin-0" id="subtituloVisorPDF">Guardado en carpeta de Descargas</p>
+      </div>
+      <div class="flex-center-gap-10">
+        <button type="button" class="btn-secondary" onclick="compartirUltimoPDFPrecarton()">📤 Compartir PDF</button>
+        <button type="button" class="btn-primary" onclick="cerrarVisorPDFPrecarton()">✖ Cerrar y Volver</button>
+      </div>
+    </div>
+    <div id="cuerpoVisorPDFPrecarton" class="pdf-viewer-body"></div>
   </div>
 </div>
 

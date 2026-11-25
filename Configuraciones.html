@@ -11,19 +11,14 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-  <!-- jsPDF y SheetJS para exportación desde Configuraciones -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-  <link rel="stylesheet" href="css/styles.css?v=15">
-  <script src="js/utils/helpers.js?v=15"></script>
-  <script src="js/services/calculator.js?v=15"></script>
-  <script src="js/services/database.js?v=15"></script>
-  <script src="js/services/storage.js?v=15"></script>
-  <script src="js/services/cloudSync.js?v=15"></script>
-  <script src="js/services/exporter.js?v=15"></script>
-  <script src="js/configuraciones.js?v=15"></script>
+  <link rel="stylesheet" href="css/styles.css?v=16">
+  <script src="js/utils/helpers.js?v=16"></script>
+  <script src="js/services/calculator.js?v=16"></script>
+  <script src="js/services/database.js?v=16"></script>
+  <script src="js/services/storage.js?v=16"></script>
+  <script src="js/services/cloudSync.js?v=16"></script>
+  <script src="js/services/exporter.js?v=16"></script>
+  <script src="js/configuraciones.js?v=16"></script>
 </head>
 
 <body>
@@ -31,7 +26,7 @@
     <header class="app-header-bar">
       <div class="header-titles">
         <h1>⚙️ Centro de Configuraciones</h1>
-        <p class="subtitle">Montos tarifarios, temas (Claro / Oscuro), empresas, policías y base de datos</p>
+        <p class="subtitle">Montos tarifarios, temas (Claro / Oscuro), empresas, policías y sincronización</p>
       </div>
       <div class="desktop-top-nav no-print">
         <a href="index.html" class="btn-outline">📅 Dashboard y Calendario</a>
@@ -55,29 +50,26 @@
       </div>
     </div>
 
-    <!-- 2. ACTUALIZACIÓN DE MONTOS / TARIFAS -->
+    <!-- 2. ACTUALIZACIÓN DE MONTOS / TARIFAS (2 ITEMS POR LÍNEA: Cat. A | Cat. AP) -->
     <div class="card">
       <h3><span class="title-accent">2. Actualización de Montos</span> por Categoría</h3>
-      <p class="text-muted-sm">Ajuste los valores de la hora por categoría. Al guardar se recalculan los servicios y se sincroniza con SQLite y Google Sheets.</p>
-      <div id="panelCostos" class="grid panel-costos-grid">
-        <!-- Generado dinámicamente -->
+      <p class="text-muted-sm">Ajuste los valores de la hora (2 categorías por línea). Al guardar se recalculan los servicios automáticamente.</p>
+      <div id="panelCostos" class="panel-costos-2col">
+        <!-- Generado dinámicamente en grilla de 2 columnas (Cat. A, Cat. AP...) -->
       </div>
       <button type="button" class="btn-primary btn-full" onclick="guardarConfiguracionTarifas()">💾 Actualizar Montos y Recalcular</button>
     </div>
 
-    <!-- 3. BASE DE DATOS LOCAL Y EXPORTACIÓN -->
+    <!-- 3. BASE DE DATOS LOCAL Y SINCRONIZACIÓN (LIMPIO: SIN BOTONES SQL/REPORTES/OUTBOX) -->
     <div class="card">
-      <h3><span class="title-accent">3. Base de Datos Local</span> y Reportes</h3>
-      <p class="text-muted-sm">Gestione respaldos SQL (SQLite / PostgreSQL), sincronización con Google Sheets y exportación de reportes.</p>
+      <h3><span class="title-accent">3. Base de Datos Local</span> y Respaldos</h3>
+      <p class="text-muted-sm">Sincronice los servicios con Google Sheets o gestione respaldos JSON de la base de datos local.</p>
       <div class="system-status-bar mb-12">
         <span id="dbEngineBadge" class="badge badge-b">SQLite/IndexedDB Local Activo</span>
         <span id="dbOutboxBadge" class="badge badge-a">Sincronizado con Sheets</span>
       </div>
       <div class="config-actions-grid">
-        <button type="button" class="btn-primary btn-indigo" onclick="exportarBaseDatosSQL()">🗄️ Exportar Base SQL (.sql)</button>
-        <button type="button" class="btn-primary btn-slate" onclick="abrirModal('modalExportar')">🖨️ Exportar Reportes (PDF/Excel)</button>
         <button type="button" class="btn-primary btn-green" onclick="sincronizarDesdeSheets()">🔄 Leer Solapa Servicios (Sheets)</button>
-        <button type="button" class="btn-outline" onclick="sincronizarColaOutbox()">☁️ Sincronizar Cola Outbox</button>
         <button type="button" class="btn-outline btn-outline-green" onclick="descargarRespaldoJSON()">📤 Exportar alfas.json</button>
         <button type="button" class="btn-outline btn-outline-green" onclick="document.getElementById('importarJson').click()">📥 Importar alfas.json</button>
         <input type="file" id="importarJson" title="Importar archivo alfas.json" class="display-none" accept=".json" onchange="cargarAlfasJSONConfig(event)">
@@ -227,30 +219,6 @@
         </div>
         <div id="infoTurnos" class="info-turnos"></div>
         <button type="button" class="btn-danger btn-full-xs" onclick="eliminarEmpresa()">🗑️ Eliminar Empresa Seleccionada</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL EXPORTAR REPORTES -->
-  <div id="modalExportar" class="modal-overlay">
-    <div class="modal modal-xs">
-      <span class="close-modal" onclick="cerrarModal('modalExportar')">&times;</span>
-      <h3 class="mb-20">Exportar Reportes</h3>
-      <div class="form-group mb-10">
-        <label for="exportMes">Seleccionar Mes <span class="font-weight-normal">(Opcional)</span></label>
-        <select id="exportMes" title="Seleccionar Mes de servicios a exportar"></select>
-      </div>
-      <div class="form-group mb-10">
-        <label for="exportPolicia">Seleccionar Policía <span class="font-weight-normal">(Opcional)</span></label>
-        <select id="exportPolicia" title="Seleccionar Policía de servicios a exportar"></select>
-      </div>
-      <div class="form-group mb-6">
-        <label>Seleccionar Empresa(s) <span class="font-weight-normal">(Marcar para incluir)</span></label>
-        <div id="containerExportEmpresa" class="checkbox-container"></div>
-      </div>
-      <div class="flex-gap-10">
-        <button type="button" class="btn-danger flex-1" onclick="exportPDFConfig()">📄 PDF</button>
-        <button type="button" class="btn-secondary flex-1" onclick="exportExcelConfig()">📊 Excel</button>
       </div>
     </div>
   </div>

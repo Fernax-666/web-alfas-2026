@@ -3,23 +3,23 @@
  * @description Service Worker Offline-First para soporte PWA y caché de activos en móvil/PC.
  */
 
-const CACHE_NAME = 'alfas-caminera-v14';
+const CACHE_NAME = 'alfas-caminera-v16';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './Configuraciones.html',
     './Precarton_Adcionales.html',
     './manifest.webmanifest',
-    './css/styles.css?v=14',
-    './js/utils/helpers.js?v=14',
-    './js/services/calculator.js?v=14',
-    './js/services/database.js?v=14',
-    './js/services/storage.js?v=14',
-    './js/services/cloudSync.js?v=14',
-    './js/services/exporter.js?v=14',
-    './js/scripts.js?v=14',
-    './js/configuraciones.js?v=14',
-    './js/precarton.js?v=14'
+    './css/styles.css?v=16',
+    './js/utils/helpers.js?v=16',
+    './js/services/calculator.js?v=16',
+    './js/services/database.js?v=16',
+    './js/services/storage.js?v=16',
+    './js/services/cloudSync.js?v=16',
+    './js/services/exporter.js?v=16',
+    './js/scripts.js?v=16',
+    './js/configuraciones.js?v=16',
+    './js/precarton.js?v=16'
 ];
 
 self.addEventListener('install', (event) => {
