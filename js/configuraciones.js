@@ -63,10 +63,8 @@
         const applied = Utils.applyTheme(themeName);
         actualizarBotonesTemaUI(applied);
         const nombresTema = {
-            light: "Claro Institucional",
-            dark: "Oscuro Nocturno",
-            police: "Azul Policial",
-            emerald: "Esmeralda Táctico"
+            light: "Tema Claro Original",
+            dark: "Tema Oscuro"
         };
         mostrarNotificacion(`Tema aplicado: ${nombresTema[applied] || applied}`, "var(--primary)");
     }

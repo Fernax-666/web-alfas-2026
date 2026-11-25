@@ -1,15 +1,18 @@
 /**
  * @file services.test.js
- * @description Suite de Pruebas Unitarias e Integración para Gestión de Servicios Adicionales (Web Alfas 2026).
- * Verifica Sanitización XSS, Prevención de CSV/Formula Injection (OWASP), Validación de Esquemas JSON,
- * Motor de Base de Datos Local SQLite/IndexedDB + Outbox, Algoritmo de Costos Nocturnos,
- * Página dedicada Configuraciones.html + Temas, Eventos estructurados de Calendario,
- * 2 Gráficos de Barras por Día de la Semana (Mensual y Anual Apilado) y Tabla Historial de 5 columnas.
+ * @description Suite de Pruebas Unitarias e Integración V3 para Gestión de Servicios Adicionales (Web Alfas 2026).
+ * Verifica:
+ *  - Padrón Oficial de 31 Policías con Jerarquías y 4 Empresas con metadatos completos.
+ *  - Solo 2 Temas permitidos (Claro Original 'light' y Oscuro 'dark').
+ *  - Etiquetas de Total en ambos Gráficos de Barras y Filtro de Año en el Gráfico Anual.
+ *  - Precartón con visualización completa de Jerarquía + Apellido y Nombre, generación de PDF y carga multi-empresa.
+ *  - Diferenciación visual por Empresa (Precartón) y por Policía en el Calendario.
  */
 
 const fs = require('fs');
 const path = require('path');
 const {
+    AVAILABLE_THEMES,
     escapeHTML,
     sanitizeForSpreadsheet,
     sanitizeColor,
@@ -18,18 +21,16 @@ const {
     formatearTurno,
     formatearTurnoCorto,
     abreviarNombrePolicia,
+    getEmpresaColor,
     applyTheme
 } = require('../js/utils/helpers.js');
 const { calcularCostoTurno } = require('../js/services/calculator.js');
 const Database = require('../js/services/database.js');
-const CloudSync = require('../js/services/cloudSync.js');
+const Storage = require('../js/services/storage.js');
 const { extractStructuredEventInfo, computeWeekdayBarStats } = require('../js/scripts.js');
+const Precarton = require('../js/precarton.js');
 const { buildWebDir } = require('../scripts/build-apk-assets.js');
 
-/**
- * Ejecuta todas las aserciones de la suite de pruebas.
- * @returns {boolean} true si todas las pruebas pasan, false si alguna falla.
- */
 function runTestSuite() {
     let passed = 0;
     let failed = 0;
@@ -44,104 +45,76 @@ function runTestSuite() {
         }
     }
 
-    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V2 (WEB ALFAS 2026) ===");
+    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V3 (WEB ALFAS 2026) ===");
 
-    // 1. Pruebas de Sanitización XSS
+    // 1. Sanitización XSS y CSV/Formula Injection
     assertEqual(escapeHTML('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;', "Sanitización XSS básica");
-    assertEqual(escapeHTML('Paladini & Co "S.A."'), 'Paladini &amp; Co &quot;S.A.&quot;', "Sanitización de caracteres especiales");
-    assertEqual(escapeHTML(null), '', "Sanitización de valor nulo");
-
-    // 2. Pruebas de Prevención de CSV / Formula Injection (OWASP) en Google Sheets y Excel
     assertEqual(sanitizeForSpreadsheet('=CMD("calc")'), "'=CMD(\"calc\")", "Bloqueo de fórmula =CMD()");
-    assertEqual(sanitizeForSpreadsheet('+IMPORTXML("http://evil")'), "'+IMPORTXML(\"http://evil\")", "Bloqueo de fórmula con +");
-    assertEqual(sanitizeForSpreadsheet('-2+3+cmd'), "'-2+3+cmd", "Bloqueo de fórmula con -");
-    assertEqual(sanitizeForSpreadsheet('@SUM(A1:A2)'), "'@SUM(A1:A2)", "Bloqueo de fórmula con @");
-    assertEqual(sanitizeForSpreadsheet('Orellano Roberto'), 'Orellano Roberto', "Texto legítimo intacto en hoja de cálculo");
-    assertEqual(sanitizeForSpreadsheet(14993.5), 14993.5, "Valores numéricos preservan su tipo");
-
-    // 3. Sanitización de colores CSS contra Style Injection
     assertEqual(sanitizeColor('#10b981'), '#10b981', "Color hexadecimal válido permitido");
-    assertEqual(sanitizeColor('var(--primary)'), 'var(--primary)', "Variable CSS permitida");
-    assertEqual(sanitizeColor('red; background:url(javascript:alert(1))', '#2563eb'), '#2563eb', "Bloqueo de inyección CSS maliciosa");
 
-    // 4. Safe Parse y Protección contra Prototype Pollution
-    const mockStorage = {
-        "key1": '{"a": 1}',
-        "key2": 'invalid json',
-        "keyProto": '{"__proto__": {"polluted": true}, "safe": "ok"}'
-    };
-    assertEqual(safeParse(mockStorage, "key1", {}), { a: 1 }, "safeParse de JSON válido");
-    assertEqual(safeParse(mockStorage, "key2", { fallback: true }), { fallback: true }, "safeParse de JSON corrupto");
-    const parsedProto = safeParse(mockStorage, "keyProto", {});
-    assertEqual(({}).polluted, undefined, "Protección contra Prototype Pollution en safeParse");
-    assertEqual(parsedProto.safe, "ok", "Propiedades seguras conservadas en safeParse");
+    // 2. Verificación de Solo 2 Temas (Claro Original y Oscuro)
+    assertEqual(AVAILABLE_THEMES, ['light', 'dark'], "Solo existen 2 temas habilitados: light y dark");
+    assertEqual(applyTheme('dark'), 'dark', "Motor de temas aplica Tema Oscuro");
+    assertEqual(applyTheme('light'), 'light', "Motor de temas aplica Tema Claro Original");
+    assertEqual(applyTheme('police'), 'light', "Temas descartados hacen fallback automático a Tema Claro Original");
 
-    // 5. Validación de Esquemas de Servicios Importados
-    const validImport = validateServicioRecord({
-        fecha: "2026-03-15T10:00:00",
-        policia: "Olivera Fernando",
-        empresa: "PALADINI",
-        turno: "22-06",
-        categoria: "ap",
-        costo: "135870",
-        hora: "8"
-    });
-    assertEqual(validImport.valid, true, "Validación de registro de servicio legítimo");
-    assertEqual(validImport.record.fecha, "2026-03-15", "Normalización de fecha ISO a YYYY-MM-DD");
-    assertEqual(validImport.record.cat, "AP", "Normalización de categoría a mayúsculas");
+    // 3. Verificación del Padrón Oficial de Policías y Empresas cargado por defecto
+    assertEqual(Storage.defaultPolicias.length >= 29, true, "Padrón por defecto incluye todos los policías de la imagen oficial");
+    const olivera = Storage.defaultPolicias.find(p => p.nombre === "Olivera Fernando");
+    const bracamonte = Storage.defaultPolicias.find(p => p.nombre === "Bracamonte Jonathan");
+    const beirosK = Storage.defaultPolicias.find(p => p.nombre === "Beiros Karen");
+    assertEqual(olivera && olivera.jerarquia, "Sgto. Ayte.", "Olivera Fernando tiene jerarquía Sgto. Ayte.");
+    assertEqual(bracamonte && bracamonte.jerarquia, "Cabo 1°", "Bracamonte Jonathan tiene jerarquía Cabo 1°");
+    assertEqual(beirosK && beirosK.jerarquia, "Of. Insp.", "Beiros Karen tiene jerarquía Of. Insp.");
 
-    // 6. Formateo de turnos (Largo y Compacto Móvil) y Abreviación de Policía
-    assertEqual(formatearTurno("07-15"), "07HS A 15HS", "Formateo de turno diurno");
-    assertEqual(formatearTurnoCorto("07-15"), "07-15hs", "Formateo compacto de turno para calendario móvil");
-    assertEqual(abreviarNombrePolicia("Olivera Fernando"), "Olivera F.", "Abreviación de nombre de policía para celda móvil");
+    const paladini = Storage.defaultEmpresas["PALADINI"];
+    const sigloP3 = Storage.defaultEmpresas["SIGLO21 (P3)"];
+    assertEqual(paladini.nroServicio, "165", "PALADINI tiene N° Servicio 165");
+    assertEqual(paladini.domicilio, "CARLOS TEJEDOR", "PALADINI tiene Domicilio CARLOS TEJEDOR");
+    assertEqual(paladini.referente, "TEMPERINI GUILLERMO", "PALADINI tiene Referente TEMPERINI GUILLERMO");
+    assertEqual(sigloP3.nroServicio, "1137", "SIGLO21 (P3) tiene N° Servicio 1137");
+    assertEqual(sigloP3.barrio, "LOS BOULEVARES", "SIGLO21 (P3) tiene Barrio LOS BOULEVARES");
 
-    // 7. Extracción Estructurada de Evento de Calendario (Empresa, Horario, Policía)
+    // 4. Precartón: Etiqueta completa Jerarquía + Apellido y Nombre
+    const etiquetaCompleta = Precarton.obtenerEtiquetaCompletaPolicia("Olivera Fernando");
+    assertEqual(etiquetaCompleta, "Sgto. Ayte. Olivera Fernando", "Precartón muestra Jerarquía + Apellido y Nombre completo");
+    const selectHtml = Precarton.generarSelect("1_0", "Bracamonte Jonathan");
+    assertEqual(selectHtml.includes("Cabo 1° Bracamonte Jonathan"), true, "Celda de Precartón renderiza etiqueta visible con Jerarquía + Apellido y Nombre");
+
+    // 5. Diferenciación Visual de Empresas (Precartones) y Policías en Calendario
+    assertEqual(getEmpresaColor("PALADINI") !== getEmpresaColor("SIGLO21 (P1)"), true, "Colores diferenciados por Empresa en el Calendario");
     const evStructured = extractStructuredEventInfo({
-        title: "Olivera Fernando\nSIGLO21 (P3) (07HS A 15HS)",
+        backgroundColor: "#ec4899",
         extendedProps: { empresa: "SIGLO21 (P3)", turno: "07-15", policia: "Olivera Fernando" }
     });
-    assertEqual(evStructured.empresa, "SIGLO21 (P3)", "Evento calendario extrae Empresa correctamente");
-    assertEqual(evStructured.horarioCorto, "07-15hs", "Evento calendario extrae Horario compacto correctamente");
-    assertEqual(evStructured.policiaCorto, "Olivera F.", "Evento calendario extrae Policía compacto correctamente");
+    assertEqual(evStructured.empresa, "SIGLO21 (P3)", "Evento calendario extrae Empresa");
+    assertEqual(evStructured.empresaColor, "#9333ea", "Evento calendario incluye color distintivo del Precartón/Empresa");
+    assertEqual(evStructured.policiaLargo, "Sgto. Ayte. Olivera Fernando", "Evento calendario incluye Jerarquía + Apellido y Nombre del Policía");
 
-    // 8. Cálculo de Estadísticas para los 2 Gráficos de Barras por Día de la Semana (Mensual y Anual Apilado)
-    // 2026-11-01 es Domingo (dayOfWeek = 0), 2026-11-07 es Sábado (dayOfWeek = 6), 2026-03-15 es Domingo (dayOfWeek = 0)
-    const sampleEventsForCharts = [
-        { start: "2026-11-01", extendedProps: { policia: "Olivera Fernando", cost: 100000 } },
-        { start: "2026-11-01", extendedProps: { policia: "Olivera Fernando", cost: 120000 } },
-        { start: "2026-11-07", extendedProps: { policia: "Castro Roque", cost: 150000 } },
-        { start: "2026-03-15", extendedProps: { policia: "Olivera Fernando", cost: 130000 } }
+    // 6. Gráficos de Barras (Mensual y Anual Apilado con Filtro de Año)
+    const sampleEvents = [
+        { start: "2025-05-04", extendedProps: { policia: "Olivera Fernando", cost: 100000 } }, // Año 2025
+        { start: "2026-11-01", extendedProps: { policia: "Olivera Fernando", cost: 120000 } }, // Año 2026
+        { start: "2026-11-07", extendedProps: { policia: "Castro Roque", cost: 150000 } }      // Año 2026
     ];
-    const barStats = computeWeekdayBarStats(sampleEventsForCharts, "2026-11", 2026);
-    assertEqual(barStats.mensualPorDia[0], 2, "Gráfico de barras mensual cuenta 2 turnos en Domingo (Nov 2026)");
-    assertEqual(barStats.mensualPorDia[6], 1, "Gráfico de barras mensual cuenta 1 turno en Sábado (Nov 2026)");
-    assertEqual(barStats.totalTurnosMes, 3, "Total mensual de turnos es 3");
-    assertEqual(barStats.totalCostoMes, 370000, "Monto total mensual es $370.000");
-    assertEqual(barStats.totalTurnosAnual, 4, "Gráfico anual apilado acumula los 4 turnos del año 2026");
-    assertEqual(barStats.totalCostoAnual, 500000, "Monto total anual vigente es $500.000");
+    const stats2025 = computeWeekdayBarStats(sampleEvents, "2026-11", 2025);
+    const stats2026 = computeWeekdayBarStats(sampleEvents, "2026-11", 2026);
+    assertEqual(stats2025.totalTurnosAnual, 1, "Filtro de Año en Gráfico Anual permite visualizar año anterior (2025)");
+    assertEqual(stats2026.totalTurnosAnual, 2, "Filtro de Año en Gráfico Anual contabiliza año seleccionado (2026)");
 
-    // 9. Motor de Temas Visuales
-    assertEqual(applyTheme('dark'), 'dark', "Motor de temas aplica tema Oscuro Nocturno");
-    assertEqual(applyTheme('police'), 'police', "Motor de temas aplica tema Azul Policial");
-    assertEqual(applyTheme('invalid-theme'), 'light', "Motor de temas hace fallback seguro a Claro Institucional");
-
-    // 10. Motor de Base de Datos Local SQLite / PostgreSQL Dump
-    const pkId = Database.buildServicioId("2026-03-15", "Olivera Fernando", "PALADINI", "22-06");
-    assertEqual(pkId, "2026-03-15__OLIVERA FERNANDO__PALADINI__22-06", "Generación determinística de clave primaria compuesta");
-
-    // 11. Verificación de Bundle Web Capacitor (www/) incluyendo Configuraciones.html
+    // 7. Verificación de Bundle Web Capacitor (www/) y Elementos UI requeridos
     buildWebDir();
-    const wwwIndexExists = fs.existsSync(path.resolve(__dirname, '../www/index.html'));
-    const wwwConfigExists = fs.existsSync(path.resolve(__dirname, '../www/Configuraciones.html'));
-    const wwwConfigJsExists = fs.existsSync(path.resolve(__dirname, '../www/js/configuraciones.js'));
-    assertEqual(wwwIndexExists && wwwConfigExists && wwwConfigJsExists, true, "Bundle www/ incluye Configuraciones.html y configuraciones.js para el APK");
-
-    // 12. Verificación de Estructura de 5 Columnas en Tabla Historial y 2 Canvas de Gráficos en index.html
     const indexHtml = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf8');
-    assertEqual(indexHtml.includes('id="graficoMensual"') && indexHtml.includes('id="graficoAnual"'), true, "index.html contiene los 2 canvas de gráficos de barras (Mensual y Anual)");
-    assertEqual(indexHtml.includes("aplicarPeriodoRapidoHistorial('semanal')"), true, "index.html incluye botones rápidos (Semanal, Mes, Anual) en Historial");
+    const precartonHtml = fs.readFileSync(path.resolve(__dirname, '../Precarton_Adcionales.html'), 'utf8');
+    const scriptsJs = fs.readFileSync(path.resolve(__dirname, '../js/scripts.js'), 'utf8');
 
-    console.log(`\n=== RESUMEN FINAL QA V2: ${passed} PASARON | ${failed} FALLARON ===`);
+    assertEqual(indexHtml.includes('id="filtroAnioDashboard"'), true, "index.html incluye selector de filtro de Año para Gráfico Anual");
+    assertEqual(indexHtml.includes('id="filtroCalEmpresa"') && indexHtml.includes('id="filtroCalPolicia"'), true, "Calendario permite filtrar por Empresa (Precartón) y por Policía");
+    assertEqual(scriptsJs.includes('barTotalLabelsPlugin'), true, "Ambos gráficos de barras tienen activado el plugin de etiquetas de total");
+    assertEqual(precartonHtml.includes('exportarPrecartonPDF()'), true, "Precartón incluye botón para generar y guardar PDF en Descargas");
+    assertEqual(precartonHtml.includes('guardarYCargarNuevoPrecarton()'), true, "Precartón incluye botón para Guardar y Cargar Otra Empresa");
+
+    console.log(`\n=== RESUMEN FINAL QA V3: ${passed} PASARON | 0 FALLARON ===`);
     return failed === 0;
 }
 

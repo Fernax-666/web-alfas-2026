@@ -34,14 +34,14 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=14">
-  <script src="js/utils/helpers.js?v=14"></script>
-  <script src="js/services/calculator.js?v=14"></script>
-  <script src="js/services/database.js?v=14"></script>
-  <script src="js/services/storage.js?v=14"></script>
-  <script src="js/services/cloudSync.js?v=14"></script>
-  <script src="js/services/exporter.js?v=14"></script>
-  <script src="js/scripts.js?v=14"></script>
+  <link rel="stylesheet" href="css/styles.css?v=15">
+  <script src="js/utils/helpers.js?v=15"></script>
+  <script src="js/services/calculator.js?v=15"></script>
+  <script src="js/services/database.js?v=15"></script>
+  <script src="js/services/storage.js?v=15"></script>
+  <script src="js/services/cloudSync.js?v=15"></script>
+  <script src="js/services/exporter.js?v=15"></script>
+  <script src="js/scripts.js?v=15"></script>
 </head>
 
 <body data-mobile-tab="agenda">
@@ -80,33 +80,39 @@
       </div>
     </div>
 
-    <!-- 1. SECCIÓN AGENDA / CALENDARIO COMPLETO EN PANTALLA -->
+    <!-- 1. SECCIÓN AGENDA / CALENDARIO COMPLETO CON DIFERENCIACIÓN POR EMPRESA (PRECARTÓN) Y POLICÍA -->
     <div class="card calendar-card" data-mobile-section="agenda">
       <div class="calendar-header">
-        <h3 class="margin-0">📅 Calendario de Servicios</h3>
-        <div class="flex-center-gap-10">
-          <select id="filtroCalPolicia" title="Filtrar eventos de calendario por Policía" class="select-auto" onchange="filtrarCalendario()"></select>
+        <div>
+          <h3 class="margin-0">📅 Calendario de Servicios</h3>
+          <div id="leyendaEmpresasCal" class="cal-company-legend"></div>
+        </div>
+        <div class="cal-filters-bar">
+          <select id="filtroCalEmpresa" title="Filtrar calendario por Empresa / Precartón" class="select-auto" onchange="filtrarCalendario()"></select>
+          <select id="filtroCalPolicia" title="Filtrar calendario por Policía" class="select-auto" onchange="filtrarCalendario()"></select>
         </div>
       </div>
       <div id="calendar"></div>
     </div>
 
-    <!-- 2. SECCIÓN GRÁFICOS: 2 GRÁFICOS DE BARRAS (MENSUAL Y ANUAL APILADO POR DÍA DE LA SEMANA) -->
+    <!-- 2. SECCIÓN GRÁFICOS: 2 GRÁFICOS DE BARRAS CON ETIQUETAS DE TOTAL Y FILTRO DE AÑO -->
     <div data-mobile-section="resumen">
       <div class="dashboard-header">
         <h2 class="dashboard-title">📊 Estadísticas por Día de la Semana</h2>
-        <div class="flex-center-gap-10">
-          <label for="filtroMesDashboard" class="label-filter">Mes:</label>
-          <select id="filtroMesDashboard" title="Seleccionar Mes para Gráfico Mensual" class="select-auto" onchange="calcularResumen()"></select>
-        </div>
       </div>
 
       <div class="grid">
-        <!-- Gráfico de Barras 1: Mes Actual / Seleccionado por Día de la Semana -->
+        <!-- Gráfico de Barras 1: Mes Actual / Seleccionado por Día de la Semana con etiquetas de total -->
         <div class="card">
           <div class="chart-card-header">
-            <h3>Turnos por Día de la Semana (Mes)</h3>
-            <span id="subtituloGraficoMes" class="badge badge-empresa">Mes Actual</span>
+            <div>
+              <h3>Turnos por Día (Mensual)</h3>
+              <span id="subtituloGraficoMes" class="badge badge-empresa">Mes Actual</span>
+            </div>
+            <div class="flex-center-gap-10">
+              <label for="filtroMesDashboard" class="label-filter">Mes:</label>
+              <select id="filtroMesDashboard" title="Seleccionar Mes para Gráfico Mensual" class="select-auto" onchange="calcularResumen()"></select>
+            </div>
           </div>
           <div class="chart-wrapper">
             <canvas id="graficoMensual"></canvas>
@@ -116,11 +122,17 @@
           </div>
         </div>
 
-        <!-- Gráfico de Barras 2: Anual Apilado por Día de la Semana -->
+        <!-- Gráfico de Barras 2: Anual Apilado por Día de la Semana con Filtro de Año y etiquetas de total -->
         <div class="card">
           <div class="chart-card-header">
-            <h3>Acumulado Anual Apilado por Día</h3>
-            <span id="subtituloGraficoAnual" class="badge badge-b">Año Vigente</span>
+            <div>
+              <h3>Acumulado Anual Apilado</h3>
+              <span id="subtituloGraficoAnual" class="badge badge-b">Año Vigente</span>
+            </div>
+            <div class="flex-center-gap-10">
+              <label for="filtroAnioDashboard" class="label-filter">Año:</label>
+              <select id="filtroAnioDashboard" title="Seleccionar Año para visualizar años anteriores o actual" class="select-auto" onchange="calcularResumen()"></select>
+            </div>
           </div>
           <div class="chart-wrapper">
             <canvas id="graficoAnual"></canvas>

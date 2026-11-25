@@ -1,7 +1,7 @@
 /**
  * @file helpers.js
  * @description Funciones puras de utilidad para sanitización XSS, prevención de CSV/Formula Injection,
- * validación de esquemas JSON, gestión de Temas Visuales, detección de plataforma y formateo compacto.
+ * validación de esquemas JSON, gestión de 2 Temas Visuales (Claro Original y Oscuro), detección de plataforma y formateo.
  * Compatible con entornos de Navegador (window.AlfaUtils) y Node.js (CommonJS).
  */
 
@@ -16,7 +16,7 @@
 }(typeof self !== 'undefined' ? self : this, function () {
 
     const THEME_STORAGE_KEY = 'alfa_app_theme';
-    const AVAILABLE_THEMES = ['light', 'dark', 'police', 'emerald'];
+    const AVAILABLE_THEMES = ['light', 'dark'];
 
     /**
      * Sanitiza una cadena de texto para evitar vulnerabilidades XSS en la inserción HTML.
@@ -207,12 +207,38 @@
     }
 
     /**
-     * Retorna un color hex aleatorio de una paleta prefijada.
+     * Retorna un color hex aleatorio de una paleta prefijada de alto contraste.
      * @returns {string} Código de color hex.
      */
     function colorAleatorio() {
-        const tones = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+        const tones = [
+            '#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+            '#ec4899', '#06b6d4', '#f97316', '#0284c7', '#4f46e5',
+            '#0d9488', '#d97706', '#dc2626', '#7c3aed', '#db2777'
+        ];
         return tones[Math.floor(Math.random() * tones.length)];
+    }
+
+    /**
+     * Retorna un color distintivo para una empresa dada para diferenciar precartones en el calendario.
+     * @param {string} empresaName 
+     * @returns {string} Color hex para el borde/indicador de la empresa.
+     */
+    function getEmpresaColor(empresaName) {
+        const clean = String(empresaName || "").toUpperCase().trim();
+        const map = {
+            "PALADINI": "#16a34a",
+            "SIGLO21 (P1)": "#2563eb",
+            "SIGLO21 (P2)": "#d97706",
+            "SIGLO21 (P3)": "#9333ea"
+        };
+        if (map[clean]) return map[clean];
+        let hash = 0;
+        for (let i = 0; i < clean.length; i++) {
+            hash = clean.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        const palette = ['#0284c7', '#e11d48', '#059669', '#7c3aed', '#ea580c', '#4f46e5'];
+        return palette[Math.abs(hash) % palette.length];
     }
 
     /**
@@ -243,8 +269,8 @@
     }
 
     /**
-     * Obtiene el tema visual guardado o 'light' por defecto.
-     * @returns {'light'|'dark'|'police'|'emerald'}
+     * Obtiene el tema visual guardado ('light' o 'dark').
+     * @returns {'light'|'dark'}
      */
     function getSavedTheme() {
         if (typeof localStorage !== 'undefined') {
@@ -255,9 +281,9 @@
     }
 
     /**
-     * Aplica y persiste un tema visual en el documento HTML actual.
-     * @param {'light'|'dark'|'police'|'emerald'} themeName 
-     * @returns {string} Tema aplicado.
+     * Aplica y persiste uno de los 2 temas permitidos ('light' original o 'dark' oscuro).
+     * @param {'light'|'dark'} themeName 
+     * @returns {'light'|'dark'} Tema aplicado.
      */
     function applyTheme(themeName) {
         const validTheme = AVAILABLE_THEMES.includes(themeName) ? themeName : 'light';
@@ -283,6 +309,7 @@
         getLocalYMD,
         getLocalYM,
         colorAleatorio,
+        getEmpresaColor,
         detectPlatformContext,
         getSavedTheme,
         applyTheme

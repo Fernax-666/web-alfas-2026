@@ -1,7 +1,8 @@
 /**
  * @file scripts.js
- * @description Orquestador principal de UI para Dashboard, Calendario Adaptativo Completo,
- * 2 Gráficos de Barras por Día de la Semana (Mensual + Anual Apilado) y Tabla de Historial de 5 Columnas con Filtros Rápidos.
+ * @description Orquestador principal de UI para Dashboard, Calendario Adaptativo con diferenciación
+ * por Empresa (Precartón) y Policía, 2 Gráficos de Barras con etiquetas de Total visibles y filtro de Año,
+ * y Tabla de Historial de 5 Columnas con Filtros Rápidos.
  */
 
 // --- SERVICIOS MODULARES E INICIALIZACIÓN ---
@@ -31,6 +32,47 @@ const COLORES_MESES = [
     '#ec4899', '#d946ef', '#8b5cf6', '#6366f1'
 ];
 
+// Plugin Chart.js personalizado para dibujar las etiquetas de Total encima de cada barra (en ambos gráficos)
+const barTotalLabelsPlugin = {
+    id: 'barTotalLabelsPlugin',
+    afterDatasetsDraw(chart) {
+        const { ctx, data, scales } = chart;
+        if (!scales || !scales.x || !scales.y) return;
+
+        ctx.save();
+        const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
+        ctx.fillStyle = isDark ? '#f1f5f9' : '#1e293b';
+        ctx.font = 'bold 11px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+
+        const numLabels = (data.labels || []).length;
+        for (let i = 0; i < numLabels; i++) {
+            let totalCol = 0;
+            let topY = scales.y.bottom;
+
+            data.datasets.forEach((ds, dsIdx) => {
+                const meta = chart.getDatasetMeta(dsIdx);
+                if (!meta.hidden) {
+                    const val = Number(ds.data[i]) || 0;
+                    totalCol += val;
+                    const barElem = meta.data[i];
+                    if (barElem && barElem.y < topY) {
+                        topY = barElem.y;
+                    }
+                }
+            });
+
+            if (totalCol > 0) {
+                const xPos = scales.x.getPixelForValue(i);
+                const yPos = Math.max(topY - 4, 12);
+                ctx.fillText(String(totalCol), xPos, yPos);
+            }
+        }
+        ctx.restore();
+    }
+};
+
 // Inicialización de estado centralizado desde Storage Service
 const initialState = Storage.initStorage(Utils);
 let config = initialState.config;
@@ -42,7 +84,7 @@ let graficoMensualInstance = null;
 let graficoAnualInstance = null;
 let calendar = null;
 let _currentMobileTab = 'agenda';
-let _periodoRapidoHistorial = 'todos'; // 'semanal' | 'mensual' | 'anual' | 'todos'
+let _periodoRapidoHistorial = 'todos';
 
 /**
  * Obtiene la lista simplificada de nombres de policías.
@@ -53,13 +95,24 @@ function nombresPolicias() {
 }
 
 /**
+ * Busca la jerarquía registrada para un nombre de policía.
+ * @param {string} nombrePol 
+ * @returns {string}
+ */
+function obtenerJerarquiaPolicia(nombrePol) {
+    const clean = String(nombrePol || "").trim().toLowerCase();
+    const found = policias.find(p => p.nombre.toLowerCase() === clean);
+    return found && found.jerarquia ? found.jerarquia : "";
+}
+
+/**
  * Genera la etiqueta formateada del policía con su jerarquía.
  * @param {{nombre: string, jerarquia?: string}} policiaObj - Objeto policía.
  * @returns {string} Etiqueta visible en select/interfaz.
  */
 function etiquetaPolicia(policiaObj) {
     if (!policiaObj) return "";
-    return policiaObj.jerarquia ? `[${policiaObj.jerarquia}] ${policiaObj.nombre}` : policiaObj.nombre;
+    return policiaObj.jerarquia ? `${policiaObj.jerarquia} ${policiaObj.nombre}` : policiaObj.nombre;
 }
 
 /**
@@ -76,27 +129,16 @@ function mostrarNotificacion(msg, color = "var(--primary)") {
     setTimeout(() => notifElem.classList.remove("show"), 3200);
 }
 
-/**
- * Abre un modal por ID.
- * @param {string} modalId 
- */
 function abrirModal(modalId) {
     const elem = document.getElementById(modalId);
     if (elem) elem.style.display = "flex";
 }
 
-/**
- * Cierra un modal por ID.
- * @param {string} modalId 
- */
 function cerrarModal(modalId) {
     const elem = document.getElementById(modalId);
     if (elem) elem.style.display = "none";
 }
 
-/**
- * Abre el modal de Nuevo Servicio preconfigurado con la fecha actual (usado por el botón FAB móvil).
- */
 function abrirNuevoServicioRapido() {
     const hoyIso = getLocalYMD(new Date());
     window.fechaSeleccionada = hoyIso;
@@ -109,21 +151,60 @@ function abrirNuevoServicioRapido() {
 }
 
 /**
- * Inicializa los selectores y listas desplegables del DOM con los datos actuales de policías y empresas.
+ * Renderiza la leyenda de colores diferenciados por Empresa (Precartón) sobre el calendario.
+ */
+function renderizarLeyendaEmpresasCalendario() {
+    const cont = document.getElementById("leyendaEmpresasCal");
+    if (!cont) return;
+    cont.innerHTML = "";
+    Object.keys(empresas).forEach(empName => {
+        const empColor = Utils.getEmpresaColor ? Utils.getEmpresaColor(empName) : '#2563eb';
+        const pill = document.createElement("span");
+        pill.className = "cal-emp-chip";
+        pill.style.borderLeftColor = empColor;
+        pill.textContent = empName;
+        cont.appendChild(pill);
+    });
+}
+
+/**
+ * Inicializa los selectores del DOM incluyendo el doble filtro del calendario (por Empresa/Precartón y por Policía).
  */
 function inicializarSelects() {
     const sPol = document.getElementById("selPolicia");
     const fPol = document.getElementById("filtroPolicia");
     const cPol = document.getElementById("filtroCalPolicia");
+    const cEmp = document.getElementById("filtroCalEmpresa");
     const sEmp = document.getElementById("selEmpresa");
     const fEmp = document.getElementById("filtroEmpresa");
 
+    // Selectores de Policía mostrando Jerarquía + Apellido y Nombre
     [
-        { el: sPol, data: nombresPolicias(), first: "-- Seleccione Policía --" },
-        { el: fPol, data: nombresPolicias(), first: "Todos los Policías" },
-        { el: cPol, data: nombresPolicias(), first: "Todos los Policías" },
+        { el: sPol, first: "-- Seleccione Policía --" },
+        { el: fPol, first: "Todos los Policías" },
+        { el: cPol, first: "Todos los Policías" }
+    ].forEach(s => {
+        if (!s.el) return;
+        s.el.innerHTML = "";
+        if (s.first) {
+            let firstOp = document.createElement("option");
+            firstOp.value = "";
+            firstOp.textContent = s.first;
+            s.el.appendChild(firstOp);
+        }
+        policias.forEach(p => {
+            let op = document.createElement("option");
+            op.value = p.nombre;
+            op.textContent = etiquetaPolicia(p);
+            s.el.appendChild(op);
+        });
+    });
+
+    // Selectores de Empresa
+    [
         { el: sEmp, data: Object.keys(empresas), first: "-- Seleccione Empresa --" },
-        { el: fEmp, data: Object.keys(empresas), first: "Todas las Empresas" }
+        { el: fEmp, data: Object.keys(empresas), first: "Todas las Empresas" },
+        { el: cEmp, data: Object.keys(empresas), first: "Todas las Empresas (Precartones)" }
     ].forEach(s => {
         if (!s.el) return;
         s.el.innerHTML = "";
@@ -141,14 +222,12 @@ function inicializarSelects() {
         });
     });
 
+    renderizarLeyendaEmpresasCalendario();
     cambiarTurnos();
     const statPol = document.getElementById("stat-policias");
     if (statPol) statPol.textContent = policias.length;
 }
 
-/**
- * Actualiza los turnos disponibles en el selector según la empresa elegida.
- */
 function cambiarTurnos() {
     let e = document.getElementById("selEmpresa") ? document.getElementById("selEmpresa").value : "";
     let s = document.getElementById("selTurno");
@@ -166,9 +245,6 @@ function cambiarTurnos() {
     actualizarCategoriaAuto();
 }
 
-/**
- * Asigna automáticamente la categoría según el día seleccionado y la empresa.
- */
 function actualizarCategoriaAuto() {
     let eElem = document.getElementById("selEmpresa");
     let e = eElem ? eElem.value : "";
@@ -185,13 +261,6 @@ function actualizarCategoriaAuto() {
     if (sel && cat) sel.value = cat;
 }
 
-/**
- * Función delegada de cálculo de costo de turno.
- * @param {string} turno 
- * @param {string} fechaStr 
- * @param {Object} empData 
- * @returns {Object}
- */
 function calcularCostoTurno(turno, fechaStr, empData) {
     return Calculator.calcularCostoTurno(turno, fechaStr, empData, config);
 }
@@ -220,10 +289,9 @@ const defaultEventos = defaultServiciosRaw.map(s => ({
 }));
 
 /**
- * Extrae de forma estructurada (Empresa, Horario, Policía) los datos de un evento de FullCalendar
- * incluso si proviene de un formato anterior guardado solo con `title`.
+ * Extrae de forma estructurada (Empresa, Horario, Policía con Jerarquía y Colores diferenciados) los datos de un evento.
  * @param {Object} eventObj - Instancia de evento de FullCalendar.
- * @returns {{empresa: string, horarioCorto: string, horarioLargo: string, policiaCorto: string, policiaLargo: string}}
+ * @returns {{empresa: string, empresaColor: string, policiaColor: string, horarioCorto: string, horarioLargo: string, policiaCorto: string, policiaLargo: string}}
  */
 function extractStructuredEventInfo(eventObj) {
     const props = (eventObj && eventObj.extendedProps) ? eventObj.extendedProps : {};
@@ -239,22 +307,29 @@ function extractStructuredEventInfo(eventObj) {
         }
     }
 
+    const jerarquia = obtenerJerarquiaPolicia(policia);
     const horarioCorto = Utils.formatearTurnoCorto ? Utils.formatearTurnoCorto(turnoRaw) : formatearTurno(turnoRaw);
     const horarioLargo = formatearTurno(turnoRaw);
-    const policiaCorto = Utils.abreviarNombrePolicia ? Utils.abreviarNombrePolicia(policia) : policia;
+    const polBaseCorto = Utils.abreviarNombrePolicia ? Utils.abreviarNombrePolicia(policia) : policia;
+    const policiaCorto = jerarquia ? `${jerarquia} ${polBaseCorto}` : polBaseCorto;
+    const policiaLargo = jerarquia ? `${jerarquia} ${policia}` : policia;
+
+    const empresaColor = Utils.getEmpresaColor ? Utils.getEmpresaColor(empresa) : '#16a34a';
+    const policiaColor = sanitizeColor((eventObj && eventObj.backgroundColor) || coloresPolicia[policia], '#2563eb');
 
     return {
         empresa: empresa || "S/E",
+        empresaColor,
+        policiaColor,
         horarioCorto: horarioCorto || "-",
         horarioLargo: horarioLargo || "-",
         policiaCorto: policiaCorto || "S/P",
-        policiaLargo: policia || "S/P"
+        policiaLargo: policiaLargo || "S/P"
     };
 }
 
 /**
- * Inicializa el componente de FullCalendar diseñado para verse completo en la pantalla actual (PC o Móvil APK)
- * y renderizar cada registro con estructura clara: Empresa, Horario y Policía.
+ * Inicializa FullCalendar diferenciando visualmente tanto la Empresa (Precartón) como el Policía asignado.
  */
 function initCalendar() {
     const calendarEl = document.getElementById("calendar");
@@ -294,8 +369,10 @@ function initCalendar() {
             const isMobile = window.innerWidth <= 768;
             const wrapper = document.createElement('div');
             wrapper.className = 'alfa-cal-event-card';
+            // Franja lateral izquierda con el color de la Empresa (Precartón) y fondo con el color del Policía
+            wrapper.style.borderLeft = `4px solid ${info.empresaColor}`;
             wrapper.innerHTML = `
-                <div class="ev-line-emp">${escapeHTML(info.empresa)}</div>
+                <div class="ev-line-emp"><span class="ev-emp-dot" style="background:${info.empresaColor}"></span>${escapeHTML(info.empresa)}</div>
                 <div class="ev-line-time">${escapeHTML(isMobile ? info.horarioCorto : info.horarioLargo)}</div>
                 <div class="ev-line-pol">${escapeHTML(isMobile ? info.policiaCorto : info.policiaLargo)}</div>
             `;
@@ -328,7 +405,7 @@ function initCalendar() {
             const evInfo = extractStructuredEventInfo(info.event);
             if (confirm(`¿Eliminar turno de ${evInfo.policiaLargo} en ${evInfo.empresa} (${evInfo.horarioLargo})?`)) {
                 let props = info.event.extendedProps || {};
-                let policia = props.policia || evInfo.policiaLargo;
+                let policia = props.policia || "";
                 let empresa = props.empresa || evInfo.empresa;
                 let turno = props.turno || "";
                 let fecha = info.event.startStr || "";
@@ -347,9 +424,6 @@ function initCalendar() {
     calendar.render();
 }
 
-/**
- * Guarda un evento de servicio desde el formulario modal.
- */
 function guardarEvento() {
     let p = document.getElementById("selPolicia").value;
     let t = document.getElementById("selTurno").value;
@@ -430,9 +504,6 @@ function guardarEvento() {
         });
 }
 
-/**
- * Guarda los eventos actuales del calendario en localStorage y en las tablas relacionales de AlfaDatabase.
- */
 function guardarEventosLocal() {
     if (!calendar) return;
     let evs = calendar.getEvents().map(e => ({
@@ -445,21 +516,33 @@ function guardarEventosLocal() {
 }
 
 /**
- * Puebla dinámicamente los selectores de meses en los filtros del Dashboard e Historial.
+ * Puebla dinámicamente los selectores de Meses y de Años (incluyendo años anteriores para el gráfico anual).
  */
 function popularFiltroMeses() {
     let selectDash = document.getElementById("filtroMesDashboard");
+    let selectAnioDash = document.getElementById("filtroAnioDashboard");
     let selectHist = document.getElementById("filtroMesHistorial");
-    if (!selectDash && !selectHist) return;
 
     let valDash = selectDash ? selectDash.value : "";
+    let valAnio = selectAnioDash ? selectAnioDash.value : "";
     let valHist = selectHist ? selectHist.value : "";
 
     let mesesSet = new Set();
+    let aniosSet = new Set();
+    const currentYear = new Date().getFullYear();
+    // Incluir siempre el año actual y los 4 años anteriores para consulta histórica
+    for (let y = currentYear; y >= currentYear - 4; y--) {
+        aniosSet.add(String(y));
+    }
+
     if (calendar) {
         calendar.getEvents().forEach(e => {
             if (e.start) {
-                mesesSet.add(getLocalYM(e.start));
+                const ym = getLocalYM(e.start);
+                if (ym) {
+                    mesesSet.add(ym);
+                    aniosSet.add(ym.split('-')[0]);
+                }
             }
         });
     }
@@ -485,11 +568,18 @@ function popularFiltroMeses() {
         selectHist.innerHTML = optionsHTML;
         selectHist.value = valHist;
     }
+
+    if (selectAnioDash) {
+        const aniosArr = Array.from(aniosSet).filter(a => /^\d{4}$/.test(a)).sort().reverse();
+        let aniosHTML = "";
+        aniosArr.forEach(a => {
+            aniosHTML += `<option value="${escapeHTML(a)}">${escapeHTML(a)}</option>`;
+        });
+        selectAnioDash.innerHTML = aniosHTML;
+        selectAnioDash.value = valAnio || String(currentYear);
+    }
 }
 
-/**
- * Actualiza todos los componentes dependientes del estado (Filtros, Tabla Historial, 2 Gráficos de Barras, Totales).
- */
 function actualizarTodo() {
     popularFiltroMeses();
     actualizarTabla();
@@ -499,14 +589,9 @@ function actualizarTodo() {
 }
 
 // =============================================================================
-// 3. TABLA DE HISTORIAL DE 5 COLUMNAS (FECHA, EMPRESA, TURNO, CATEGORÍA, COSTO)
-//    + BOTONES RÁPIDOS (SEMANAL, MES, ANUAL, TODOS)
+// TABLA DE HISTORIAL DE 5 COLUMNAS (FECHA, EMPRESA, TURNO, CATEGORÍA, COSTO)
 // =============================================================================
 
-/**
- * Renderiza las filas de la tabla de historial con los 5 campos solicitados:
- * Fecha, Empresa, Turno, Categoría y Costo.
- */
 function actualizarTabla() {
     const tbody = document.querySelector("#tablaServicios tbody");
     if (!tbody || !calendar) return;
@@ -546,10 +631,6 @@ function actualizarTabla() {
     });
 }
 
-/**
- * Activa uno de los botones rápidos de período en la solapa Historial ('semanal', 'mensual', 'anual', 'todos').
- * @param {'semanal'|'mensual'|'anual'|'todos'} periodo
- */
 function aplicarPeriodoRapidoHistorial(periodo) {
     _periodoRapidoHistorial = periodo;
     const pills = document.querySelectorAll(".quick-period-pills .pill-btn");
@@ -564,9 +645,6 @@ function aplicarPeriodoRapidoHistorial(periodo) {
     aplicarFiltros();
 }
 
-/**
- * Cuando el usuario elige manualmente un mes del desplegable en Historial, desactiva los otros botones rápidos.
- */
 function onCambioSelectMesHistorial() {
     const mesEl = document.getElementById("filtroMesHistorial");
     if (mesEl && mesEl.value) {
@@ -578,10 +656,6 @@ function onCambioSelectMesHistorial() {
     aplicarFiltros();
 }
 
-/**
- * Obtiene la fecha de referencia más reciente (hoy o el último mes con eventos cargados) para filtros rápidos.
- * @returns {Date}
- */
 function obtenerFechaReferenciaActiva() {
     const now = new Date();
     const ymNow = getLocalYM(now);
@@ -591,14 +665,10 @@ function obtenerFechaReferenciaActiva() {
     const hasCurrentMonth = events.some(e => e.start && getLocalYM(e.start) === ymNow);
     if (hasCurrentMonth || events.length === 0) return now;
 
-    // Si en el mes del reloj del sistema no hay eventos, usar la fecha del evento más reciente del año vigente
     const sorted = [...events].filter(e => e.start).sort((a, b) => b.start - a.start);
     return sorted[0] ? sorted[0].start : now;
 }
 
-/**
- * Aplica los filtros seleccionados (Botones rápidos Semanal/Mes/Anual + Policía + Empresa) a la tabla de Historial.
- */
 function aplicarFiltros() {
     const polEl = document.getElementById("filtroPolicia");
     const empEl = document.getElementById("filtroEmpresa");
@@ -613,7 +683,6 @@ function aplicarFiltros() {
     const activeYM = mesSelect || getLocalYM(refDate);
     const activeYear = String(refDate.getFullYear());
 
-    // Rango de 7 días para filtro Semanal
     const weekStart = new Date(refDate);
     weekStart.setHours(0, 0, 0, 0);
     weekStart.setDate(weekStart.getDate() - 6);
@@ -661,9 +730,6 @@ function aplicarFiltros() {
     }
 }
 
-/**
- * Limpia todos los filtros activos del Historial y vuelve a 'Todos'.
- */
 function limpiarFiltros() {
     const polEl = document.getElementById("filtroPolicia");
     const empEl = document.getElementById("filtroEmpresa");
@@ -676,31 +742,14 @@ function limpiarFiltros() {
 }
 
 // =============================================================================
-// 2. SOLAPA GRÁFICOS: 2 GRÁFICOS DE BARRAS POR DÍA DE LA SEMANA
-//    (1. MES ACTUAL / SELECCIONADO + 2. ANUAL APILADO POR MES)
+// SOLAPA GRÁFICOS: 2 GRÁFICOS DE BARRAS CON ETIQUETAS DE TOTAL Y FILTRO DE AÑO
 // =============================================================================
 
-/**
- * Calcula las estadísticas por día de la semana (Dom a Sáb) para un mes y para todo el año vigente.
- * @param {Array} eventsList - Lista de objetos evento con `.start` y `.extendedProps`.
- * @param {string} targetYM - Mes objetivo en formato 'YYYY-MM'.
- * @param {number} targetYear - Año objetivo (ej. 2026).
- * @returns {{
- *   mensualPorDia: number[],
- *   totalTurnosMes: number,
- *   totalCostoMes: number,
- *   anualPorMesYDia: number[][],
- *   totalTurnosAnual: number,
- *   totalCostoAnual: number,
- *   porPoliciaMes: Record<string, {turnos: number, total: number}>
- * }}
- */
 function computeWeekdayBarStats(eventsList, targetYM, targetYear) {
-    const mensualPorDia = [0, 0, 0, 0, 0, 0, 0]; // Dom(0) a Sáb(6)
+    const mensualPorDia = [0, 0, 0, 0, 0, 0, 0];
     let totalTurnosMes = 0;
     let totalCostoMes = 0;
 
-    // 12 meses x 7 días de la semana para el gráfico anual apilado
     const anualPorMesYDia = Array.from({ length: 12 }, () => [0, 0, 0, 0, 0, 0, 0]);
     let totalTurnosAnual = 0;
     let totalCostoAnual = 0;
@@ -715,22 +764,20 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear) {
 
         const ym = getLocalYM(dObj);
         const yr = dObj.getFullYear();
-        const monthIdx = dObj.getMonth(); // 0..11
-        const dayOfWeek = dObj.getDay(); // 0(Dom)..6(Sáb)
+        const monthIdx = dObj.getMonth();
+        const dayOfWeek = dObj.getDay();
 
         const p = e.extendedProps || {};
         const rawCost = (p.cost !== undefined) ? Number(p.cost) : (p.costo !== undefined ? Number(p.costo) : 0);
         const costVal = Number.isFinite(rawCost) ? rawCost : 0;
         const polNombre = String(p.policia || p.Policia || "Desconocido");
 
-        // Acumular en Anual Vigente si coincide el año
         if (yr === targetYear) {
             anualPorMesYDia[monthIdx][dayOfWeek]++;
             totalTurnosAnual++;
             totalCostoAnual += costVal;
         }
 
-        // Acumular en Mensual si coincide el mes seleccionado (o si targetYM está vacío)
         if (!targetYM || ym === targetYM) {
             mensualPorDia[dayOfWeek]++;
             totalTurnosMes++;
@@ -753,16 +800,13 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear) {
     };
 }
 
-/**
- * Calcula los totales del Dashboard y renderiza los 2 Gráficos de Barras (Mensual y Anual Apilado).
- */
 function calcularResumen() {
     if (!calendar) return;
     const mesFiltroElem = document.getElementById("filtroMesDashboard");
+    const anioFiltroElem = document.getElementById("filtroAnioDashboard");
     const refDate = obtenerFechaReferenciaActiva();
     let mesFiltro = (mesFiltroElem && mesFiltroElem.value) ? mesFiltroElem.value : getLocalYM(refDate);
 
-    // Si en el mes seleccionado no hay ningún evento y fue autoseleccionado, tomar el mes del evento más reciente
     const allEvents = calendar.getEvents();
     if (mesFiltroElem && !mesFiltroElem.dataset.userChanged) {
         const hasInMonth = allEvents.some(e => e.start && getLocalYM(e.start) === mesFiltro);
@@ -772,19 +816,22 @@ function calcularResumen() {
         }
     }
 
-    const activeYear = mesFiltro && mesFiltro.includes("-")
-        ? parseInt(mesFiltro.split("-")[0], 10)
-        : refDate.getFullYear();
+    // Si el usuario seleccionó un año específico en el filtro de Año del gráfico anual, respetarlo
+    let activeYear = refDate.getFullYear();
+    if (anioFiltroElem && anioFiltroElem.value) {
+        activeYear = parseInt(anioFiltroElem.value, 10);
+    } else if (mesFiltro && mesFiltro.includes("-")) {
+        activeYear = parseInt(mesFiltro.split("-")[0], 10);
+        if (anioFiltroElem) anioFiltroElem.value = String(activeYear);
+    }
 
     const stats = computeWeekdayBarStats(allEvents, mesFiltro, activeYear);
 
-    // 1. Actualizar KPIs superiores
     const statTurnos = document.getElementById("stat-turnos");
     const statCosto = document.getElementById("stat-costo");
     if (statTurnos) statTurnos.textContent = stats.totalTurnosMes;
     if (statCosto) statCosto.textContent = `$${stats.totalCostoMes.toLocaleString('es-AR')}`;
 
-    // 2. Actualizar subtítulos y pies de total de los 2 gráficos
     const subMes = document.getElementById("subtituloGraficoMes");
     if (subMes) subMes.textContent = mesFiltro || "Todos los meses";
     const footerMes = document.getElementById("footerTotalMensual");
@@ -796,18 +843,19 @@ function calcularResumen() {
     if (subAnual) subAnual.textContent = `Año ${activeYear}`;
     const footerAnual = document.getElementById("footerTotalAnual");
     if (footerAnual) {
-        footerAnual.innerHTML = `Total Anual Vigente (${escapeHTML(activeYear)}): <strong>${escapeHTML(stats.totalTurnosAnual)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoAnual.toLocaleString('es-AR'))}</strong>`;
+        footerAnual.innerHTML = `Total Anual (${escapeHTML(activeYear)}): <strong>${escapeHTML(stats.totalTurnosAnual)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoAnual.toLocaleString('es-AR'))}</strong>`;
     }
 
-    // 3. Actualizar tabla de Resumen por Policía
     const tBody = document.getElementById("totalesBody");
     if (tBody) {
         tBody.innerHTML = "";
         for (let name in stats.porPoliciaMes) {
             let row = stats.porPoliciaMes[name];
+            const jer = obtenerJerarquiaPolicia(name);
+            const fullLabel = jer ? `${jer} ${name}` : name;
             let tr = document.createElement("tr");
             tr.innerHTML = `
-                <td>${escapeHTML(name)}</td>
+                <td>${escapeHTML(fullLabel)}</td>
                 <td>${escapeHTML(row.turnos)}</td>
                 <td class="font-weight-600">$${escapeHTML(row.total.toLocaleString('es-AR'))}</td>
             `;
@@ -817,12 +865,13 @@ function calcularResumen() {
 
     if (typeof Chart === 'undefined') return;
 
-    // 4. Renderizar Gráfico de Barras 1: Mensual por Día de la Semana
+    // 1. Gráfico de Barras Mensual con etiquetas de total visibles encima de cada barra
     const canvasMensual = document.getElementById('graficoMensual');
     if (canvasMensual) {
         if (graficoMensualInstance) graficoMensualInstance.destroy();
         graficoMensualInstance = new Chart(canvasMensual.getContext('2d'), {
             type: 'bar',
+            plugins: [barTotalLabelsPlugin],
             data: {
                 labels: DIAS_SEMANA_LABELS,
                 datasets: [{
@@ -836,12 +885,14 @@ function calcularResumen() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: { padding: { top: 20 } },
                 plugins: {
                     legend: { display: false }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
+                        grace: '15%',
                         ticks: { stepSize: 1, precision: 0 }
                     }
                 }
@@ -849,12 +900,11 @@ function calcularResumen() {
         });
     }
 
-    // 5. Renderizar Gráfico de Barras 2: Anual Apilado por Día de la Semana
+    // 2. Gráfico de Barras Anual Apilado con etiquetas de total visibles encima de cada barra apilada
     const canvasAnual = document.getElementById('graficoAnual');
     if (canvasAnual) {
         if (graficoAnualInstance) graficoAnualInstance.destroy();
 
-        // Incluir como series apiladas los meses que tengan al menos 1 turno en el año (o todos si está vacío)
         const activeDatasets = [];
         stats.anualPorMesYDia.forEach((countsByDay, mIdx) => {
             const sumMonth = countsByDay.reduce((a, b) => a + b, 0);
@@ -870,14 +920,15 @@ function calcularResumen() {
 
         if (activeDatasets.length === 0) {
             activeDatasets.push({
-                label: `Año ${activeYear}`,
+                label: `Sin registros (${activeYear})`,
                 data: [0, 0, 0, 0, 0, 0, 0],
-                backgroundColor: '#2563eb'
+                backgroundColor: '#94a3b8'
             });
         }
 
         graficoAnualInstance = new Chart(canvasAnual.getContext('2d'), {
             type: 'bar',
+            plugins: [barTotalLabelsPlugin],
             data: {
                 labels: DIAS_SEMANA_LABELS,
                 datasets: activeDatasets
@@ -885,6 +936,7 @@ function calcularResumen() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                layout: { padding: { top: 20 } },
                 plugins: {
                     legend: {
                         position: 'bottom',
@@ -896,6 +948,7 @@ function calcularResumen() {
                     y: {
                         stacked: true,
                         beginAtZero: true,
+                        grace: '15%',
                         ticks: { stepSize: 1, precision: 0 }
                     }
                 }
@@ -905,16 +958,24 @@ function calcularResumen() {
 }
 
 /**
- * Filtra la visibilidad de eventos en el FullCalendar según el policía seleccionado.
+ * Filtra la visibilidad de eventos en FullCalendar tanto por Empresa (Precartón) como por Policía (ambos).
  */
 function filtrarCalendario() {
     if (!calendar) return;
-    const filtroCal = document.getElementById("filtroCalPolicia");
-    const filtroVal = (filtroCal ? filtroCal.value : "").trim();
+    const filtroPolEl = document.getElementById("filtroCalPolicia");
+    const filtroEmpEl = document.getElementById("filtroCalEmpresa");
+    const polVal = (filtroPolEl ? filtroPolEl.value : "").trim();
+    const empVal = (filtroEmpEl ? filtroEmpEl.value : "").trim();
 
     calendar.getEvents().forEach(ev => {
-        const policia = (ev.extendedProps.policia || "").trim();
-        if (!filtroVal || policia === filtroVal) {
+        const props = ev.extendedProps || {};
+        const policia = String(props.policia || "").trim();
+        const empresa = String(props.empresa || "").trim();
+
+        const matchPol = !polVal || policia === polVal;
+        const matchEmp = !empVal || empresa === empVal;
+
+        if (matchPol && matchEmp) {
             ev.setProp('display', 'auto');
         } else {
             ev.setProp('display', 'none');
@@ -922,9 +983,6 @@ function filtrarCalendario() {
     });
 }
 
-/**
- * Actualiza los indicadores visuales del estado de la Base de Datos Local (SQLite/IndexedDB) y Cola Outbox.
- */
 function actualizarEstadoBaseDatosUI() {
     if (!Database || typeof Database.getDatabaseStatus !== 'function') return;
     const status = Database.getDatabaseStatus();
@@ -963,9 +1021,6 @@ function actualizarEstadoBaseDatosUI() {
     }
 }
 
-/**
- * Consulta y sincroniza los servicios desde la nube o cae a fallbacks de la base de datos local.
- */
 async function cargarServiciosDesdeCloud() {
     mostrarNotificacion("Consultando Google Sheets y Base Local SQLite...", "var(--primary)");
     try {
@@ -996,10 +1051,6 @@ async function cargarServiciosDesdeCloud() {
     }
 }
 
-/**
- * Procesa la lista de servicios recibida, valida su esquema y la persiste en FullCalendar y AlfaDatabase deduplicando.
- * @param {Array} serviciosList 
- */
 function procesarYMostrarServiciosCloud(serviciosList) {
     if (!Array.isArray(serviciosList)) return;
     let eventosFinales = [];
@@ -1045,14 +1096,6 @@ function procesarYMostrarServiciosCloud(serviciosList) {
     actualizarTodo();
 }
 
-// =============================================================================
-// NAVEGACIÓN EXCLUSIVA MÓVIL (APP SHELL TÁCTIL <= 768px & APK)
-// =============================================================================
-
-/**
- * Cambia la pestaña activa en el Modo Móvil Exclusivo sin afectar la vista multipanel de escritorio (PC).
- * @param {'agenda'|'resumen'|'historial'} tabName
- */
 function cambiarTabMovil(tabName) {
     _currentMobileTab = tabName;
     document.body.setAttribute("data-mobile-tab", tabName);
@@ -1071,10 +1114,8 @@ function cambiarTabMovil(tabName) {
     }
 }
 
-// INICIALIZACIÓN AUTOMÁTICA EN NAVEGADOR / CAPACITOR WEBVIEW
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     document.addEventListener('DOMContentLoaded', () => {
-        // Aplicar tema visual persistido
         if (Utils.applyTheme && Utils.getSavedTheme) {
             Utils.applyTheme(Utils.getSavedTheme());
         }
@@ -1089,7 +1130,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         initCalendar();
         inicializarSelects();
 
-        // Verificar si se solicitó una pestaña específica por URL (?tab=resumen o ?tab=historial)
         const params = new URLSearchParams(window.location.search || "");
         const requestedTab = params.get("tab");
         if (requestedTab && ['agenda', 'resumen', 'historial'].includes(requestedTab)) {
@@ -1115,7 +1155,6 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     });
 }
 
-// EXPORTACIÓN PARA NODE.JS / SUITE DE PRUEBAS
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         escapeHTML,

@@ -18,7 +18,7 @@ html[data-theme="light"] {
     --sar: env(safe-area-inset-right, 0px);
 }
 
-/* Tema 2: Oscuro Nocturno */
+/* Tema 2: Oscuro */
 html[data-theme="dark"] {
     --primary: #3b82f6;
     --primary-dark: #2563eb;
@@ -33,32 +33,41 @@ html[data-theme="dark"] {
     --shadow: 0 4px 10px rgb(0 0 0 / 0.35);
 }
 
-/* Tema 3: Azul Policial Caminera */
-html[data-theme="police"] {
-    --primary: #1d4ed8;
-    --primary-dark: #1e3a8a;
-    --secondary: #0284c7;
-    --danger: #dc2626;
-    --warning: #d97706;
-    --bg-main: #eff6ff;
-    --bg-card: #ffffff;
-    --text-main: #0f172a;
-    --text-muted: #475569;
-    --border: #bfdbfe;
+/* Chips de leyenda de empresas (Precartones) sobre el Calendario */
+.cal-company-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
 }
 
-/* Tema 4: Esmeralda Táctico */
-html[data-theme="emerald"] {
-    --primary: #059669;
-    --primary-dark: #047857;
-    --secondary: #0d9488;
-    --danger: #e11d48;
-    --warning: #d97706;
-    --bg-main: #ecfdf5;
-    --bg-card: #ffffff;
-    --text-main: #064e3b;
-    --text-muted: #374151;
-    --border: #a7f3d0;
+.cal-emp-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    background: var(--bg-main);
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    border-left-width: 4px;
+    border-radius: 5px;
+}
+
+.cal-filters-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ev-emp-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 3px;
+    vertical-align: middle;
 }
 
 * {

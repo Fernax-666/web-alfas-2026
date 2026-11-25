@@ -9,64 +9,141 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=14">
-  <script src="js/utils/helpers.js?v=14"></script>
-  <script src="js/services/calculator.js?v=14"></script>
-  <script src="js/services/database.js?v=14"></script>
-  <script src="js/services/storage.js?v=14"></script>
-  <script src="js/services/cloudSync.js?v=14"></script>
-  <script src="js/precarton.js?v=14"></script>
+
+  <!-- jsPDF y AutoTable para generar el PDF del Precartón en la carpeta de Descargas (Android y Windows) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+  <link rel="stylesheet" href="css/styles.css?v=15">
+  <script src="js/utils/helpers.js?v=15"></script>
+  <script src="js/services/calculator.js?v=15"></script>
+  <script src="js/services/database.js?v=15"></script>
+  <script src="js/services/storage.js?v=15"></script>
+  <script src="js/services/cloudSync.js?v=15"></script>
+  <script src="js/precarton.js?v=15"></script>
   <style>
     .planilla-controls {
       display: flex;
       align-items: flex-end;
-      gap: 15px;
+      gap: 12px;
       flex-wrap: wrap;
     }
     .planilla-controls select, .planilla-controls input {
       width: auto;
-      min-width: 150px;
+      min-width: 140px;
     }
+
+    /* Chips de Estado de Precartones Cargados por Empresa en el Mes */
+    .precarton-loaded-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+    }
+    .precarton-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      background: var(--bg-main);
+      color: var(--text-main);
+      cursor: pointer;
+    }
+    .precarton-chip.loaded {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: #10b981;
+      color: #065f46;
+    }
+    html[data-theme="dark"] .precarton-chip.loaded {
+      color: #34d399;
+    }
+    .precarton-chip.current {
+      box-shadow: 0 0 0 2px var(--primary);
+    }
+
+    /* Tabla de Precartón optimizada para verse completa en PC y APK mostrando Jerarquía, Apellido y Nombre */
     .planilla-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
+      table-layout: auto;
     }
     .planilla-table th {
       background: var(--primary);
       color: white;
-      padding: 10px 8px;
+      padding: 8px 6px;
       text-align: center;
-      font-weight: 600;
-      font-size: 0.8rem;
+      font-weight: 700;
+      font-size: 0.74rem;
       text-transform: uppercase;
+      white-space: nowrap;
     }
     .planilla-table td {
-      padding: 6px;
+      padding: 4px 5px;
       border: 1px solid var(--border);
       text-align: center;
       vertical-align: middle;
     }
-    .planilla-table tr:nth-child(even) { background: rgba(148, 163, 184, 0.08); }
+    .planilla-table tr:nth-child(even) { background: rgba(148, 163, 184, 0.06); }
     .planilla-table tr.finde { background: rgba(245, 158, 11, 0.12); }
     .planilla-table tr.finde td:first-child { color: #d97706; font-weight: 700; }
     .planilla-table td:first-child, .planilla-table td:nth-child(2) {
-      font-weight: 600;
+      font-weight: 700;
       background: var(--bg-main);
       white-space: nowrap;
+      width: 44px;
+      font-size: 0.75rem;
+    }
+
+    /* Celda de turno con etiqueta completa visible de Jerarquía + Apellido y Nombre */
+    .turno-cell-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 135px;
     }
     .planilla-table select {
       width: 100%;
-      padding: 6px 8px;
+      padding: 4px 6px;
+      min-height: 34px !important;
       border-radius: 6px;
       border: 1px solid var(--border);
       font-family: inherit;
-      font-size: 0.85rem;
+      font-size: 0.76rem !important;
       background: var(--bg-card);
       color: var(--text-main);
     }
     .planilla-table select:focus { border-color: var(--primary); outline: none; }
-    .planilla-table select.asignado { background: rgba(37, 99, 235, 0.12); border-color: var(--primary); font-weight: 600; }
+    .planilla-table select.asignado {
+      background: rgba(37, 99, 235, 0.12);
+      border-color: var(--primary);
+      font-weight: 700;
+    }
+    .policia-selected-tag {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--primary);
+      line-height: 1.15;
+      text-align: left;
+      padding: 2px 4px;
+      background: rgba(37, 99, 235, 0.08);
+      border-radius: 4px;
+      word-break: break-word;
+      display: none;
+    }
+    .policia-selected-tag.visible {
+      display: block;
+    }
+    html[data-theme="dark"] .policia-selected-tag {
+      color: #60a5fa;
+    }
 
     .planilla-table th.turno-header-0 { background-color: #16a34a; }
     .planilla-table th.turno-header-1 { background-color: #2563eb; }
@@ -74,26 +151,32 @@
     .planilla-table th.turno-header-3 { background-color: #7c3aed; }
     .planilla-table th.turno-header-4 { background-color: #e11d48; }
 
-    .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; text-align: left; }
-    .h1-planilla { font-size: 1.4rem; margin-bottom: 3px; }
-    .info-empresa-box { margin-top: 8px; font-size: 0.82rem; color: var(--text-muted); line-height: 1.7; display: none; }
-    .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-    .input-year { width: 110px !important; min-width: 110px !important; }
+    .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; text-align: left; }
+    .h1-planilla { font-size: 1.35rem; margin-bottom: 3px; }
+    .info-empresa-box { margin-top: 6px; font-size: 0.78rem; color: var(--text-muted); line-height: 1.55; display: none; }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .input-year { width: 100px !important; min-width: 100px !important; }
 
     @media print {
       .no-print, .mobile-bottom-nav { display: none !important; }
       .card { box-shadow: none; border: 1px solid #ccc; }
-      .planilla-table select { border: none; appearance: none; background: transparent; }
+      .planilla-table select { display: none !important; }
+      .policia-selected-tag { display: block !important; border: none; background: transparent; color: #000; }
     }
 
     @media (max-width: 768px) {
       .header-flex { flex-direction: column; align-items: stretch; }
       .header-actions { width: 100%; }
-      .header-actions > * { flex: 1; }
-      .planilla-controls { flex-direction: column; align-items: stretch; }
+      .header-actions > * { flex: 1; font-size: 0.78rem !important; padding: 8px 6px !important; }
+      .planilla-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
       .planilla-controls .form-group,
       .planilla-controls select,
-      .planilla-controls input { width: 100% !important; }
+      .planilla-controls input { width: 100% !important; min-width: 0 !important; }
+      .planilla-table th, .planilla-table td { padding: 3px 4px; }
+      .planilla-table td:first-child, .planilla-table td:nth-child(2) { width: 32px; font-size: 0.68rem; }
+      .turno-cell-wrap { min-width: 112px; }
+      .planilla-table select { font-size: 0.72rem !important; min-height: 32px !important; padding: 2px 4px; }
+      .policia-selected-tag { font-size: 0.64rem; }
     }
   </style>
 </head>
@@ -101,7 +184,7 @@
 <div class="container">
   <header class="header-flex">
     <div>
-      <h1 class="h1-planilla">🗂️ Planilla Mensual de Turnos (Precartón)</h1>
+      <h1 class="h1-planilla">🗂️ Planilla Mensual (Precartón)</h1>
       <p class="subtitle" id="subtitulo">Cargando...</p>
       <div id="infoEmpresa" class="info-empresa-box">
         <span id="infoEmpNroSrv"></span>
@@ -117,9 +200,9 @@
       </div>
     </div>
     <div class="no-print header-actions">
-      <a href="index.html" class="btn-outline">← Dashboard</a>
-      <a href="Configuraciones.html" class="btn-outline">⚙️ Config.</a>
-      <button type="button" class="btn-outline no-print" onclick="window.print()">🖨️ Imprimir</button>
+      <a href="index.html" class="btn-outline">← Calendario</a>
+      <button type="button" class="btn-danger no-print" onclick="exportarPrecartonPDF()">📄 Guardar PDF</button>
+      <button type="button" class="btn-secondary no-print" onclick="guardarYCargarNuevoPrecarton()">➕ Guardar y Cargar Otra Empresa</button>
       <button type="button" class="btn-primary no-print" onclick="guardarPlanilla()">💾 Guardar</button>
     </div>
   </header>
@@ -127,8 +210,8 @@
   <div class="card no-print">
     <div class="planilla-controls">
       <div class="form-group margin-0">
-        <label for="selEmpresa">Empresa</label>
-        <select id="selEmpresa" title="Seleccionar Empresa para la planilla" onchange="generarPlanilla()"></select>
+        <label for="selEmpresa">Empresa (Grupos Horarios)</label>
+        <select id="selEmpresa" title="Seleccionar Empresa para posicionar sus grupos horarios" onchange="generarPlanilla()"></select>
       </div>
       <div class="form-group margin-0">
         <label for="selMes">Mes</label>
@@ -150,10 +233,13 @@
         <input type="number" id="filtroDiaMovil" title="Filtrar por número de día del mes (1-31)" placeholder="Todos" min="1" max="31" oninput="filtrarDiaPlanillaMovil()" class="input-year">
       </div>
     </div>
+
+    <!-- Barra de Precartones Cargados en el Mes para cambiar o iniciar otra empresa con un toque -->
+    <div id="barraPrecartonesMes" class="precarton-loaded-bar"></div>
   </div>
 
-  <div class="card">
-    <div class="table-container">
+  <div class="card" style="padding: 10px;">
+    <div class="table-container" style="margin-top: 0;">
       <table class="planilla-table" id="tablaPlanilla">
         <thead id="cabeceraPlanilla"></thead>
         <tbody id="cuerpoPlanilla"></tbody>
@@ -185,5 +271,7 @@
     <span>Config.</span>
   </a>
 </nav>
+
+<div id="notificacion"></div>
 </body>
 </html>

@@ -1,6 +1,7 @@
 /**
  * @file storage.js
- * @description Servicio de almacenamiento local, migraciones de esquemas y puente con AlfaDatabase (SQLite/IndexedDB).
+ * @description Servicio de almacenamiento local, migraciones automáticas de padron oficial de 29 Policías
+ * y 4 Empresas con metadatos completos, y puente con AlfaDatabase (SQLite/IndexedDB).
  * Compatible con entornos de Navegador (window.AlfaStorage) y Node.js (CommonJS).
  */
 
@@ -15,29 +16,101 @@
 }(typeof self !== 'undefined' ? self : this, function () {
 
     const CATEGORIAS = ["A", "AP", "B", "BP", "E", "HE", "HO"];
+    const MASTER_DATA_VERSION_KEY = "alfa_master_seed_v15";
 
     const defaultConfig = {
         A: 14993, AP: 16983.75, B: 16983.75, BP: 18736.5, E: 10638.75, HE: 5956.53, HO: 8121.36
     };
 
+    // Padrón Oficial de 29 Efectivos Policiales con su Jerarquía (según planilla oficial adjunta)
     const defaultPolicias = [
-        { nombre: "Orellano Roberto", jerarquia: "" },
-        { nombre: "Orellano Andres", jerarquia: "" },
-        { nombre: "Guzman Yael", jerarquia: "" },
-        { nombre: "Casalegno Gabriela", jerarquia: "" },
-        { nombre: "Castro Roque", jerarquia: "" },
-        { nombre: "Vivas Lucas", jerarquia: "" },
-        { nombre: "Silva Cesar", jerarquia: "" },
-        { nombre: "Durbano Martin", jerarquia: "" },
-        { nombre: "Olivera Fernando", jerarquia: "" },
-        { nombre: "Maldonado Mercedes", jerarquia: "" }
+        { nombre: "Olivera Fernando", jerarquia: "Sgto. Ayte." },
+        { nombre: "Bracamonte Jonathan", jerarquia: "Cabo 1°" },
+        { nombre: "Felix Noelia", jerarquia: "Cabo 1°" },
+        { nombre: "Granado Diaz Emanuel", jerarquia: "Cabo 1°" },
+        { nombre: "Pelliza Jorge", jerarquia: "Cabo 1°" },
+        { nombre: "Perez Jesica Belen", jerarquia: "Cabo 1°" },
+        { nombre: "Casabona Flavio", jerarquia: "Cabo" },
+        { nombre: "Razzi Victoria", jerarquia: "Cabo" },
+        { nombre: "Corzo Carlos", jerarquia: "Sgto 1°" },
+        { nombre: "Lazcano Alejandro", jerarquia: "Sgto 1°" },
+        { nombre: "Arroyo Pablo", jerarquia: "Sgto. Ayte." },
+        { nombre: "Ortiz Juan", jerarquia: "Sgto 1°" },
+        { nombre: "Rey Ruben", jerarquia: "Sgto. Ayte." },
+        { nombre: "Bracamonte Sebastian", jerarquia: "Sgto." },
+        { nombre: "Castro Francisco", jerarquia: "Sgto." },
+        { nombre: "Godoy Damian", jerarquia: "Sgto." },
+        { nombre: "Lescano Diego", jerarquia: "Sgto." },
+        { nombre: "Atampi Martin", jerarquia: "Subof. Ppal" },
+        { nombre: "Flores Oriana", jerarquia: "Of. Sub. Insp." },
+        { nombre: "Di Piazza Javier", jerarquia: "Of. Sub. Insp." },
+        { nombre: "Personal Eventual", jerarquia: "Agente" },
+        { nombre: "Orellano Roberto", jerarquia: "Subof. My" },
+        { nombre: "Orellano Andres", jerarquia: "Cabo 1°" },
+        { nombre: "Guzman Yael", jerarquia: "Cabo 1°" },
+        { nombre: "Casalegno Gabriela", jerarquia: "Sgto 1°" },
+        { nombre: "Castro Roque", jerarquia: "Sgto 1°" },
+        { nombre: "Vivas Lucas", jerarquia: "Cabo" },
+        { nombre: "Silva Cesar", jerarquia: "Sgto. Ayte." },
+        { nombre: "Durbano Martin", jerarquia: "Subof. My" },
+        { nombre: "Beiros Nicole", jerarquia: "Of. Insp." },
+        { nombre: "Beiros Karen", jerarquia: "Of. Insp." }
     ];
 
+    // Padrón Oficial de Empresas con sus Turnos y Metadatos Completos (según planilla oficial adjunta)
     const defaultEmpresas = {
-        "PALADINI": { turnos: ["06-14", "14-22", "22-06", "07:30-15:30"], catSemana: "A", catFinde: "AP" },
-        "SIGLO21 (P1)": { turnos: ["07-15", "15-23"], catSemana: "A", catFinde: "AP" },
-        "SIGLO21 (P2)": { turnos: ["07-15", "15-23"], catSemana: "A", catFinde: "AP" },
-        "SIGLO21 (P3)": { turnos: ["07-15", "15-23", "23-07"], catSemana: "A", catFinde: "AP" }
+        "PALADINI": {
+            turnos: ["06-14", "14-22", "22-06", "07:30-15:30"],
+            catSemana: "A",
+            catFinde: "AP",
+            nroServicio: "165",
+            telefono: "4568585",
+            domicilio: "CARLOS TEJEDOR",
+            barrio: "SARMIENTO",
+            referente: "TEMPERINI GUILLERMO",
+            telReferente: "4568585",
+            policiaEnc: "SUBOF. MY (R) ORELLANO ROBERTO",
+            telPoliciaEnc: "3513557333"
+        },
+        "SIGLO21 (P1)": {
+            turnos: ["07-15", "15-23"],
+            catSemana: "A",
+            catFinde: "AP",
+            nroServicio: "1134",
+            telefono: "0351-4757583",
+            domicilio: "AV. MONSEÑOR PABLO CABRERA KM 8.5",
+            barrio: "LOS BOULEVARES",
+            referente: "RODRIGUEZ GONZALO",
+            telReferente: "0351-4757583",
+            policiaEnc: "SUBOF. MY. ORELLANO ROBERTO",
+            telPoliciaEnc: "3513557333"
+        },
+        "SIGLO21 (P2)": {
+            turnos: ["07-15", "15-23"],
+            catSemana: "A",
+            catFinde: "AP",
+            nroServicio: "1134",
+            telefono: "0351-4757583",
+            domicilio: "AV. MONSEÑOR PABLO CABRERA KM 8.5",
+            barrio: "LOS BOULEVARES",
+            referente: "RODRIGUEZ GONZALO",
+            telReferente: "0351-4757583",
+            policiaEnc: "SUBOF. MY. ORELLANO ROBERTO",
+            telPoliciaEnc: "3513557333"
+        },
+        "SIGLO21 (P3)": {
+            turnos: ["07-15", "15-23", "23-07"],
+            catSemana: "A",
+            catFinde: "AP",
+            nroServicio: "1137",
+            telefono: "0351-4757583",
+            domicilio: "AV. MONSEÑOR PABLO CABRERA KM 8.5",
+            barrio: "LOS BOULEVARES",
+            referente: "RODRIGUEZ GONZALO",
+            telReferente: "0351-4757583",
+            policiaEnc: "SUBOF. MY. ORELLANO ROBERTO",
+            telPoliciaEnc: "3513557333"
+        }
     };
 
     /**
@@ -48,14 +121,12 @@
         if (typeof window !== 'undefined' && window.AlfaDatabase) return window.AlfaDatabase;
         try {
             if (typeof require === 'function') return require('./database.js');
-        } catch (_) {
-            // No disponible
-        }
+        } catch (_) {}
         return null;
     }
 
     /**
-     * Carga y realiza migraciones del estado inicial del sistema.
+     * Carga y realiza migraciones del estado inicial del sistema fusionando el nuevo padrón de policías y empresas.
      * @param {Object} helpers - Instancia del módulo AlfaUtils.
      * @returns {Object} Estado inicial parseado y migrado.
      */
@@ -66,38 +137,79 @@
         let config = safeParse(storageObj, "config_alfas", defaultConfig);
         let policiasRaw = safeParse(storageObj, "policias", defaultPolicias);
 
-        // Migración de policías (string[] -> {nombre, jerarquia}[])
+        // Normalizar policías almacenados
         let policias = (Array.isArray(policiasRaw) ? policiasRaw : defaultPolicias).map(item =>
-            typeof item === "string" ? { nombre: item, jerarquia: "" } : { nombre: String(item.nombre || ""), jerarquia: String(item.jerarquia || "") }
+            typeof item === "string"
+                ? { nombre: item.trim(), jerarquia: "" }
+                : { nombre: String(item.nombre || "").trim(), jerarquia: String(item.jerarquia || "").trim() }
         ).filter(p => p.nombre);
 
+        // Fusionar con el nuevo padrón oficial (actualiza jerarquías vacías y añade los nuevos efectivos)
+        const polMap = new Map();
+        defaultPolicias.forEach(dp => {
+            polMap.set(dp.nombre.toLowerCase(), { nombre: dp.nombre, jerarquia: dp.jerarquia });
+        });
+        policias.forEach(sp => {
+            const key = sp.nombre.toLowerCase();
+            if (polMap.has(key)) {
+                const master = polMap.get(key);
+                polMap.set(key, {
+                    nombre: master.nombre,
+                    jerarquia: sp.jerarquia || master.jerarquia
+                });
+            } else if (key !== "maldonado mercedes") {
+                polMap.set(key, sp);
+            }
+        });
+        policias = Array.from(polMap.values());
+
+        // Fusionar empresas con los datos completos oficiales
         let empresas = safeParse(storageObj, "empresas", defaultEmpresas);
         if (!empresas || typeof empresas !== 'object' || Array.isArray(empresas)) {
             empresas = { ...defaultEmpresas };
         }
-        // Migración de empresas (array de turnos -> objeto estructurado)
         Object.keys(empresas).forEach(nombre => {
             if (Array.isArray(empresas[nombre])) {
                 empresas[nombre] = { turnos: empresas[nombre], catSemana: "A", catFinde: "AP" };
             }
         });
+        Object.keys(defaultEmpresas).forEach(defKey => {
+            const defEmp = defaultEmpresas[defKey];
+            const curEmp = empresas[defKey] || {};
+            empresas[defKey] = {
+                turnos: Array.isArray(curEmp.turnos) && curEmp.turnos.length > 0 ? curEmp.turnos : defEmp.turnos,
+                catSemana: curEmp.catSemana || defEmp.catSemana,
+                catFinde: curEmp.catFinde || defEmp.catFinde,
+                nroServicio: curEmp.nroServicio || defEmp.nroServicio,
+                telefono: curEmp.telefono || defEmp.telefono,
+                domicilio: curEmp.domicilio || defEmp.domicilio,
+                barrio: curEmp.barrio || defEmp.barrio,
+                referente: curEmp.referente || defEmp.referente,
+                telReferente: curEmp.telReferente || defEmp.telReferente,
+                policiaEnc: curEmp.policiaEnc || defEmp.policiaEnc,
+                telPoliciaEnc: curEmp.telPoliciaEnc || defEmp.telPoliciaEnc
+            };
+        });
 
         let coloresPolicia = safeParse(storageObj, "colores_policia", {});
-        if (helpers && helpers.colorAleatorio) {
-            policias.forEach(p => {
-                if (!coloresPolicia[p.nombre]) {
-                    coloresPolicia[p.nombre] = helpers.colorAleatorio();
-                }
-            });
-        }
+        const fixedTones = [
+            '#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+            '#ec4899', '#06b6d4', '#f97316', '#0284c7', '#4f46e5',
+            '#0d9488', '#d97706', '#dc2626', '#7c3aed', '#db2777'
+        ];
+        policias.forEach((p, idx) => {
+            if (!coloresPolicia[p.nombre]) {
+                coloresPolicia[p.nombre] = fixedTones[idx % fixedTones.length];
+            }
+        });
 
         if (typeof localStorage !== 'undefined') {
-            if (!localStorage.getItem("policias")) localStorage.setItem("policias", JSON.stringify(policias));
-            if (!localStorage.getItem("empresas")) localStorage.setItem("empresas", JSON.stringify(empresas));
-            if (!localStorage.getItem("colores_policia")) localStorage.setItem("colores_policia", JSON.stringify(coloresPolicia));
+            localStorage.setItem("policias", JSON.stringify(policias));
+            localStorage.setItem("empresas", JSON.stringify(empresas));
+            localStorage.setItem("colores_policia", JSON.stringify(coloresPolicia));
+            localStorage.setItem(MASTER_DATA_VERSION_KEY, "true");
         }
 
-        // Inicializar y sincronizar en segundo plano con AlfaDatabase (SQLite / IndexedDB)
         const db = getDatabaseRef();
         if (db && typeof db.initDatabase === 'function') {
             db.initDatabase().then(() => {
@@ -115,11 +227,6 @@
         };
     }
 
-    /**
-     * Guarda el listado de policías en localStorage y en la base de datos local SQLite/IndexedDB.
-     * @param {Array} policiasList 
-     * @param {Object} [coloresMap]
-     */
     function savePolicias(policiasList, coloresMap) {
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem("policias", JSON.stringify(policiasList));
@@ -128,10 +235,6 @@
         if (db) db.syncStateToLocalDB({ policias: policiasList, coloresPolicia: coloresMap });
     }
 
-    /**
-     * Guarda el mapa de empresas en localStorage y en la base de datos local SQLite/IndexedDB.
-     * @param {Object} empresasMap 
-     */
     function saveEmpresas(empresasMap) {
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem("empresas", JSON.stringify(empresasMap));
@@ -140,10 +243,6 @@
         if (db) db.syncStateToLocalDB({ empresas: empresasMap });
     }
 
-    /**
-     * Guarda la configuración de tarifas en localStorage y en la base de datos local SQLite/IndexedDB.
-     * @param {Object} configMap 
-     */
     function saveConfig(configMap) {
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem("config_alfas", JSON.stringify(configMap));
@@ -152,20 +251,12 @@
         if (db) db.syncStateToLocalDB({ config: configMap });
     }
 
-    /**
-     * Guarda el mapa de colores por policía en localStorage.
-     * @param {Object} coloresMap 
-     */
     function saveColores(coloresMap) {
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem("colores_policia", JSON.stringify(coloresMap));
         }
     }
 
-    /**
-     * Guarda la lista de eventos/servicios en localStorage y sincroniza la tabla `servicios` en SQLite/IndexedDB.
-     * @param {Array} eventosList 
-     */
     function saveEventos(eventosList) {
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem("eventos", JSON.stringify(eventosList));
