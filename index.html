@@ -33,20 +33,32 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Custom Styles & Modular Scripts (Incluyendo Scripts Separados por Plataforma PC / Android APK) -->
-  <link rel="stylesheet" href="css/styles.css?v=17">
-  <script src="js/utils/helpers.js?v=17"></script>
-  <script src="js/services/calculator.js?v=17"></script>
-  <script src="js/services/database.js?v=17"></script>
-  <script src="js/services/storage.js?v=17"></script>
-  <script src="js/services/cloudSync.js?v=17"></script>
-  <script src="js/services/exporter.js?v=17"></script>
-  <script src="js/services/platformPc.js?v=17"></script>
-  <script src="js/services/platformApk.js?v=17"></script>
-  <script src="js/scripts.js?v=17"></script>
+  <!-- Custom Styles & Modular Scripts -->
+  <link rel="stylesheet" href="css/styles.css?v=18">
+  <script src="js/utils/helpers.js?v=18"></script>
+  <script src="js/services/calculator.js?v=18"></script>
+  <script src="js/services/database.js?v=18"></script>
+  <script src="js/services/storage.js?v=18"></script>
+  <script src="js/services/cloudSync.js?v=18"></script>
+  <script src="js/services/exporter.js?v=18"></script>
+  <script src="js/services/platformPc.js?v=18"></script>
+  <script src="js/services/platformApk.js?v=18"></script>
+  <script src="js/services/notifications.js?v=18"></script>
+  <script src="js/scripts.js?v=18"></script>
 </head>
 
 <body data-mobile-tab="agenda">
+
+  <!-- PANTALLA DE PORTADA DE INICIO (SOLO SE VISUALIZA UNA VEZ CUANDO SE INICIA EL PROGRAMA) -->
+  <div id="splashScreenOverlay" class="splash-screen-overlay display-none" onclick="cerrarPortadaInicio()">
+    <div class="splash-screen-card">
+      <img id="splashScreenImg" src="img/portada_1.jpg" alt="Portada Oficial Alfas Policía de Córdoba" class="splash-screen-image">
+      <div class="splash-screen-footer">
+        <div class="splash-progress-bar"><div class="splash-progress-fill"></div></div>
+        <span class="splash-tap-hint">Iniciando Sistema Alfas — Toque para ingresar</span>
+      </div>
+    </div>
+  </div>
 
   <div class="container">
     <!-- CABECERA COMPACTA -->
@@ -57,6 +69,7 @@
           <span id="platformModeBadge" class="badge badge-empresa">🖥️ PC</span>
           <span id="dbEngineBadge" class="badge badge-b">SQLite Local</span>
           <span id="dbOutboxBadge" class="badge badge-a">Sincronizado</span>
+          <span id="gmailLinkedBadge" class="badge badge-ho display-none">☁️ Gmail Vinculado</span>
         </div>
       </div>
       <div class="desktop-top-nav no-print">
@@ -65,6 +78,15 @@
         <a href="Configuraciones.html" class="btn-primary">⚙️ Configuraciones</a>
       </div>
     </header>
+
+    <!-- BANNER DE ALERTA DE SERVICIO PRÓXIMO A CUMPLIMENTAR (24 HORAS ANTES - SINCRONIZADO EN FECHA Y TIEMPO) -->
+    <div id="upcomingServiceAlertBanner" class="upcoming-service-banner display-none">
+      <div class="upcoming-banner-text">
+        <strong id="upcomingBannerTitle">🚨 Servicio Vigente Mañana</strong>
+        <span id="upcomingBannerBody">Tiene un servicio próximo a cumplimentar.</span>
+      </div>
+      <button type="button" class="btn-primary btn-ver-servicio-alerta" id="btnPosicionarServicioAlerta">📅 Ir al Turno</button>
+    </div>
 
     <!-- TARJETAS KPI RESUMEN RÁPIDO -->
     <div class="stat-grid">

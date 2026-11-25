@@ -16,6 +16,8 @@ const FILES_TO_COPY = [
     'manifest.webmanifest',
     'sw.js',
     'css/styles.css',
+    'img/portada_1.jpg',
+    'img/portada_2.jpg',
     'js/scripts.js',
     'js/configuraciones.js',
     'js/precarton.js',
@@ -27,7 +29,9 @@ const FILES_TO_COPY = [
     'js/services/exporter.js',
     'js/services/platformPc.js',
     'js/services/platformApk.js',
-    'bdd/schema.sql'
+    'js/services/notifications.js',
+    'bdd/schema.sql',
+    'bdd/GoogleAppsScript_AutoSheet.gs'
 ];
 
 function ensureDir(dirPath) {

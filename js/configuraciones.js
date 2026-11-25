@@ -1,8 +1,12 @@
 /**
  * @file configuraciones.js
  * @description Controlador modular de la página dedicada `Configuraciones.html`.
- * Gestiona Temas de la aplicación, Actualización de Montos (Tarifas), Empresas, Policías,
- * Exportación de Base de Datos SQLite/PostgreSQL (.sql), Reportes Excel/PDF y Sincronización Google Sheets.
+ * Gestiona:
+ *  1. Temas Visuales (Tema Claro Original y Tema Oscuro) + Selector de Portada de Inicio (Portada 1 y Portada 2).
+ *  2. Actualización de Montos (Tarifas en grilla de 2 por línea) con recálculo automático.
+ *  3. Base de Datos Local, Vinculación con Correo Gmail (creación de archivo Google Sheets en la cuenta activa)
+ *     y activación de Notificaciones (lectura 3 veces al día + 2 alertas 1 día antes del servicio).
+ *  4. Gestión de Policías y Empresas.
  */
 
 (function (root, factory) {
@@ -18,7 +22,7 @@
     const Database = (typeof window !== 'undefined' && window.AlfaDatabase) ? window.AlfaDatabase : require('./services/database.js');
     const Storage = (typeof window !== 'undefined' && window.AlfaStorage) ? window.AlfaStorage : require('./services/storage.js');
     const CloudSync = (typeof window !== 'undefined' && window.AlfaCloudSync) ? window.AlfaCloudSync : require('./services/cloudSync.js');
-    const Exporter = (typeof window !== 'undefined' && window.AlfaExporter) ? window.AlfaExporter : require('./services/exporter.js');
+    const Notifications = (typeof window !== 'undefined' && window.AlfaNotifications) ? window.AlfaNotifications : require('./services/notifications.js');
 
     const escapeHTML = Utils.escapeHTML;
     const sanitizeColor = Utils.sanitizeColor;
@@ -41,22 +45,11 @@
         notifElem.style.background = sanitizeColor(color, "var(--primary)");
         notifElem.textContent = msg;
         notifElem.classList.add("show");
-        setTimeout(() => notifElem.classList.remove("show"), 3200);
-    }
-
-    function abrirModal(modalId) {
-        if (modalId === 'modalExportar') prepararModalExportar();
-        const elem = document.getElementById(modalId);
-        if (elem) elem.style.display = "flex";
-    }
-
-    function cerrarModal(modalId) {
-        const elem = document.getElementById(modalId);
-        if (elem) elem.style.display = "none";
+        setTimeout(() => notifElem.classList.remove("show"), 3500);
     }
 
     // =========================================================================
-    // 1. GESTIÓN DE TEMAS VISUALES
+    // 1. GESTIÓN DE TEMAS VISUALES Y PORTADAS DE INICIO
     // =========================================================================
 
     function seleccionarTemaApp(themeName) {
@@ -77,6 +70,34 @@
         });
     }
 
+    function seleccionarPortadaApp(coverId) {
+        const chosen = Utils.setSplashCover(coverId);
+        actualizarTarjetasPortadaUI(chosen.id);
+        mostrarNotificacion(`Portada de inicio seleccionada: ${chosen.nombre}`, "var(--secondary)");
+    }
+
+    function actualizarTarjetasPortadaUI(activeCoverId) {
+        const cards = document.querySelectorAll(".splash-option-card");
+        cards.forEach(card => {
+            const isMatch = card.getAttribute("data-splash-id") === activeCoverId;
+            card.classList.toggle("active", isMatch);
+        });
+    }
+
+    function previsualizarPortadaActiva() {
+        const activeId = Utils.getSavedSplashCover();
+        const coverObj = Utils.AVAILABLE_SPLASH_COVERS[activeId] || Utils.AVAILABLE_SPLASH_COVERS.portada_1;
+        const overlay = document.getElementById("splashPreviewOverlay");
+        const img = document.getElementById("splashPreviewImg");
+        if (img) img.src = coverObj.src;
+        if (overlay) overlay.classList.remove("display-none");
+    }
+
+    function cerrarPreviewPortada() {
+        const overlay = document.getElementById("splashPreviewOverlay");
+        if (overlay) overlay.classList.add("display-none");
+    }
+
     // =========================================================================
     // 2. ACTUALIZACIÓN DE MONTOS (TARIFAS) Y RECÁLCULO DE EVENTOS
     // =========================================================================
@@ -89,7 +110,7 @@
             const safeKey = escapeHTML(categoriaKey);
             const safeVal = Number(config[categoriaKey]) || 0;
             const group = document.createElement("div");
-            group.className = "form-group";
+            group.className = "form-group margin-0";
             group.innerHTML = `
                 <label for="costo_${safeKey}">Cat. ${safeKey}</label>
                 <input type="number" id="costo_${safeKey}" value="${safeVal}" step="0.01" inputmode="decimal">
@@ -136,7 +157,106 @@
     }
 
     // =========================================================================
-    // 3. GESTIÓN DE POLICÍAS Y EMPRESAS
+    // 3. VINCULACIÓN CON CORREO GMAIL Y NOTIFICACIONES AUTOMÁTICAS
+    // =========================================================================
+
+    function cargarEstadoCuentaGmailUI() {
+        const acc = CloudSync.getLinkedGmailAccount ? CloudSync.getLinkedGmailAccount() : null;
+        const inputEmail = document.getElementById("inputGmailCuenta");
+        const selTitular = document.getElementById("selPoliciaTitular");
+        const banner = document.getElementById("gmailCuentaActivaBanner");
+        const lblEmail = document.getElementById("lblGmailVinculado");
+        const lblSheet = document.getElementById("lblSheetVinculada");
+        const btnDesvincular = document.getElementById("btnDesvincularGmail");
+
+        if (selTitular) {
+            selTitular.innerHTML = `<option value="">— Todos los efectivos —</option>`;
+            policias.forEach(p => {
+                const op = document.createElement("option");
+                op.value = p.nombre;
+                op.textContent = p.jerarquia ? `${p.jerarquia} ${p.nombre}` : p.nombre;
+                selTitular.appendChild(op);
+            });
+        }
+
+        if (acc && acc.email) {
+            if (inputEmail) inputEmail.value = acc.email;
+            if (selTitular && acc.policiaTitular) selTitular.value = acc.policiaTitular;
+            if (lblEmail) lblEmail.textContent = acc.email;
+            if (lblSheet) lblSheet.textContent = acc.sheetName || `Web_Alfas_2026_${acc.email.split('@')[0]}`;
+            if (banner) banner.style.display = "block";
+            if (btnDesvincular) btnDesvincular.classList.remove("display-none");
+        } else {
+            if (banner) banner.style.display = "none";
+            if (btnDesvincular) btnDesvincular.classList.add("display-none");
+        }
+    }
+
+    async function vincularCuentaGmailYCrearSheet() {
+        const inputEmail = document.getElementById("inputGmailCuenta");
+        const selTitular = document.getElementById("selPoliciaTitular");
+        const email = inputEmail ? inputEmail.value.trim() : "";
+        const policiaTitular = selTitular ? selTitular.value : "";
+
+        if (!Utils.isValidGmailAddress(email)) {
+            return mostrarNotificacion("Ingrese un correo electrónico válido (ej: usuario@gmail.com)", "var(--danger)");
+        }
+
+        mostrarNotificacion(`Vinculando ${email} y creando archivo Google Sheets en la nube...`, "var(--primary)");
+
+        const evs = safeParse("eventos", []);
+        const res = await CloudSync.vincularGmailYCrearSheet({
+            email,
+            policiaTitular,
+            snapshot: { config, policias, empresas, eventos: evs }
+        });
+
+        if (res.ok) {
+            cargarEstadoCuentaGmailUI();
+            actualizarEstadoBaseDatosUI();
+            // Re-programar alertas de notificaciones filtradas por el policía titular seleccionado
+            if (Notifications && typeof Notifications.scheduleServiceReminders === 'function') {
+                await Notifications.scheduleServiceReminders(evs, { policiaTitular });
+            }
+            mostrarNotificacion(res.message, "var(--secondary)");
+        } else {
+            mostrarNotificacion(res.message || "Error al vincular cuenta Gmail", "var(--danger)");
+        }
+    }
+
+    function desvincularCuentaGmail() {
+        if (!confirm("¿Desea desvincular la cuenta de Gmail activa en este dispositivo?")) return;
+        CloudSync.unlinkGmailAccount();
+        const inputEmail = document.getElementById("inputGmailCuenta");
+        if (inputEmail) inputEmail.value = "";
+        cargarEstadoCuentaGmailUI();
+        mostrarNotificacion("Cuenta de Gmail desvinculada", "var(--warning)");
+    }
+
+    async function activarYProbarNotificaciones() {
+        if (!Notifications) return;
+        const perm = await Notifications.requestNotificationPermissions();
+        const evs = safeParse("eventos", []);
+        const acc = CloudSync.getLinkedGmailAccount ? CloudSync.getLinkedGmailAccount() : null;
+        const policiaTitular = (acc && acc.policiaTitular) ? acc.policiaTitular : "";
+
+        const res = await Notifications.scheduleServiceReminders(evs, { policiaTitular });
+        await Notifications.dispatchImmediateNotification({
+            title: "🔔 Alertas Web Alfas 2026 Activadas",
+            body: `Monitoreo activo (3 lecturas/día y 2 alertas 24h antes). Turnos programados mañana (${res.tomorrowYMD}): ${res.tomorrowCount}.`
+        });
+
+        actualizarEstadoBaseDatosUI();
+        mostrarNotificacion(
+            perm.granted
+                ? `Notificaciones activas (${res.scheduledCount} alertas programadas, ${res.tomorrowCount} turnos mañana)`
+                : "Alertas internas activadas (habilite permisos de notificación en su dispositivo)",
+            perm.granted ? "var(--secondary)" : "var(--warning)"
+        );
+    }
+
+    // =========================================================================
+    // 4. GESTIÓN DE POLICÍAS Y EMPRESAS
     // =========================================================================
 
     function etiquetaPolicia(policiaObj) {
@@ -206,6 +326,7 @@
         document.getElementById("nuevoPolicia").value = "";
         document.getElementById("jerarquiaPolicia").value = "";
         inicializarListasEntidades();
+        cargarEstadoCuentaGmailUI();
         CloudSync.sincronizarPoliciasCloud(policias).then(() => actualizarEstadoBaseDatosUI());
     }
 
@@ -230,6 +351,7 @@
         policias = policias.filter(p => p.nombre !== n);
         Storage.savePolicias(policias, coloresPolicia);
         inicializarListasEntidades();
+        cargarEstadoCuentaGmailUI();
         mostrarNotificacion("Policía eliminado", "var(--danger)");
         CloudSync.sincronizarPoliciasCloud(policias).then(() => actualizarEstadoBaseDatosUI());
     }
@@ -332,31 +454,6 @@
         CloudSync.sincronizarEmpresasCloud(empresas).then(() => actualizarEstadoBaseDatosUI());
     }
 
-    // =========================================================================
-    // 4. BASE DE DATOS LOCAL, RESPALDOS Y EXPORTACIÓN
-    // =========================================================================
-
-    function exportarBaseDatosSQL() {
-        const evs = safeParse("eventos", []);
-        const sqlContent = Database.exportSQLDump({
-            config,
-            policias,
-            empresas,
-            coloresPolicia,
-            eventos: evs
-        });
-        const blob = new Blob([sqlContent], { type: "application/sql;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `alfas_database_${new Date().toISOString().slice(0, 10)}.sql`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-        mostrarNotificacion("Dump SQL (SQLite / PostgreSQL) descargado", "var(--secondary)");
-    }
-
     function descargarRespaldoJSON() {
         const evs = safeParse("eventos", []);
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(evs, null, 2));
@@ -435,105 +532,33 @@
         actualizarEstadoBaseDatosUI();
     }
 
-    async function sincronizarColaOutbox() {
-        mostrarNotificacion("Sincronizando cola Outbox con Google Sheets...", "var(--primary)");
-        const res = await CloudSync.flushOutboxCloud();
-        actualizarEstadoBaseDatosUI();
-        mostrarNotificacion(`Sincronización finalizada (${res.processed} enviados, ${res.remaining} pendientes)`, "var(--secondary)");
-    }
-
-    function prepararModalExportar() {
-        const selMes = document.getElementById("exportMes");
-        const selPol = document.getElementById("exportPolicia");
-        const contEmp = document.getElementById("containerExportEmpresa");
-        const evs = safeParse("eventos", []);
-
-        if (selMes) {
-            const mesesSet = new Set([Utils.getLocalYM(new Date())]);
-            evs.forEach(e => {
-                if (e.start) mesesSet.add(String(e.start).slice(0, 7));
-            });
-            const formatter = new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' });
-            let html = `<option value="">Todos los meses</option>`;
-            Array.from(mesesSet).filter(m => /^\d{4}-\d{2}$/.test(m)).sort().reverse().forEach(m => {
-                const [y, mo] = m.split('-');
-                let txt = formatter.format(new Date(Number(y), Number(mo) - 1, 1));
-                txt = txt.charAt(0).toUpperCase() + txt.slice(1);
-                html += `<option value="${escapeHTML(m)}">${escapeHTML(txt)}</option>`;
-            });
-            selMes.innerHTML = html;
-        }
-
-        if (selPol) {
-            let html = `<option value="">Todos los Policías</option>`;
-            nombresPolicias().forEach(n => {
-                html += `<option value="${escapeHTML(n)}">${escapeHTML(n)}</option>`;
-            });
-            selPol.innerHTML = html;
-        }
-
-        if (contEmp) {
-            contEmp.innerHTML = "";
-            Object.keys(empresas).forEach(emp => {
-                const safeItem = escapeHTML(emp);
-                const div = document.createElement("div");
-                div.className = "chk-export-row";
-                div.innerHTML = `
-                    <label class="chk-export-label">
-                        <input type="checkbox" class="chk-export-emp" value="${safeItem}">
-                        <span>${safeItem}</span>
-                    </label>
-                `;
-                contEmp.appendChild(div);
-            });
-        }
-    }
-
-    function exportExcelConfig() {
-        const mesFiltroValue = document.getElementById("exportMes").value;
-        const polFiltroValue = document.getElementById("exportPolicia").value;
-        const empFiltros = Array.from(document.querySelectorAll(".chk-export-emp:checked")).map(c => c.value);
-        Exporter.exportExcel({
-            mesFiltroValue, polFiltroValue, empFiltros,
-            rawEvents: safeParse("eventos", []),
-            utils: Utils,
-            onNotification: mostrarNotificacion,
-            onCloseModal: () => cerrarModal("modalExportar")
-        });
-    }
-
-    async function exportPDFConfig() {
-        const mesFiltro = document.getElementById("exportMes").value;
-        const polFiltro = document.getElementById("exportPolicia").value;
-        const empFiltros = Array.from(document.querySelectorAll(".chk-export-emp:checked")).map(c => c.value);
-        await Exporter.exportPDF({
-            mesFiltro, polFiltro, empFiltros,
-            rawEvents: safeParse("eventos", []),
-            empresasMap: empresas,
-            calendarInstance: null,
-            utils: Utils,
-            onNotification: mostrarNotificacion,
-            onCloseModal: () => cerrarModal("modalExportar")
-        });
-    }
-
     function actualizarEstadoBaseDatosUI() {
-        if (!Database || typeof Database.getDatabaseStatus !== 'function') return;
-        const status = Database.getDatabaseStatus();
-        const badgeEngine = document.getElementById("dbEngineBadge");
-        const badgeOutbox = document.getElementById("dbOutboxBadge");
-        if (badgeEngine) {
-            const labelMap = {
-                "capacitor-sqlite-native": "SQLite Nativo (Android APK)",
-                "indexeddb-sql-mirror": "SQLite/IndexedDB Local Activo",
-                "localstorage-mirror": "LocalStorage Mirror"
-            };
-            badgeEngine.textContent = labelMap[status.engine] || status.engine;
+        if (Database && typeof Database.getDatabaseStatus === 'function') {
+            const status = Database.getDatabaseStatus();
+            const badgeEngine = document.getElementById("dbEngineBadge");
+            const badgeOutbox = document.getElementById("dbOutboxBadge");
+            if (badgeEngine) {
+                const labelMap = {
+                    "capacitor-sqlite-native": "SQLite Nativo (Android APK)",
+                    "indexeddb-sql-mirror": "SQLite/IndexedDB Local Activo",
+                    "localstorage-mirror": "LocalStorage Mirror"
+                };
+                badgeEngine.textContent = labelMap[status.engine] || status.engine;
+            }
+            if (badgeOutbox) {
+                badgeOutbox.textContent = status.pendingOutboxCount > 0
+                    ? `${status.pendingOutboxCount} pendientes en cola`
+                    : "Sincronizado con Sheets";
+            }
         }
-        if (badgeOutbox) {
-            badgeOutbox.textContent = status.pendingOutboxCount > 0
-                ? `${status.pendingOutboxCount} pendientes en cola`
-                : "Sincronizado con Sheets";
+
+        const notifBadge = document.getElementById("notifStatusBadge");
+        if (notifBadge && Notifications && typeof Notifications.getNotificationEngineStatus === 'function') {
+            const nStatus = Notifications.getNotificationEngineStatus();
+            notifBadge.textContent = nStatus.permissionGranted
+                ? "🔔 Notificaciones: Activas (3x/día + 24h antes)"
+                : "🔕 Notificaciones: Pendiente de permiso";
+            notifBadge.className = nStatus.permissionGranted ? "badge badge-a" : "badge badge-bp";
         }
     }
 
@@ -541,14 +566,22 @@
         if (typeof document === 'undefined') return;
         const activeTheme = Utils.applyTheme(Utils.getSavedTheme());
         actualizarBotonesTemaUI(activeTheme);
+        actualizarTarjetasPortadaUI(Utils.getSavedSplashCover());
         initInputsTarifas();
         inicializarListasEntidades();
+        cargarEstadoCuentaGmailUI();
         actualizarEstadoBaseDatosUI();
     }
 
     if (typeof window !== 'undefined') {
         window.seleccionarTemaApp = seleccionarTemaApp;
+        window.seleccionarPortadaApp = seleccionarPortadaApp;
+        window.previsualizarPortadaActiva = previsualizarPortadaActiva;
+        window.cerrarPreviewPortada = cerrarPreviewPortada;
         window.guardarConfiguracionTarifas = guardarConfiguracionTarifas;
+        window.vincularCuentaGmailYCrearSheet = vincularCuentaGmailYCrearSheet;
+        window.desvincularCuentaGmail = desvincularCuentaGmail;
+        window.activarYProbarNotificaciones = activarYProbarNotificaciones;
         window.agregarPolicia = agregarPolicia;
         window.modificarPolicia = modificarPolicia;
         window.eliminarPolicia = eliminarPolicia;
@@ -556,20 +589,16 @@
         window.verTurnosEmpresa = verTurnosEmpresa;
         window.modificarEmpresa = modificarEmpresa;
         window.eliminarEmpresa = eliminarEmpresa;
-        window.exportarBaseDatosSQL = exportarBaseDatosSQL;
         window.descargarRespaldoJSON = descargarRespaldoJSON;
         window.cargarAlfasJSONConfig = cargarAlfasJSONConfig;
         window.sincronizarDesdeSheets = sincronizarDesdeSheets;
-        window.sincronizarColaOutbox = sincronizarColaOutbox;
-        window.abrirModal = abrirModal;
-        window.cerrarModal = cerrarModal;
-        window.exportExcelConfig = exportExcelConfig;
-        window.exportPDFConfig = exportPDFConfig;
         document.addEventListener('DOMContentLoaded', init);
     }
 
     return {
         seleccionarTemaApp,
+        seleccionarPortadaApp,
+        vincularCuentaGmailYCrearSheet,
         guardarConfiguracionTarifas,
         recalcularEventosGuardados
     };

@@ -1,7 +1,7 @@
 {
   "name": "web-alfas-2026",
-  "version": "2.1.0",
-  "description": "Web Alfas 2026 - Sistema Híbrido de Gestión de Servicios Adicionales (Alfas) con Scripts Separados por Plataforma (PC y Android APK), SQLite Local y Google Sheets",
+  "version": "2.2.0",
+  "description": "Web Alfas 2026 - Sistema Híbrido con Portadas Oficiales, Vinculación Gmail Google Sheets, Notificaciones Programadas 24h antes y SQLite Local",
   "main": "js/scripts.js",
   "scripts": {
     "test": "node tests/services.test.js",
@@ -20,6 +20,7 @@
     "@capacitor/app": "^6.0.0",
     "@capacitor/core": "^6.2.0",
     "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/local-notifications": "^6.0.0",
     "@capacitor/network": "^6.0.0",
     "@capacitor/preferences": "^6.0.0",
     "@capacitor/share": "^6.0.0",

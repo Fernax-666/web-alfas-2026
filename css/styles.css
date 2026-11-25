@@ -672,6 +672,192 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
 .nowrap-cell { white-space: nowrap; }
 .font-weight-600 { font-weight: 600; }
 
+/* ============================================================================
+   PORTADA DE INICIO (SPLASH SCREEN ÚNICA POR SESIÓN) Y SELECTOR DE PORTADAS
+   ============================================================================ */
+.splash-screen-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    background: #0f172a;
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.32s ease;
+    cursor: pointer;
+}
+
+.splash-screen-overlay.splash-fade-out {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.splash-screen-card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.splash-screen-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.splash-screen-footer {
+    position: absolute;
+    bottom: calc(24px + var(--sab));
+    left: 20px;
+    right: 20px;
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(6px);
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    text-align: center;
+    color: #ffffff;
+}
+
+.splash-progress-bar {
+    width: 100%;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.splash-progress-fill {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #3b82f6, #10b981);
+    animation: splashProgressAnim 2.2s ease-out forwards;
+    transform-origin: left;
+}
+
+@keyframes splashProgressAnim {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+
+.splash-tap-hint {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: #e2e8f0;
+}
+
+.splash-selector-section {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+}
+
+.splash-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.splash-option-card {
+    border: 2.5px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg-main);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.splash-option-card.active {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.splash-thumb-img {
+    width: 100%;
+    height: 170px;
+    object-fit: cover;
+    display: block;
+}
+
+.splash-option-info {
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.78rem;
+}
+
+.splash-option-info span {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.mt-10 { margin-top: 10px; }
+
+/* Caja de Vinculación Gmail y Notificaciones en Configuraciones */
+.gmail-sync-box {
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+.gmail-sync-box h4 {
+    font-size: 0.92rem;
+    margin-bottom: 4px;
+    color: var(--text-main);
+}
+
+/* Banner de Alerta de Servicio Próximo (24h antes) y Resaltado en Calendario */
+.upcoming-service-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    border: 1.5px solid #3b82f6;
+    border-left: 5px solid #2563eb;
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    color: #1e3a8a;
+}
+
+html[data-theme="dark"] .upcoming-service-banner {
+    background: rgba(37, 99, 235, 0.18);
+    color: #dbeafe;
+}
+
+.upcoming-banner-text {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.76rem;
+    line-height: 1.25;
+}
+
+.btn-ver-servicio-alerta {
+    white-space: nowrap;
+    min-height: 34px !important;
+    padding: 6px 10px !important;
+    font-size: 0.75rem !important;
+}
+
+.alfa-highlight-alert-day {
+    box-shadow: inset 0 0 0 3px #f59e0b !important;
+    background-color: rgba(245, 158, 11, 0.15) !important;
+}
+
 /* Botones flotantes (FABs) estilo Imagen 4 */
 .mobile-bottom-nav {
     display: none;

@@ -1,7 +1,8 @@
 /**
  * @file helpers.js
  * @description Funciones puras de utilidad para sanitización XSS, prevención de CSV/Formula Injection,
- * validación de esquemas JSON, gestión de 2 Temas Visuales (Claro Original y Oscuro), detección de plataforma y formateo.
+ * validación de esquemas JSON, gestión de 2 Temas Visuales (Claro Original y Oscuro),
+ * gestión de 2 Portadas de Inicio (Splash Screens), detección de plataforma y formateo.
  * Compatible con entornos de Navegador (window.AlfaUtils) y Node.js (CommonJS).
  */
 
@@ -17,6 +18,21 @@
 
     const THEME_STORAGE_KEY = 'alfa_app_theme';
     const AVAILABLE_THEMES = ['light', 'dark'];
+
+    const SPLASH_STORAGE_KEY = 'alfa_app_splash_cover';
+    const SPLASH_SESSION_SHOWN_KEY = 'alfa_splash_shown_in_session';
+    const AVAILABLE_SPLASH_COVERS = {
+        'portada_1': {
+            id: 'portada_1',
+            nombre: 'Portada 1 (Realista Institucional)',
+            src: 'img/portada_1.jpg'
+        },
+        'portada_2': {
+            id: 'portada_2',
+            nombre: 'Portada 2 (Ilustrada Diurna)',
+            src: 'img/portada_2.jpg'
+        }
+    };
 
     /**
      * Sanitiza una cadena de texto para evitar vulnerabilidades XSS en la inserción HTML.
@@ -61,6 +77,17 @@
         if (/^#[0-9a-fA-F]{3,8}$/.test(clean)) return clean;
         if (/^var\(--[a-zA-Z0-9\-]+\)$/.test(clean)) return clean;
         return fallback;
+    }
+
+    /**
+     * Valida si un correo electrónico tiene formato válido de Gmail o Google Workspace.
+     * @param {unknown} emailStr 
+     * @returns {boolean}
+     */
+    function isValidGmailAddress(emailStr) {
+        if (!emailStr || typeof emailStr !== 'string') return false;
+        const clean = emailStr.trim().toLowerCase();
+        return /^[a-z0-9._%+\-]+@(gmail\.com|googlemail\.com|[a-z0-9.\-]+\.[a-z]{2,})$/.test(clean);
     }
 
     /**
@@ -143,11 +170,6 @@
         };
     }
 
-    /**
-     * Formatea un rango de turno (ej. "06-14" -> "06HS A 14HS").
-     * @param {string} turnoStr - Cadena de turno.
-     * @returns {string} Texto formateado de turno.
-     */
     function formatearTurno(turnoStr) {
         if (!turnoStr) return "";
         const cleanStr = String(turnoStr).trim();
@@ -156,11 +178,6 @@
         return `${parts[0]}HS A ${parts[1]}HS`;
     }
 
-    /**
-     * Formatea un rango de turno de forma ultracompacta para celdas de calendario móvil (ej. "07-15hs").
-     * @param {string} turnoStr 
-     * @returns {string}
-     */
     function formatearTurnoCorto(turnoStr) {
         if (!turnoStr) return "";
         const cleanStr = String(turnoStr).trim().replace(/HS/gi, '').replace(/\s+A\s+/gi, '-').trim();
@@ -169,11 +186,6 @@
         return `${parts[0]}-${parts[1]}hs`;
     }
 
-    /**
-     * Abrevia el nombre de un efectivo para celdas estrechas en móvil (ej. "Olivera Fernando" -> "Olivera F.").
-     * @param {string} nombreStr 
-     * @returns {string}
-     */
     function abreviarNombrePolicia(nombreStr) {
         if (!nombreStr) return "";
         const parts = String(nombreStr).trim().split(/\s+/);
@@ -181,11 +193,6 @@
         return `${parts[0]} ${parts[1].charAt(0)}.`;
     }
 
-    /**
-     * Retorna fecha en formato local YYYY-MM-DD.
-     * @param {Date} dateObj - Objeto Date.
-     * @returns {string} Fecha formateada.
-     */
     function getLocalYMD(dateObj) {
         if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return "";
         const y = dateObj.getFullYear();
@@ -194,11 +201,6 @@
         return `${y}-${m}-${d}`;
     }
 
-    /**
-     * Retorna fecha en formato local YYYY-MM.
-     * @param {Date} dateObj - Objeto Date.
-     * @returns {string} Año y mes formateados.
-     */
     function getLocalYM(dateObj) {
         if (!dateObj || !(dateObj instanceof Date) || isNaN(dateObj.getTime())) return "";
         const y = dateObj.getFullYear();
@@ -206,10 +208,6 @@
         return `${y}-${m}`;
     }
 
-    /**
-     * Retorna un color hex aleatorio de una paleta prefijada de alto contraste.
-     * @returns {string} Código de color hex.
-     */
     function colorAleatorio() {
         const tones = [
             '#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
@@ -219,11 +217,6 @@
         return tones[Math.floor(Math.random() * tones.length)];
     }
 
-    /**
-     * Retorna un color distintivo para una empresa dada para diferenciar precartones en el calendario.
-     * @param {string} empresaName 
-     * @returns {string} Color hex para el borde/indicador de la empresa.
-     */
     function getEmpresaColor(empresaName) {
         const clean = String(empresaName || "").toUpperCase().trim();
         const map = {
@@ -241,10 +234,6 @@
         return palette[Math.abs(hash) % palette.length];
     }
 
-    /**
-     * Detecta el contexto de ejecución actual (PC, Móvil Web o Capacitor Android APK).
-     * @returns {{isNativeAPK: boolean, isMobileViewport: boolean, isTouchDevice: boolean, mode: 'apk'|'mobile-web'|'desktop'}}
-     */
     function detectPlatformContext() {
         const hasWindow = typeof window !== 'undefined';
         const isNativeAPK = Boolean(
@@ -268,10 +257,6 @@
         return { isNativeAPK, isMobileViewport: isMobileViewport || isNativeAPK, isTouchDevice, mode };
     }
 
-    /**
-     * Obtiene el tema visual guardado ('light' o 'dark').
-     * @returns {'light'|'dark'}
-     */
     function getSavedTheme() {
         if (typeof localStorage !== 'undefined') {
             const saved = localStorage.getItem(THEME_STORAGE_KEY);
@@ -280,11 +265,6 @@
         return 'light';
     }
 
-    /**
-     * Aplica y persiste uno de los 2 temas permitidos ('light' original o 'dark' oscuro).
-     * @param {'light'|'dark'} themeName 
-     * @returns {'light'|'dark'} Tema aplicado.
-     */
     function applyTheme(themeName) {
         const validTheme = AVAILABLE_THEMES.includes(themeName) ? themeName : 'light';
         if (typeof localStorage !== 'undefined') {
@@ -296,11 +276,52 @@
         return validTheme;
     }
 
+    /**
+     * Obtiene la portada de inicio seleccionada ('portada_1' o 'portada_2').
+     * @returns {'portada_1'|'portada_2'}
+     */
+    function getSavedSplashCover() {
+        if (typeof localStorage !== 'undefined') {
+            const saved = localStorage.getItem(SPLASH_STORAGE_KEY);
+            if (saved && AVAILABLE_SPLASH_COVERS[saved]) return saved;
+        }
+        return 'portada_1';
+    }
+
+    /**
+     * Guarda la portada de inicio elegida por el usuario ('portada_1' o 'portada_2').
+     * @param {'portada_1'|'portada_2'} coverId 
+     * @returns {{id: string, nombre: string, src: string}}
+     */
+    function setSplashCover(coverId) {
+        const validId = AVAILABLE_SPLASH_COVERS[coverId] ? coverId : 'portada_1';
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(SPLASH_STORAGE_KEY, validId);
+        }
+        return AVAILABLE_SPLASH_COVERS[validId];
+    }
+
+    /**
+     * Verifica si la portada de inicio debe mostrarse (solo 1 vez cuando se inicia el programa en la sesión actual).
+     * @param {boolean} [markAsShown=true] - Si debe marcarla como ya mostrada en sessionStorage.
+     * @returns {boolean} true si debe mostrarse, false si ya fue mostrada en esta sesión.
+     */
+    function shouldShowSplashOnce(markAsShown = true) {
+        if (typeof sessionStorage === 'undefined') return false;
+        const alreadyShown = sessionStorage.getItem(SPLASH_SESSION_SHOWN_KEY) === 'true';
+        if (!alreadyShown && markAsShown) {
+            sessionStorage.setItem(SPLASH_SESSION_SHOWN_KEY, 'true');
+        }
+        return !alreadyShown;
+    }
+
     return {
         AVAILABLE_THEMES,
+        AVAILABLE_SPLASH_COVERS,
         escapeHTML,
         sanitizeForSpreadsheet,
         sanitizeColor,
+        isValidGmailAddress,
         safeParse,
         validateServicioRecord,
         formatearTurno,
@@ -312,6 +333,9 @@
         getEmpresaColor,
         detectPlatformContext,
         getSavedTheme,
-        applyTheme
+        applyTheme,
+        getSavedSplashCover,
+        setSplashCover,
+        shouldShowSplashOnce
     };
 }));

@@ -11,22 +11,33 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/styles.css?v=16">
-  <script src="js/utils/helpers.js?v=16"></script>
-  <script src="js/services/calculator.js?v=16"></script>
-  <script src="js/services/database.js?v=16"></script>
-  <script src="js/services/storage.js?v=16"></script>
-  <script src="js/services/cloudSync.js?v=16"></script>
-  <script src="js/services/exporter.js?v=16"></script>
-  <script src="js/configuraciones.js?v=16"></script>
+  <link rel="stylesheet" href="css/styles.css?v=18">
+  <script src="js/utils/helpers.js?v=18"></script>
+  <script src="js/services/calculator.js?v=18"></script>
+  <script src="js/services/database.js?v=18"></script>
+  <script src="js/services/storage.js?v=18"></script>
+  <script src="js/services/cloudSync.js?v=18"></script>
+  <script src="js/services/exporter.js?v=18"></script>
+  <script src="js/services/notifications.js?v=18"></script>
+  <script src="js/configuraciones.js?v=18"></script>
 </head>
 
 <body>
+  <!-- MODAL DE PREVISUALIZACIÓN DE PORTADA -->
+  <div id="splashPreviewOverlay" class="splash-screen-overlay display-none" onclick="cerrarPreviewPortada()">
+    <div class="splash-screen-card">
+      <img id="splashPreviewImg" src="img/portada_1.jpg" alt="Vista previa de Portada" class="splash-screen-image">
+      <div class="splash-screen-footer">
+        <span class="splash-tap-hint">Vista Previa de Portada — Toque en cualquier lugar para cerrar</span>
+      </div>
+    </div>
+  </div>
+
   <div class="container">
     <header class="app-header-bar">
       <div class="header-titles">
         <h1>⚙️ Centro de Configuraciones</h1>
-        <p class="subtitle">Montos tarifarios, temas (Claro / Oscuro), empresas, policías y sincronización</p>
+        <p class="subtitle">Temas, portadas de inicio, montos, cuenta Gmail / Google Sheets, alertas y padrón</p>
       </div>
       <div class="desktop-top-nav no-print">
         <a href="index.html" class="btn-outline">📅 Dashboard y Calendario</a>
@@ -34,11 +45,11 @@
       </div>
     </header>
 
-    <!-- 1. TEMAS PARA LA APLICACIÓN (SOLO 2 TEMAS: CLARO ORIGINAL Y OSCURO) -->
+    <!-- 1. TEMAS PARA LA APLICACIÓN + SELECTOR DE PORTADA DE INICIO (DEBAJO DE TEMAS) -->
     <div class="card">
-      <h3><span class="title-accent">1. Tema Visual</span> de la Aplicación</h3>
-      <p class="text-muted-sm">Seleccione entre el Tema Claro Original y el Tema Oscuro. Se aplica en toda la aplicación (PC y APK).</p>
-      <div class="theme-selector-grid">
+      <h3><span class="title-accent">1. Tema Visual</span> y Portada de Inicio</h3>
+      <p class="text-muted-sm">Seleccione entre el Tema Claro Original y el Tema Oscuro.</p>
+      <div class="theme-selector-grid mb-14">
         <button type="button" class="theme-option-btn" data-theme-val="light" onclick="seleccionarTemaApp('light')">
           <span class="theme-swatch swatch-light"></span>
           <span>☀️ Tema Claro Original</span>
@@ -48,6 +59,28 @@
           <span>🌙 Tema Oscuro</span>
         </button>
       </div>
+
+      <!-- Selector de Portada de Inicio debajo de Temas (2 portadas adjuntas) -->
+      <div class="splash-selector-section">
+        <label class="mb-8">🖼️ Cambiar Portada de Inicio (se visualiza una sola vez al iniciar la aplicación)</label>
+        <div class="splash-selector-grid">
+          <div class="splash-option-card" data-splash-id="portada_1" onclick="seleccionarPortadaApp('portada_1')">
+            <img src="img/portada_1.jpg" alt="Portada 1 Realista Institucional" class="splash-thumb-img">
+            <div class="splash-option-info">
+              <strong>Portada 1</strong>
+              <span>Realista Institucional</span>
+            </div>
+          </div>
+          <div class="splash-option-card" data-splash-id="portada_2" onclick="seleccionarPortadaApp('portada_2')">
+            <img src="img/portada_2.jpg" alt="Portada 2 Ilustrada Diurna" class="splash-thumb-img">
+            <div class="splash-option-info">
+              <strong>Portada 2</strong>
+              <span>Ilustrada Diurna</span>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn-outline btn-full-xs mt-10" onclick="previsualizarPortadaActiva()">👁️ Previsualizar Portada Seleccionada</button>
+      </div>
     </div>
 
     <!-- 2. ACTUALIZACIÓN DE MONTOS / TARIFAS (2 ITEMS POR LÍNEA: Cat. A | Cat. AP) -->
@@ -55,19 +88,61 @@
       <h3><span class="title-accent">2. Actualización de Montos</span> por Categoría</h3>
       <p class="text-muted-sm">Ajuste los valores de la hora (2 categorías por línea). Al guardar se recalculan los servicios automáticamente.</p>
       <div id="panelCostos" class="panel-costos-2col">
-        <!-- Generado dinámicamente en grilla de 2 columnas (Cat. A, Cat. AP...) -->
+        <!-- Generado dinámicamente en grilla de 2 columnas -->
       </div>
       <button type="button" class="btn-primary btn-full" onclick="guardarConfiguracionTarifas()">💾 Actualizar Montos y Recalcular</button>
     </div>
 
-    <!-- 3. BASE DE DATOS LOCAL Y SINCRONIZACIÓN (LIMPIO: SIN BOTONES SQL/REPORTES/OUTBOX) -->
+    <!-- 3. BASE DE DATOS LOCAL, VINCULACIÓN CON GMAIL Y NOTIFICACIONES DE SERVICIOS -->
     <div class="card">
-      <h3><span class="title-accent">3. Base de Datos Local</span> y Respaldos</h3>
-      <p class="text-muted-sm">Sincronice los servicios con Google Sheets o gestione respaldos JSON de la base de datos local.</p>
+      <h3><span class="title-accent">3. Base de Datos Local</span>, Nube Gmail y Alertas</h3>
+      <p class="text-muted-sm">Vincule su correo de Gmail para crear y guardar automáticamente el archivo de Google Sheets en su cuenta, y active las alertas de servicios.</p>
+
       <div class="system-status-bar mb-12">
         <span id="dbEngineBadge" class="badge badge-b">SQLite/IndexedDB Local Activo</span>
         <span id="dbOutboxBadge" class="badge badge-a">Sincronizado con Sheets</span>
+        <span id="notifStatusBadge" class="badge badge-e">🔔 Permiso Notificaciones: Verificando</span>
       </div>
+
+      <!-- SUB-APARTADO 3.A: VINCULAR CON CORREO ELECTRÓNICO DE GMAIL Y CREAR GOOGLE SHEETS -->
+      <div class="gmail-sync-box mb-14">
+        <h4>📧 Vincular con Correo Gmail (Crear Google Sheets en la Nube)</h4>
+        <p class="text-muted-sm">Al vincular su cuenta Gmail, la aplicación crea el archivo de Google Sheets asociado a su correo activo para guardar todos sus registros en la nube.</p>
+
+        <div id="gmailCuentaActivaBanner" class="banner-edit mb-10" style="display:none;">
+          ☁️ Cuenta Gmail Activa: <strong id="lblGmailVinculado"></strong> — Planilla en Nube: <b id="lblSheetVinculada"></b>
+        </div>
+
+        <div class="grid-2col">
+          <div class="form-group mb-8">
+            <label for="inputGmailCuenta">Correo Electrónico de Gmail</label>
+            <input type="email" id="inputGmailCuenta" placeholder="ejemplo@gmail.com" inputmode="email">
+          </div>
+          <div class="form-group mb-8">
+            <label for="selPoliciaTitular">Policía Titular de la Cuenta (Para Alertas 24h antes)</label>
+            <select id="selPoliciaTitular" title="Seleccionar efectivo titular para personalizar alertas"></select>
+          </div>
+        </div>
+
+        <div class="flex-gap-10">
+          <button type="button" class="btn-primary flex-1" onclick="vincularCuentaGmailYCrearSheet()">🔗 Vincular Gmail y Crear Google Sheets en la Nube</button>
+          <button type="button" id="btnDesvincularGmail" class="btn-outline display-none" onclick="desvincularCuentaGmail()">Desvincular</button>
+        </div>
+      </div>
+
+      <!-- SUB-APARTADO 3.B: NOTIFICACIONES Y LECTURA PERIÓDICA (3 VECES AL DÍA + ALERTA 24H ANTES 2 VECES AL DÍA) -->
+      <div class="gmail-sync-box mb-14">
+        <h4>🔔 Notificaciones Automáticas y Sincronización de Turnos</h4>
+        <p class="text-muted-sm">
+          • <b>Lectura automática de Base de Datos:</b> 3 veces al día (08:00, 14:00 y 20:00 hs) buscando cambios nuevos.<br>
+          • <b>Alerta de Servicio Designado:</b> 1 día antes del turno envía 2 alertas diarias (09:00 y 20:00 hs) y posiciona el calendario en la fecha del servicio.
+        </p>
+        <div class="flex-gap-10">
+          <button type="button" class="btn-secondary flex-1" onclick="activarYProbarNotificaciones()">🔔 Activar Permisos y Verificar Servicios Próximos</button>
+        </div>
+      </div>
+
+      <!-- Botones limpios de Lectura y Respaldo JSON -->
       <div class="config-actions-grid">
         <button type="button" class="btn-primary btn-green" onclick="sincronizarDesdeSheets()">🔄 Leer Solapa Servicios (Sheets)</button>
         <button type="button" class="btn-outline btn-outline-green" onclick="descargarRespaldoJSON()">📤 Exportar alfas.json</button>

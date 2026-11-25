@@ -14,6 +14,7 @@ const CloudSync = (typeof window !== 'undefined' && window.AlfaCloudSync) ? wind
 const Exporter = (typeof window !== 'undefined' && window.AlfaExporter) ? window.AlfaExporter : require('./services/exporter.js');
 const PlatformPC = (typeof window !== 'undefined' && window.AlfaPlatformPC) ? window.AlfaPlatformPC : require('./services/platformPc.js');
 const PlatformAPK = (typeof window !== 'undefined' && window.AlfaPlatformAPK) ? window.AlfaPlatformAPK : require('./services/platformApk.js');
+const Notifications = (typeof window !== 'undefined' && window.AlfaNotifications) ? window.AlfaNotifications : require('./services/notifications.js');
 
 /**
  * Selecciona automáticamente el controlador de plataforma separado (PC vs Android APK / Móvil).
@@ -503,6 +504,14 @@ function guardarEvento() {
     guardarEventosLocal();
     actualizarTodo();
     cerrarModal('modalServicio');
+
+    if (Notifications && typeof Notifications.scheduleServiceReminders === 'function') {
+        const acc = CloudSync.getLinkedGmailAccount ? CloudSync.getLinkedGmailAccount() : null;
+        Notifications.scheduleServiceReminders(calendar.getEvents(), {
+            policiaTitular: (acc && acc.policiaTitular) ? acc.policiaTitular : "",
+            onAlertBanner: mostrarBannerServicioProximo
+        });
+    }
 
     mostrarNotificacion("Guardando en Base Local SQLite y Nube...", "var(--primary)");
 
@@ -1026,6 +1035,96 @@ function actualizarEstadoBaseDatosUI() {
         };
         platformBadge.textContent = modeLabels[ctx.mode] || "🖥️ PC";
     }
+
+    const gmailBadge = document.getElementById("gmailLinkedBadge");
+    if (gmailBadge && CloudSync && typeof CloudSync.getLinkedGmailAccount === 'function') {
+        const acc = CloudSync.getLinkedGmailAccount();
+        if (acc && acc.email) {
+            gmailBadge.textContent = `☁️ ${acc.email}`;
+            gmailBadge.classList.remove("display-none");
+        } else {
+            gmailBadge.classList.add("display-none");
+        }
+    }
+}
+
+/**
+ * Muestra la Portada de Inicio (Splash Screen) SOLO UNA VEZ cuando se inicia el programa en la sesión actual.
+ */
+function inicializarPortadaUnicaAlInicio() {
+    const overlay = document.getElementById("splashScreenOverlay");
+    const img = document.getElementById("splashScreenImg");
+    if (!overlay || !Utils.shouldShowSplashOnce) return;
+
+    if (Utils.shouldShowSplashOnce(true)) {
+        const coverId = Utils.getSavedSplashCover ? Utils.getSavedSplashCover() : 'portada_1';
+        const coverObj = (Utils.AVAILABLE_SPLASH_COVERS && Utils.AVAILABLE_SPLASH_COVERS[coverId])
+            ? Utils.AVAILABLE_SPLASH_COVERS[coverId]
+            : { src: 'img/portada_1.jpg' };
+        if (img) img.src = coverObj.src;
+        overlay.classList.remove("display-none");
+
+        setTimeout(() => {
+            cerrarPortadaInicio();
+        }, 2400);
+    }
+}
+
+function cerrarPortadaInicio() {
+    const overlay = document.getElementById("splashScreenOverlay");
+    if (overlay && !overlay.classList.contains("display-none")) {
+        overlay.classList.add("splash-fade-out");
+        setTimeout(() => {
+            overlay.classList.add("display-none");
+            overlay.classList.remove("splash-fade-out");
+        }, 320);
+    }
+}
+
+/**
+ * Posiciona automáticamente el calendario y la vista en la fecha del servicio próximo a cumplimentar
+ * cuando se recibe o toca una alerta de notificación (24 horas antes).
+ * @param {string} fechaIso - Fecha del servicio en formato YYYY-MM-DD.
+ */
+function posicionarCalendarioEnServicio(fechaIso) {
+    if (!fechaIso) return;
+    cambiarTabMovil('agenda');
+    if (calendar) {
+        calendar.gotoDate(fechaIso);
+    }
+    // Resaltar visualmente la celda del día del servicio próximo
+    setTimeout(() => {
+        document.querySelectorAll('.fc-daygrid-day.alfa-highlight-alert-day').forEach(el => {
+            el.classList.remove('alfa-highlight-alert-day');
+        });
+        const dayCell = document.querySelector(`.fc-daygrid-day[data-date="${fechaIso}"]`);
+        if (dayCell) {
+            dayCell.classList.add('alfa-highlight-alert-day');
+            dayCell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 120);
+    mostrarNotificacion(`📅 Calendario posicionado en el servicio del ${fechaIso}`, "var(--primary)");
+}
+
+/**
+ * Muestra el banner interactivo de servicio próximo a cumplimentar (1 día antes) y enlaza su botón al calendario.
+ * @param {{tomorrowYMD: string, title: string, body: string}} alertInfo 
+ */
+function mostrarBannerServicioProximo(alertInfo) {
+    const banner = document.getElementById("upcomingServiceAlertBanner");
+    const titleEl = document.getElementById("upcomingBannerTitle");
+    const bodyEl = document.getElementById("upcomingBannerBody");
+    const btnEl = document.getElementById("btnPosicionarServicioAlerta");
+    if (!banner || !alertInfo) return;
+
+    if (titleEl) titleEl.textContent = alertInfo.title || `🚨 Servicio Vigente Mañana (${alertInfo.tomorrowYMD})`;
+    if (bodyEl) bodyEl.textContent = alertInfo.body || "";
+    if (btnEl) {
+        btnEl.onclick = function () {
+            posicionarCalendarioEnServicio(alertInfo.tomorrowYMD);
+        };
+    }
+    banner.classList.remove("display-none");
 }
 
 async function cargarServiciosDesdeCloud() {
@@ -1136,16 +1235,41 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 
         initCalendar();
         inicializarSelects();
+        inicializarPortadaUnicaAlInicio();
 
         const params = new URLSearchParams(window.location.search || "");
         const requestedTab = params.get("tab");
+        const requestedDate = params.get("date");
         if (requestedTab && ['agenda', 'resumen', 'historial'].includes(requestedTab)) {
             cambiarTabMovil(requestedTab);
         } else {
             cambiarTabMovil('agenda');
         }
+        if (requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+            setTimeout(() => posicionarCalendarioEnServicio(requestedDate), 300);
+        }
 
-        cargarServiciosDesdeCloud();
+        cargarServiciosDesdeCloud().then(() => {
+            // Iniciar motor de notificaciones (permisos al instalar, 3 lecturas/día y 2 alertas 24h antes)
+            if (Notifications && typeof Notifications.initNotificationEngine === 'function') {
+                const acc = CloudSync.getLinkedGmailAccount ? CloudSync.getLinkedGmailAccount() : null;
+                window.posicionarCalendarioEnServicio = posicionarCalendarioEnServicio;
+                Notifications.initNotificationEngine({
+                    policiaTitular: (acc && acc.policiaTitular) ? acc.policiaTitular : "",
+                    fetchCloudServices: () => CloudSync.obtenerServiciosCloud(),
+                    getLocalEvents: () => calendar ? calendar.getEvents() : safeParse("eventos", []),
+                    onNewChangesDetected: (cloudData) => {
+                        procesarYMostrarServiciosCloud(cloudData);
+                    },
+                    onAlertBanner: (alertInfo) => {
+                        mostrarBannerServicioProximo(alertInfo);
+                    },
+                    onNavigateToServiceDate: (targetDate) => {
+                        posicionarCalendarioEnServicio(targetDate);
+                    }
+                });
+            }
+        });
         actualizarEstadoBaseDatosUI();
 
         window.addEventListener('online', () => {
