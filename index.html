@@ -33,15 +33,17 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=16">
-  <script src="js/utils/helpers.js?v=16"></script>
-  <script src="js/services/calculator.js?v=16"></script>
-  <script src="js/services/database.js?v=16"></script>
-  <script src="js/services/storage.js?v=16"></script>
-  <script src="js/services/cloudSync.js?v=16"></script>
-  <script src="js/services/exporter.js?v=16"></script>
-  <script src="js/scripts.js?v=16"></script>
+  <!-- Custom Styles & Modular Scripts (Incluyendo Scripts Separados por Plataforma PC / Android APK) -->
+  <link rel="stylesheet" href="css/styles.css?v=17">
+  <script src="js/utils/helpers.js?v=17"></script>
+  <script src="js/services/calculator.js?v=17"></script>
+  <script src="js/services/database.js?v=17"></script>
+  <script src="js/services/storage.js?v=17"></script>
+  <script src="js/services/cloudSync.js?v=17"></script>
+  <script src="js/services/exporter.js?v=17"></script>
+  <script src="js/services/platformPc.js?v=17"></script>
+  <script src="js/services/platformApk.js?v=17"></script>
+  <script src="js/scripts.js?v=17"></script>
 </head>
 
 <body data-mobile-tab="agenda">
@@ -80,11 +82,10 @@
       </div>
     </div>
 
-    <!-- 1. SECCIÓN AGENDA / CALENDARIO COMPLETO SIN SCROLL Y CON REFERENCIAS ABAJO -->
+    <!-- 1. SECCIÓN AGENDA / CALENDARIO QUE OCUPA TODO EL LARGO DE PANTALLA -->
     <div class="card calendar-card" id="zonaCapturaCalendario" data-mobile-section="agenda">
       <div class="calendar-header">
         <h3 class="margin-0">📅 Calendario de Servicios</h3>
-        <!-- Imagen 3: Los 2 selectores de filtro entran en 1 sola línea horizontal -->
         <div class="cal-filters-bar">
           <select id="filtroCalEmpresa" title="Filtrar calendario por Empresa / Precartón" class="select-cal-inline" onchange="filtrarCalendario()"></select>
           <select id="filtroCalPolicia" title="Filtrar calendario por Policía" class="select-cal-inline" onchange="filtrarCalendario()"></select>
@@ -93,7 +94,7 @@
 
       <div id="calendar"></div>
 
-      <!-- Imagen 2: Referencias de Empresas (Precartones) ubicadas en la parte inferior del calendario -->
+      <!-- Referencias de Empresas (Precartones) ubicadas en la parte inferior del calendario -->
       <div id="leyendaEmpresasCal" class="cal-company-legend-bottom"></div>
     </div>
 
@@ -104,7 +105,6 @@
       </div>
 
       <div class="grid">
-        <!-- Gráfico de Barras 1: Mes Actual / Seleccionado -->
         <div class="card">
           <div class="chart-card-header">
             <div>
@@ -124,7 +124,6 @@
           </div>
         </div>
 
-        <!-- Gráfico de Barras 2: Anual Apilado con Filtro de Año -->
         <div class="card">
           <div class="chart-card-header">
             <div>
@@ -145,7 +144,6 @@
         </div>
       </div>
 
-      <!-- Tabla de Resumen por Policía -->
       <div class="card">
         <h3>Resumen por Policía (Mes Seleccionado)</h3>
         <div class="table-container">
@@ -203,9 +201,7 @@
     </div>
   </div>
 
-  <!-- Imagen 4: BOTONES FLOTANTES (FAB) EN ZONA DEL CALENDARIO:
-       1. Capturar Calendario y Compartir por WhatsApp
-       2. Registrar Nuevo Servicio (+) -->
+  <!-- BOTONES FLOTANTES (FAB) EN ZONA DEL CALENDARIO -->
   <button type="button" class="mobile-fab-whatsapp" id="btnFabCapturaWhatsapp" onclick="capturarYCompartirCalendarioWhatsApp()" title="Capturar Calendario y Compartir por WhatsApp" aria-label="Capturar Calendario y Compartir por WhatsApp">📸</button>
   <button type="button" class="mobile-fab-add" onclick="abrirNuevoServicioRapido()" title="Registrar Nuevo Servicio" aria-label="Registrar Nuevo Servicio">+</button>
 

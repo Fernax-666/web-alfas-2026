@@ -798,10 +798,37 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
         display: none !important;
     }
 
-    /* Cabecera del Calendario y Filtros en 1 sola línea (Imagen 3) */
+    /* Cabecera del Calendario y Filtros en 1 sola línea ocupando el 100% del alto de pantalla (Imagen 1 vs Imagen 2) */
+    body[data-mobile-tab="agenda"] {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    body[data-mobile-tab="agenda"] .container {
+        flex: 1;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
     .calendar-card {
         padding: 6px;
         margin-bottom: 0;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .calendar-card #calendar {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .calendar-card .fc {
+        flex: 1;
     }
 
     .calendar-header {
@@ -866,8 +893,9 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
         line-height: 1;
     }
 
+    /* Ocupar todo el alto de pantalla disponible en la grilla del mes (como Imagen 2) */
     .fc .fc-daygrid-day-frame {
-        min-height: 44px !important;
+        min-height: clamp(68px, 11.2dvh, 96px) !important;
     }
 
     /* Etiquetas de Eventos en el Calendario APK (Imagen 1):

@@ -12,6 +12,20 @@ const Database = (typeof window !== 'undefined' && window.AlfaDatabase) ? window
 const Storage = (typeof window !== 'undefined' && window.AlfaStorage) ? window.AlfaStorage : require('./services/storage.js');
 const CloudSync = (typeof window !== 'undefined' && window.AlfaCloudSync) ? window.AlfaCloudSync : require('./services/cloudSync.js');
 const Exporter = (typeof window !== 'undefined' && window.AlfaExporter) ? window.AlfaExporter : require('./services/exporter.js');
+const PlatformPC = (typeof window !== 'undefined' && window.AlfaPlatformPC) ? window.AlfaPlatformPC : require('./services/platformPc.js');
+const PlatformAPK = (typeof window !== 'undefined' && window.AlfaPlatformAPK) ? window.AlfaPlatformAPK : require('./services/platformApk.js');
+
+/**
+ * Selecciona automáticamente el controlador de plataforma separado (PC vs Android APK / Móvil).
+ * @returns {Object} Instancia de AlfaPlatformAPK o AlfaPlatformPC.
+ */
+function getActivePlatformHandler() {
+    const ctx = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isNativeAPK: false, isMobileViewport: false };
+    if (ctx.isNativeAPK || ctx.isMobileViewport) {
+        return PlatformAPK;
+    }
+    return PlatformPC;
+}
 
 // Wrapper functions para compatibilidad con código existente y suite de tests
 function escapeHTML(inputStr) { return Utils.escapeHTML(inputStr); }
@@ -405,8 +419,9 @@ function initCalendar() {
 }
 
 /**
- * Imagen 4: Captura la zona completa del Calendario como imagen PNG de alta resolución
- * y abre el menú nativo de Android / Web Share API para enviarla directamente por WhatsApp.
+ * Imagen 4: Captura la zona completa del Calendario delegando al script separado según la plataforma:
+ * - En Android APK: usa `AlfaPlatformAPK.captureAndShareCalendarAPK` (@capacitor/filesystem + @capacitor/share).
+ * - En Windows PC: usa `AlfaPlatformPC.captureAndShareCalendarPC` (descarga PNG + abre WhatsApp Web).
  */
 async function capturarYCompartirCalendarioWhatsApp() {
     const targetEl = document.getElementById("zonaCapturaCalendario") || document.getElementById("calendar");
@@ -415,45 +430,20 @@ async function capturarYCompartirCalendarioWhatsApp() {
     }
 
     try {
-        mostrarNotificacion("📸 Capturando calendario para WhatsApp...", "var(--primary)");
-        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        const canvas = await html2canvas(targetEl, {
-            scale: 2,
-            useCORS: true,
-            logging: false,
-            backgroundColor: isDark ? '#1e293b' : '#ffffff'
-        });
-
         const fileName = `Calendario_Alfas_${new Date().toISOString().slice(0, 10)}.png`;
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 0.95));
+        const ctx = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isNativeAPK: false, isMobileViewport: false };
 
-        if (blob && typeof navigator !== 'undefined' && navigator.share && typeof File !== 'undefined') {
-            const file = new File([blob], fileName, { type: 'image/png' });
-            if (!navigator.canShare || navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    title: 'Calendario de Servicios Adicionales',
-                    text: '📅 Calendario de Servicios Adicionales (Web Alfas 2026)',
-                    files: [file]
-                });
-                mostrarNotificacion("Calendario compartido con éxito", "var(--secondary)");
-                return;
-            }
+        if (ctx.isNativeAPK || ctx.isMobileViewport) {
+            mostrarNotificacion("📸 Generando captura en Android para WhatsApp...", "var(--primary)");
+            await PlatformAPK.captureAndShareCalendarAPK(targetEl, fileName);
+            mostrarNotificacion("Captura lista para enviar por WhatsApp", "var(--secondary)");
+        } else {
+            mostrarNotificacion("📸 Generando captura en Windows PC...", "var(--primary)");
+            await PlatformPC.captureAndShareCalendarPC(targetEl, fileName);
+            mostrarNotificacion("Captura guardada en Descargas (PC)", "var(--secondary)");
         }
-
-        // Fallback en PC o dispositivos sin Web Share de archivos: descarga la captura PNG y abre WhatsApp
-        const dataUrl = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-
-        const textoWa = encodeURIComponent("📅 Adjunto captura del Calendario de Servicios Adicionales (Web Alfas 2026).");
-        window.open(`https://api.whatsapp.com/send?text=${textoWa}`, '_blank');
-        mostrarNotificacion("Captura guardada en Descargas lista para enviar por WhatsApp", "var(--secondary)");
     } catch (err) {
-        if (err && err.name === 'AbortError') return;
+        if (err && (err.name === 'AbortError' || String(err.message || '').includes('canceled'))) return;
         console.error("Error al capturar calendario:", err);
         mostrarNotificacion("No se pudo completar la captura del calendario", "var(--danger)");
     }
@@ -1188,6 +1178,7 @@ if (typeof module !== 'undefined' && module.exports) {
         extractStructuredEventInfo,
         computeWeekdayBarStats,
         capturarYCompartirCalendarioWhatsApp,
+        getActivePlatformHandler,
         defaultServiciosRaw,
         defaultEventos
     };

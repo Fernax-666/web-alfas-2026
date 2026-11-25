@@ -23,6 +23,8 @@
     const Calculator = (typeof window !== 'undefined' && window.AlfaCalculator) ? window.AlfaCalculator : require('./services/calculator.js');
     const Storage = (typeof window !== 'undefined' && window.AlfaStorage) ? window.AlfaStorage : require('./services/storage.js');
     const CloudSync = (typeof window !== 'undefined' && window.AlfaCloudSync) ? window.AlfaCloudSync : require('./services/cloudSync.js');
+    const PlatformPC = (typeof window !== 'undefined' && window.AlfaPlatformPC) ? window.AlfaPlatformPC : require('./services/platformPc.js');
+    const PlatformAPK = (typeof window !== 'undefined' && window.AlfaPlatformAPK) ? window.AlfaPlatformAPK : require('./services/platformApk.js');
 
     const escapeHTML = Utils.escapeHTML;
     const formatearTurno = Utils.formatearTurno;
@@ -32,7 +34,9 @@
     let empresas = state.empresas;
     let config = state.config;
     let coloresPolicia = state.coloresPolicia;
-    let _ultimoPdfFile = null;
+    let _ultimoPdfDoc = null;
+    let _ultimoPdfFileName = "";
+    let _ultimoPdfNativeUri = "";
     let _ultimoPdfBlobUrl = null;
 
     function safeParse(key, fallback) {
@@ -384,10 +388,12 @@
     }
 
     /**
-     * Genera el PDF del Precartón, lo guarda en Descargas y lo abre automáticamente en el Visor Integrado
-     * (y en nueva pestaña en PC) para que al cerrarlo vuelva de inmediato a la aplicación.
+     * Genera el PDF del Precartón y delega el guardado al script separado de plataforma:
+     * - En Android APK: usa `AlfaPlatformAPK.savePdfFileAPK` (@capacitor/filesystem en Documents/Cache).
+     * - En Windows PC: usa `AlfaPlatformPC.savePdfFilePC` (descarga directa en carpeta Descargas).
+     * Luego abre automáticamente el Visor a Pantalla Completa con los botones de Compartir y Cerrar siempre visibles.
      */
-    function exportarPrecartonPDF() {
+    async function exportarPrecartonPDF() {
         try {
             persistirPlanillaActual(true);
             if (typeof window.jspdf === 'undefined') {
@@ -469,22 +475,28 @@
 
             const safeEmpFile = empresa.replace(/[^a-zA-Z0-9_-]/g, '_');
             const fileName = `Precarton_${safeEmpFile}_${MESES[mes]}_${anio}.pdf`;
+            _ultimoPdfDoc = doc;
+            _ultimoPdfFileName = fileName;
 
-            // 1. Guardar automáticamente en carpeta de Descargas
-            doc.save(fileName);
+            const ctx = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isNativeAPK: false, isMobileViewport: false };
+            let ubicacionGuardado = "Descargas";
 
-            // 2. Preparar Blob / File para compartir o previsualizar y abrir automáticamente el visor del documento
-            const pdfBlob = doc.output('blob');
-            if (_ultimoPdfBlobUrl) URL.revokeObjectURL(_ultimoPdfBlobUrl);
-            _ultimoPdfBlobUrl = URL.createObjectURL(pdfBlob);
-            if (typeof File !== 'undefined') {
-                _ultimoPdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+            if (ctx.isNativeAPK || ctx.isMobileViewport) {
+                const apkRes = await PlatformAPK.savePdfFileAPK(doc, fileName);
+                _ultimoPdfNativeUri = apkRes.uri || "";
+                ubicacionGuardado = apkRes.directory || "Documentos / Descargas Android";
+            } else {
+                const pcRes = await PlatformPC.savePdfFilePC(doc, fileName);
+                if (_ultimoPdfBlobUrl) URL.revokeObjectURL(_ultimoPdfBlobUrl);
+                _ultimoPdfBlobUrl = pcRes.blobUrl;
+                ubicacionGuardado = pcRes.path;
             }
 
             abrirVisorPDFAutomatico({
                 fileName,
                 empresa,
                 periodo: `${MESES[mes]} ${anio}`,
+                ubicacionGuardado,
                 metaLine1,
                 metaLine2,
                 headRow,
@@ -492,7 +504,7 @@
                 blobUrl: _ultimoPdfBlobUrl
             });
 
-            mostrarNotificacion(`PDF guardado y abierto: ${fileName}`, "var(--secondary)");
+            mostrarNotificacion(`PDF guardado en ${ubicacionGuardado}`, "var(--secondary)");
         } catch (err) {
             console.error("Error generando PDF de Precartón:", err);
             mostrarNotificacion("Error al generar el PDF del Precartón", "var(--danger)");
@@ -500,10 +512,9 @@
     }
 
     /**
-     * Abre automáticamente el documento PDF generado dentro del modal de vista previa
-     * (funciona tanto en Android WebView como en PC) y al cerrarlo devuelve al usuario a la pantalla de Precartón.
+     * Abre automáticamente el documento PDF en el Visor a Pantalla Completa (100% ancho y largo).
      */
-    function abrirVisorPDFAutomatico({ fileName, empresa, periodo, metaLine1, metaLine2, headRow, bodyRows, blobUrl }) {
+    function abrirVisorPDFAutomatico({ fileName, empresa, periodo, ubicacionGuardado, metaLine1, metaLine2, headRow, bodyRows, blobUrl }) {
         const modal = document.getElementById("modalVisorPDFPrecarton");
         const titulo = document.getElementById("tituloVisorPDF");
         const subtitulo = document.getElementById("subtituloVisorPDF");
@@ -511,21 +522,20 @@
         if (!modal || !cuerpo) return;
 
         if (titulo) titulo.textContent = `📄 ${fileName}`;
-        if (subtitulo) subtitulo.textContent = `Guardado en Descargas — Al cerrar volverá a la planilla de ${empresa}`;
+        if (subtitulo) subtitulo.textContent = `✅ Guardado en: ${ubicacionGuardado || 'Descargas'}`;
 
         const platform = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isMobileViewport: true };
 
-        // Renderizar hoja de documento oficial de alta fidelidad (compatible 100% con Android WebView que no soporta <iframe src="blob:pdf">)
         let tableHtml = `
-            <div style="background:#fff; padding:14px; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-family:Inter,sans-serif;">
+            <div style="background:#fff; padding:12px; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-family:Inter,sans-serif;">
                 <div style="border-bottom:2px solid #2563eb; padding-bottom:8px; margin-bottom:10px;">
-                    <h4 style="margin:0; color:#1e293b; font-size:1rem;">PRECARTÓN MENSUAL DE SERVICIOS ADICIONALES — ${escapeHTML(empresa)}</h4>
-                    <div style="font-size:0.78rem; color:#475569; margin-top:3px;"><b>Período:</b> ${escapeHTML(periodo)}</div>
-                    ${metaLine1 ? `<div style="font-size:0.72rem; color:#64748b; margin-top:2px;">${escapeHTML(metaLine1)}</div>` : ''}
-                    ${metaLine2 ? `<div style="font-size:0.72rem; color:#64748b; margin-top:2px;">${escapeHTML(metaLine2)}</div>` : ''}
+                    <h4 style="margin:0; color:#1e293b; font-size:0.95rem;">PRECARTÓN MENSUAL DE SERVICIOS ADICIONALES — ${escapeHTML(empresa)}</h4>
+                    <div style="font-size:0.76rem; color:#475569; margin-top:3px;"><b>Período:</b> ${escapeHTML(periodo)}</div>
+                    ${metaLine1 ? `<div style="font-size:0.7rem; color:#64748b; margin-top:2px;">${escapeHTML(metaLine1)}</div>` : ''}
+                    ${metaLine2 ? `<div style="font-size:0.7rem; color:#64748b; margin-top:2px;">${escapeHTML(metaLine2)}</div>` : ''}
                 </div>
                 <div style="overflow-x:auto;">
-                    <table style="width:100%; border-collapse:collapse; font-size:0.72rem; text-align:center;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.7rem; text-align:center;">
                         <thead>
                             <tr>
                                 ${headRow.map(h => `<th style="background:#2563eb; color:#fff; padding:6px 4px; border:1px solid #cbd5e1;">${escapeHTML(h)}</th>`).join('')}
@@ -545,7 +555,7 @@
 
         if (!platform.isMobileViewport && blobUrl) {
             tableHtml = `
-                <iframe src="${escapeHTML(blobUrl)}" style="width:100%; height:420px; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:12px;" title="Visor PDF"></iframe>
+                <iframe src="${escapeHTML(blobUrl)}" style="width:100%; height:440px; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:12px;" title="Visor PDF"></iframe>
             ` + tableHtml;
         }
 
@@ -558,25 +568,32 @@
         if (modal) modal.style.display = "none";
     }
 
+    /**
+     * Comparte o envía el PDF usando el script separado de plataforma:
+     * - En Android APK: abre el menú nativo de Android (@capacitor/share) con el archivo PDF adjunto para enviar por WhatsApp o guardar en Archivos.
+     * - En Windows PC: abre o descarga el PDF.
+     */
     async function compartirUltimoPDFPrecarton() {
-        if (_ultimoPdfFile && typeof navigator !== 'undefined' && navigator.share) {
-            try {
-                if (!navigator.canShare || navigator.canShare({ files: [_ultimoPdfFile] })) {
-                    await navigator.share({
-                        title: _ultimoPdfFile.name,
-                        text: '📄 Precartón Mensual de Servicios Adicionales (PDF)',
-                        files: [_ultimoPdfFile]
-                    });
-                    return;
-                }
-            } catch (err) {
-                if (err && err.name === 'AbortError') return;
-            }
+        if (!_ultimoPdfDoc) {
+            return mostrarNotificacion("Primero genere el PDF", "var(--warning)");
         }
-        if (_ultimoPdfBlobUrl) {
-            window.open(_ultimoPdfBlobUrl, '_blank');
-        } else {
-            mostrarNotificacion("El PDF ya se encuentra guardado en su carpeta de Descargas", "var(--secondary)");
+        try {
+            const ctx = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isNativeAPK: false, isMobileViewport: false };
+            if (ctx.isNativeAPK || ctx.isMobileViewport) {
+                const ok = await PlatformAPK.sharePdfFileAPK(_ultimoPdfDoc, _ultimoPdfFileName, _ultimoPdfNativeUri);
+                if (ok) {
+                    mostrarNotificacion("Menú nativo de Android abierto para compartir/guardar PDF", "var(--secondary)");
+                } else {
+                    mostrarNotificacion("PDF guardado en Documentos / Descargas del dispositivo", "var(--secondary)");
+                }
+            } else {
+                await PlatformPC.sharePdfFilePC(_ultimoPdfDoc, _ultimoPdfFileName, _ultimoPdfBlobUrl);
+                mostrarNotificacion("PDF abierto en Windows PC", "var(--secondary)");
+            }
+        } catch (err) {
+            if (err && (err.name === 'AbortError' || String(err.message || '').includes('canceled'))) return;
+            console.error("Error compartiendo PDF:", err);
+            mostrarNotificacion("El PDF ya se encuentra guardado en su dispositivo", "var(--secondary)");
         }
     }
 

@@ -25,6 +25,8 @@ const FILES_TO_COPY = [
     'js/services/storage.js',
     'js/services/cloudSync.js',
     'js/services/exporter.js',
+    'js/services/platformPc.js',
+    'js/services/platformApk.js',
     'bdd/schema.sql'
 ];
 
