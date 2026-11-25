@@ -55,7 +55,7 @@
      * @param {{email: string, sheetName?: string, sheetUrl?: string, customEndpoint?: string, policiaTitular?: string}} accountData 
      */
     function saveLinkedGmailAccount(accountData) {
-        if (typeof localStorage === 'undefined' || !accountData) return null;
+        if (!accountData) return null;
         const cleanEmail = String(accountData.email || '').trim().toLowerCase();
         const record = {
             email: cleanEmail,
@@ -64,9 +64,11 @@
             policiaTitular: accountData.policiaTitular || '',
             linkedAt: accountData.linkedAt || new Date().toISOString()
         };
-        localStorage.setItem(GMAIL_ACCOUNT_KEY, JSON.stringify(record));
-        if (accountData.customEndpoint && /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(accountData.customEndpoint.trim())) {
-            localStorage.setItem(CUSTOM_ENDPOINT_KEY, accountData.customEndpoint.trim());
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(GMAIL_ACCOUNT_KEY, JSON.stringify(record));
+            if (accountData.customEndpoint && /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(accountData.customEndpoint.trim())) {
+                localStorage.setItem(CUSTOM_ENDPOINT_KEY, accountData.customEndpoint.trim());
+            }
         }
         return record;
     }
