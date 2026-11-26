@@ -1,11 +1,10 @@
 /**
  * @file precarton.js
  * @description Controlador modularizado y seguro (Anti-XSS) para la Planilla Mensual de Turnos (Precartón).
- * - Posiciona automáticamente los grupos horarios de la empresa seleccionada.
- * - Visualiza claramente Jerarquía, Apellido y Nombre del policía seleccionado tanto en PC como en el APK móvil.
- * - Genera y descarga el PDF del Precartón en la carpeta de Descargas y lo abre automáticamente en un visor integrado
- *   (compatible con Android WebView y Windows) para que al cerrarlo vuelva instantáneamente a la aplicación.
- * - Permite guardar y cargar un nuevo Precartón (otra empresa) manteniendo múltiples precartones activos.
+ * - Botones de precartones en grilla de 4 por línea (máximo 2 líneas).
+ * - Selector múltiple de días (1..31) para filtrar qué días mostrar en pantalla y exportar al PDF.
+ * - Exportación de PDF siempre en formato VERTICAL A4 ('portrait').
+ * - Captura de imagen del Precartón mediante Cámara o Galería de Fotos identificada con un nombre personalizado.
  */
 
 (function (root, factory) {
@@ -18,6 +17,7 @@
 
     const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
     const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const FOTOS_PRECARTON_KEY = 'alfa_fotos_precarton_guardadas';
 
     const Utils = (typeof window !== 'undefined' && window.AlfaUtils) ? window.AlfaUtils : require('./utils/helpers.js');
     const Calculator = (typeof window !== 'undefined' && window.AlfaCalculator) ? window.AlfaCalculator : require('./services/calculator.js');
@@ -38,6 +38,8 @@
     let _ultimoPdfFileName = "";
     let _ultimoPdfNativeUri = "";
     let _ultimoPdfBlobUrl = null;
+    let _diasSeleccionadosSet = new Set(); // Conjunto de días seleccionados para filtrar y exportar a PDF (vacío = todos)
+    let _fotoTemporalDataUrl = "";
 
     function safeParse(key, fallback) {
         return Utils.safeParse(typeof localStorage !== 'undefined' ? localStorage : {}, key, fallback);
@@ -77,6 +79,9 @@
         });
     }
 
+    /**
+     * IMAGEN 4: Renderiza los botones de Precartones en una grilla de 4 por línea (máximo 2 líneas).
+     */
     function actualizarBarraPrecartonesMes() {
         const cont = document.getElementById("barraPrecartonesMes");
         const selEmp = document.getElementById("selEmpresa");
@@ -91,9 +96,10 @@
         const prefijoFecha = `${anio}-${mesStr}-`;
         const eventos = safeParse("eventos", []);
 
-        let html = `<span style="font-size:0.76rem; font-weight:700; color:var(--text-muted);">Precartones en ${escapeHTML(MESES[mes])} ${escapeHTML(anio)}:</span>`;
+        let html = `<span class="precarton-loaded-label">Precartones en ${escapeHTML(MESES[mes])} ${escapeHTML(anio)} (4 por línea):</span>`;
+        html += `<div class="precarton-loaded-grid-4col">`;
 
-        Object.keys(empresas).forEach(empName => {
+        Object.keys(empresas).slice(0, 8).forEach(empName => {
             const clave = clavePlanilla(empName, mes, anio);
             const planillaLocal = safeParse(clave, {});
             const countLocal = Object.values(planillaLocal).filter(Boolean).length;
@@ -116,6 +122,7 @@
             `;
         });
 
+        html += `</div>`;
         cont.innerHTML = html;
     }
 
@@ -178,6 +185,95 @@
                 <div class="${tagVisibleClass}" id="tag_${safeKey}">${escapeHTML(labelCompleta)}</div>
             </div>
         `;
+    }
+
+    // =========================================================================
+    // SELECTOR MÚLTIPLE DE DÍAS (PARA FILTRAR VISTA Y EXPORTAR A PDF VERTICAL A4)
+    // =========================================================================
+
+    function renderizarSelectorDiasMultiples(diasEnMes) {
+        const grid = document.getElementById("grillaDiasSeleccionables");
+        if (!grid) return;
+        grid.innerHTML = "";
+        for (let d = 1; d <= diasEnMes; d++) {
+            const isSelected = _diasSeleccionadosSet.size === 0 || _diasSeleccionadosSet.has(d);
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = `day-pill-chk ${isSelected ? 'selected' : ''}`;
+            btn.setAttribute("data-day-num", String(d));
+            btn.textContent = String(d);
+            btn.onclick = function () {
+                toggleDiaSeleccionadoPrecarton(d, diasEnMes);
+            };
+            grid.appendChild(btn);
+        }
+        actualizarTextoBotonSelectorDias(diasEnMes);
+    }
+
+    function togglePanelSelectorDias() {
+        const panel = document.getElementById("panelSelectorDiasMultiples");
+        if (panel) panel.classList.toggle("open");
+    }
+
+    function toggleDiaSeleccionadoPrecarton(diaNum, diasEnMes) {
+        // Si estaba en modo "Todos" (Set vacío), al tocar un día pasamos a seleccionar solo ese día
+        if (_diasSeleccionadosSet.size === 0) {
+            _diasSeleccionadosSet.add(diaNum);
+        } else if (_diasSeleccionadosSet.has(diaNum)) {
+            _diasSeleccionadosSet.delete(diaNum);
+        } else {
+            _diasSeleccionadosSet.add(diaNum);
+        }
+        renderizarSelectorDiasMultiples(diasEnMes);
+        aplicarFiltroDiasSeleccionados();
+    }
+
+    function seleccionarTodosLosDiasPrecarton() {
+        _diasSeleccionadosSet.clear();
+        const rows = document.querySelectorAll("#cuerpoPlanilla tr");
+        renderizarSelectorDiasMultiples(rows.length || 31);
+        aplicarFiltroDiasSeleccionados();
+    }
+
+    function limpiarSeleccionDiasPrecarton() {
+        _diasSeleccionadosSet.clear();
+        _diasSeleccionadosSet.add(1);
+        const rows = document.querySelectorAll("#cuerpoPlanilla tr");
+        renderizarSelectorDiasMultiples(rows.length || 31);
+        aplicarFiltroDiasSeleccionados();
+    }
+
+    function actualizarTextoBotonSelectorDias(diasEnMes) {
+        const btn = document.getElementById("btnToggleSelectorDias");
+        if (!btn) return;
+        if (_diasSeleccionadosSet.size === 0 || _diasSeleccionadosSet.size >= diasEnMes) {
+            btn.textContent = `📅 Todos los días (${diasEnMes})`;
+        } else {
+            const ordenados = Array.from(_diasSeleccionadosSet).sort((a, b) => a - b);
+            const preview = ordenados.length <= 5 ? ordenados.join(", ") : `${ordenados.length} días elegidos`;
+            btn.textContent = `📅 Días: ${preview}`;
+        }
+    }
+
+    function aplicarFiltroDiasSeleccionados() {
+        const rows = document.querySelectorAll("#cuerpoPlanilla tr");
+        rows.forEach(r => {
+            const diaNum = parseInt(r.getAttribute("data-dia"), 10);
+            if (_diasSeleccionadosSet.size === 0 || _diasSeleccionadosSet.has(diaNum)) {
+                r.style.display = "";
+            } else {
+                r.style.display = "none";
+            }
+        });
+    }
+
+    /**
+     * verifica si un día del mes debe incluirse en la exportación a PDF según la selección activa.
+     * @param {number} diaNum 
+     * @returns {boolean}
+     */
+    function isDiaIncluidoEnExportacion(diaNum) {
+        return _diasSeleccionadosSet.size === 0 || _diasSeleccionadosSet.has(Number(diaNum));
     }
 
     function generarPlanilla() {
@@ -256,22 +352,9 @@
             if (sel.value) sel.classList.add("asignado");
         });
 
-        filtrarDiaPlanillaMovil();
+        renderizarSelectorDiasMultiples(diasEnMes);
+        aplicarFiltroDiasSeleccionados();
         actualizarBarraPrecartonesMes();
-    }
-
-    function filtrarDiaPlanillaMovil() {
-        const filtroDiaEl = document.getElementById("filtroDiaMovil");
-        if (!filtroDiaEl) return;
-        const val = filtroDiaEl.value.trim();
-        const rows = document.querySelectorAll("#cuerpoPlanilla tr");
-        rows.forEach(r => {
-            if (!val) {
-                r.style.display = "";
-            } else {
-                r.style.display = (r.getAttribute("data-dia") === val) ? "" : "none";
-            }
-        });
     }
 
     function onCambioSelect(sel) {
@@ -290,6 +373,114 @@
                 tagEl.classList.remove("visible");
             }
         }
+    }
+
+    // =========================================================================
+    // CAPTURA DE FOTO DEL PRECARTÓN (CÁMARA O GALERÍA) CON NOMBRE PERSONALIZADO
+    // =========================================================================
+
+    function abrirModalCapturaFotoPrecarton(modo) {
+        const inputId = modo === 'camera' ? 'inputCamaraPrecarton' : 'inputGaleriaPrecarton';
+        const inputEl = document.getElementById(inputId);
+        if (inputEl) inputEl.click();
+    }
+
+    function procesarImagenPrecartonSeleccionada(evt) {
+        const file = evt && evt.target && evt.target.files ? evt.target.files[0] : null;
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            _fotoTemporalDataUrl = e.target.result;
+            const previewImg = document.getElementById("previewFotoPrecartonImg");
+            if (previewImg) previewImg.src = _fotoTemporalDataUrl;
+
+            const emp = document.getElementById("selEmpresa") ? document.getElementById("selEmpresa").value : "Precarton";
+            const mesIdx = document.getElementById("selMes") ? parseInt(document.getElementById("selMes").value, 10) : 0;
+            const anio = document.getElementById("selAnio") ? document.getElementById("selAnio").value : "2026";
+            const inputNombre = document.getElementById("inputNombrePersonalizadoFoto");
+            if (inputNombre) {
+                inputNombre.value = `Precartón ${emp} - ${MESES[mesIdx] || ''} ${anio}`;
+            }
+
+            const modal = document.getElementById("modalNombreFotoPrecarton");
+            if (modal) modal.style.display = "flex";
+        };
+        reader.readAsDataURL(file);
+        evt.target.value = "";
+    }
+
+    function cerrarModalFotoPrecarton() {
+        const modal = document.getElementById("modalNombreFotoPrecarton");
+        if (modal) modal.style.display = "none";
+        _fotoTemporalDataUrl = "";
+    }
+
+    async function guardarFotoPrecartonConNombre() {
+        const inputNombre = document.getElementById("inputNombrePersonalizadoFoto");
+        const nombrePersonalizado = (inputNombre ? inputNombre.value.trim() : "") || `Precartón_${Date.now()}`;
+        if (!_fotoTemporalDataUrl) {
+            return mostrarNotificacion("Seleccione o capture una imagen primero", "var(--danger)");
+        }
+
+        const fotosList = safeParse(FOTOS_PRECARTON_KEY, []);
+        const nuevoItem = {
+            id: `foto_${Date.now()}`,
+            nombre: nombrePersonalizado,
+            empresa: document.getElementById("selEmpresa") ? document.getElementById("selEmpresa").value : "",
+            fechaCaptura: new Date().toLocaleString('es-AR'),
+            dataUrl: _fotoTemporalDataUrl
+        };
+        fotosList.unshift(nuevoItem);
+        if (typeof localStorage !== 'undefined') {
+            try {
+                localStorage.setItem(FOTOS_PRECARTON_KEY, JSON.stringify(fotosList.slice(0, 15)));
+            } catch (_) {}
+        }
+
+        // Además guardarla en el sistema de archivos nativo de Android si corre en el APK
+        const safeFileName = `${nombrePersonalizado.replace(/[^a-zA-Z0-9_-]/g, '_')}.jpg`;
+        const ctx = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isNativeAPK: false };
+        if (ctx.isNativeAPK && PlatformAPK && typeof PlatformAPK.writeNativeFileAndroid === 'function') {
+            await PlatformAPK.writeNativeFileAndroid(safeFileName, _fotoTemporalDataUrl);
+        }
+
+        cerrarModalFotoPrecarton();
+        renderizarGaleriaFotosPrecarton();
+        mostrarNotificacion(`📸 Imagen "${nombrePersonalizado}" guardada con éxito`, "var(--secondary)");
+    }
+
+    function eliminarFotoPrecartonGuardada(fotoId) {
+        const fotosList = safeParse(FOTOS_PRECARTON_KEY, []).filter(f => f.id !== fotoId);
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(FOTOS_PRECARTON_KEY, JSON.stringify(fotosList));
+        }
+        renderizarGaleriaFotosPrecarton();
+    }
+
+    function renderizarGaleriaFotosPrecarton() {
+        const card = document.getElementById("cardGaleriaFotosPrecarton");
+        const cont = document.getElementById("contenedorFotosPrecarton");
+        if (!card || !cont) return;
+
+        const fotosList = safeParse(FOTOS_PRECARTON_KEY, []);
+        if (!Array.isArray(fotosList) || fotosList.length === 0) {
+            card.classList.add("display-none");
+            cont.innerHTML = "";
+            return;
+        }
+
+        card.classList.remove("display-none");
+        cont.innerHTML = fotosList.map(f => `
+            <div class="captura-item-card">
+                <img src="${escapeHTML(f.dataUrl)}" alt="${escapeHTML(f.nombre)}" onclick="window.open('${escapeHTML(f.dataUrl)}', '_blank')">
+                <div class="captura-item-meta">
+                    <strong>${escapeHTML(f.nombre)}</strong>
+                    <span class="font-muted-sub">${escapeHTML(f.fechaCaptura)}</span>
+                    <button type="button" class="btn-danger" style="min-height:28px !important; padding:2px 6px !important; font-size:0.68rem !important;" onclick="eliminarFotoPrecartonGuardada('${escapeHTML(f.id)}')">🗑️ Eliminar</button>
+                </div>
+            </div>
+        `).join("");
     }
 
     function persistirPlanillaActual(silent = false) {
@@ -388,10 +579,8 @@
     }
 
     /**
-     * Genera el PDF del Precartón y delega el guardado al script separado de plataforma:
-     * - En Android APK: usa `AlfaPlatformAPK.savePdfFileAPK` (@capacitor/filesystem en Documents/Cache).
-     * - En Windows PC: usa `AlfaPlatformPC.savePdfFilePC` (descarga directa en carpeta Descargas).
-     * Luego abre automáticamente el Visor a Pantalla Completa con los botones de Compartir y Cerrar siempre visibles.
+     * Genera el PDF del Precartón SIEMPRE EN VERTICAL A4 ('portrait', 'a4')
+     * exportando únicamente los días seleccionados en el filtro múltiple de días (o todos si no se filtró).
      */
     async function exportarPrecartonPDF() {
         try {
@@ -410,38 +599,38 @@
             const guardado = safeParse(clave, {});
 
             const { jsPDF } = window.jspdf;
-            const orientacion = turnos.length > 2 ? 'landscape' : 'portrait';
-            const doc = new jsPDF({ orientation: orientacion, unit: 'mm', format: 'a4' });
+            // Requerimiento estricto: PDF SIEMPRE en Vertical A4 ('portrait', format: 'a4')
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-            doc.setFontSize(15);
+            doc.setFontSize(13);
             doc.setFont("helvetica", "bold");
-            doc.text(`PRECARTÓN MENSUAL DE SERVICIOS ADICIONALES — ${empresa}`, 14, 15);
+            doc.text(`PRECARTÓN MENSUAL DE SERVICIOS ADICIONALES — ${empresa}`, 12, 14);
 
-            doc.setFontSize(10);
+            doc.setFontSize(9);
             doc.setFont("helvetica", "normal");
-            doc.text(`Período: ${MESES[mes]} ${anio}   |   Cat. Lun-Vie: ${emp.catSemana || 'A'}   |   Cat. Sáb-Dom: ${emp.catFinde || 'AP'}`, 14, 21);
+            doc.text(`Período: ${MESES[mes]} ${anio}   |   Cat. Lun-Vie: ${emp.catSemana || 'A'}   |   Cat. Sáb-Dom: ${emp.catFinde || 'AP'}`, 12, 19.5);
 
             const metaLine1 = [
                 emp.nroServicio ? `N° Serv: ${emp.nroServicio}` : "",
                 emp.domicilio ? `Domicilio: ${emp.domicilio}` : "",
                 emp.barrio ? `Barrio: ${emp.barrio}` : "",
                 emp.telefono ? `Tel: ${emp.telefono}` : ""
-            ].filter(Boolean).join("   |   ");
+            ].filter(Boolean).join(" | ");
 
             const metaLine2 = [
                 emp.referente ? `Referente: ${emp.referente} (${emp.telReferente || '-'})` : "",
                 emp.policiaEnc ? `Policía Encargado: ${emp.policiaEnc} (${emp.telPoliciaEnc || '-'})` : ""
-            ].filter(Boolean).join("   |   ");
+            ].filter(Boolean).join(" | ");
 
-            let startTableY = 26;
-            doc.setFontSize(8.5);
+            let startTableY = 24;
+            doc.setFontSize(7.8);
             if (metaLine1) {
-                doc.text(metaLine1, 14, startTableY);
-                startTableY += 5;
+                doc.text(metaLine1, 12, startTableY);
+                startTableY += 4.2;
             }
             if (metaLine2) {
-                doc.text(metaLine2, 14, startTableY);
-                startTableY += 6;
+                doc.text(metaLine2, 12, startTableY);
+                startTableY += 5;
             }
 
             const headRow = ['Día', 'Fecha', ...turnos.map(t => formatearTurno(t))];
@@ -450,6 +639,9 @@
             const mesStr = (mes + 1).toString().padStart(2, '0');
 
             for (let dia = 1; dia <= diasEnMes; dia++) {
+                // Filtrar por los días seleccionados por el usuario
+                if (!isDiaIncluidoEnExportacion(dia)) continue;
+
                 const fecha = new Date(anio, mes, dia);
                 const diaSemana = fecha.getDay();
                 const rowCells = [DIAS[diaSemana], `${dia.toString().padStart(2, '0')}/${mesStr}/${anio}`];
@@ -465,10 +657,11 @@
 
             doc.autoTable({
                 startY: startTableY,
+                margin: { left: 10, right: 10 },
                 head: [headRow],
                 body: bodyRows,
                 theme: 'grid',
-                styles: { fontSize: 7.5, cellPadding: 1.8, valign: 'middle', halign: 'center' },
+                styles: { fontSize: turnos.length >= 4 ? 6.5 : 7.5, cellPadding: 1.5, valign: 'middle', halign: 'center', overflow: 'linebreak' },
                 headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
                 alternateRowStyles: { fillColor: [248, 250, 252] }
             });
@@ -495,7 +688,7 @@
             abrirVisorPDFAutomatico({
                 fileName,
                 empresa,
-                periodo: `${MESES[mes]} ${anio}`,
+                periodo: `${MESES[mes]} ${anio} (${bodyRows.length} días incluidos — Formato Vertical A4)`,
                 ubicacionGuardado,
                 metaLine1,
                 metaLine2,
@@ -504,16 +697,13 @@
                 blobUrl: _ultimoPdfBlobUrl
             });
 
-            mostrarNotificacion(`PDF guardado en ${ubicacionGuardado}`, "var(--secondary)");
+            mostrarNotificacion(`PDF Vertical A4 guardado en ${ubicacionGuardado}`, "var(--secondary)");
         } catch (err) {
             console.error("Error generando PDF de Precartón:", err);
             mostrarNotificacion("Error al generar el PDF del Precartón", "var(--danger)");
         }
     }
 
-    /**
-     * Abre automáticamente el documento PDF en el Visor a Pantalla Completa (100% ancho y largo).
-     */
     function abrirVisorPDFAutomatico({ fileName, empresa, periodo, ubicacionGuardado, metaLine1, metaLine2, headRow, bodyRows, blobUrl }) {
         const modal = document.getElementById("modalVisorPDFPrecarton");
         const titulo = document.getElementById("tituloVisorPDF");
@@ -522,12 +712,12 @@
         if (!modal || !cuerpo) return;
 
         if (titulo) titulo.textContent = `📄 ${fileName}`;
-        if (subtitulo) subtitulo.textContent = `✅ Guardado en: ${ubicacionGuardado || 'Descargas'}`;
+        if (subtitulo) subtitulo.textContent = `✅ Guardado en: ${ubicacionGuardado || 'Descargas'} (Vertical A4)`;
 
         const platform = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isMobileViewport: true };
 
         let tableHtml = `
-            <div style="background:#fff; padding:12px; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-family:Inter,sans-serif;">
+            <div style="background:#fff; max-width:210mm; margin:0 auto; padding:12px; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.1); font-family:Inter,sans-serif;">
                 <div style="border-bottom:2px solid #2563eb; padding-bottom:8px; margin-bottom:10px;">
                     <h4 style="margin:0; color:#1e293b; font-size:0.95rem;">PRECARTÓN MENSUAL DE SERVICIOS ADICIONALES — ${escapeHTML(empresa)}</h4>
                     <div style="font-size:0.76rem; color:#475569; margin-top:3px;"><b>Período:</b> ${escapeHTML(periodo)}</div>
@@ -555,7 +745,7 @@
 
         if (!platform.isMobileViewport && blobUrl) {
             tableHtml = `
-                <iframe src="${escapeHTML(blobUrl)}" style="width:100%; height:440px; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:12px;" title="Visor PDF"></iframe>
+                <iframe src="${escapeHTML(blobUrl)}" style="width:100%; height:440px; border:1px solid #cbd5e1; border-radius:6px; margin-bottom:12px;" title="Visor PDF Vertical A4"></iframe>
             ` + tableHtml;
         }
 
@@ -568,11 +758,6 @@
         if (modal) modal.style.display = "none";
     }
 
-    /**
-     * Comparte o envía el PDF usando el script separado de plataforma:
-     * - En Android APK: abre el menú nativo de Android (@capacitor/share) con el archivo PDF adjunto para enviar por WhatsApp o guardar en Archivos.
-     * - En Windows PC: abre o descarga el PDF.
-     */
     async function compartirUltimoPDFPrecarton() {
         if (!_ultimoPdfDoc) {
             return mostrarNotificacion("Primero genere el PDF", "var(--warning)");
@@ -608,6 +793,7 @@
         if (selMes) selMes.value = hoy.getMonth();
         if (selAnio) selAnio.value = hoy.getFullYear();
         initEmpresas();
+        renderizarGaleriaFotosPrecarton();
         CloudSync.sincronizarPoliciasCloud(policias);
         if (Object.keys(empresas).length > 0) {
             generarPlanilla();
@@ -626,7 +812,14 @@
         window.compartirUltimoPDFPrecarton = compartirUltimoPDFPrecarton;
         window.seleccionarEmpresaRapido = seleccionarEmpresaRapido;
         window.onCambioSelect = onCambioSelect;
-        window.filtrarDiaPlanillaMovil = filtrarDiaPlanillaMovil;
+        window.togglePanelSelectorDias = togglePanelSelectorDias;
+        window.seleccionarTodosLosDiasPrecarton = seleccionarTodosLosDiasPrecarton;
+        window.limpiarSeleccionDiasPrecarton = limpiarSeleccionDiasPrecarton;
+        window.abrirModalCapturaFotoPrecarton = abrirModalCapturaFotoPrecarton;
+        window.procesarImagenPrecartonSeleccionada = procesarImagenPrecartonSeleccionada;
+        window.cerrarModalFotoPrecarton = cerrarModalFotoPrecarton;
+        window.guardarFotoPrecartonConNombre = guardarFotoPrecartonConNombre;
+        window.eliminarFotoPrecartonGuardada = eliminarFotoPrecartonGuardada;
         document.addEventListener('DOMContentLoaded', init);
     }
 
@@ -638,6 +831,8 @@
         guardarPlanilla,
         guardarYCargarNuevoPrecarton,
         exportarPrecartonPDF,
-        cerrarVisorPDFPrecarton
+        cerrarVisorPDFPrecarton,
+        isDiaIncluidoEnExportacion,
+        toggleDiaSeleccionadoPrecarton
     };
 }));

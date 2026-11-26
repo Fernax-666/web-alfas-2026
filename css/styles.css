@@ -57,6 +57,65 @@ body {
     margin: 0 auto;
 }
 
+/* IMAGEN 2: Zona superior fija (Sticky) en el Dashboard principal para que siempre se visualice al hacer scroll */
+.sticky-top-dashboard {
+    position: sticky;
+    top: 0;
+    z-index: 1200;
+    background: var(--bg-main);
+    padding-top: 4px;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+/* ============================================================================
+   SECCIONES NUMERADAS DE CONFIGURACIONES EN MODO ACORDEÓN (1 ABIERTA, RESTO CONTRAÍDAS)
+   ============================================================================ */
+.accordion-card {
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.accordion-trigger-btn {
+    width: 100%;
+    background: var(--bg-card);
+    color: var(--text-main);
+    border: none;
+    padding: 14px 16px !important;
+    min-height: 52px !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+    font-size: 1rem !important;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: var(--radius);
+}
+
+.accordion-card.active .accordion-trigger-btn {
+    background: rgba(37, 99, 235, 0.06);
+    border-bottom: 1px solid var(--border);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.accordion-chevron {
+    font-size: 0.85rem;
+    color: var(--primary);
+    transition: transform 0.2s ease;
+}
+
+.accordion-content-body {
+    display: none;
+    padding: 16px;
+}
+
+.accordion-card.active .accordion-content-body {
+    display: block;
+}
+
 /* Cabecera Flexible para PC y Móvil */
 .app-header-bar {
     display: flex;
@@ -230,29 +289,31 @@ textarea:focus {
     font-size: 0.82rem !important;
 }
 
-/* Referencias en la parte de abajo del calendario (Imagen 2) */
+/* Referencias en la parte de abajo del calendario (Imagen 1: Texto más grande y accesible en PC y APK) */
 .cal-company-legend-bottom {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 6px;
     margin-top: 8px;
     padding-top: 8px;
     border-top: 1px solid var(--border);
+    width: 100%;
 }
 
 .cal-emp-chip {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    padding: 3px 8px;
-    font-size: 0.7rem;
-    font-weight: 700;
+    justify-content: center;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+    font-weight: 800;
     background: var(--bg-main);
     color: var(--text-main);
-    border: 1px solid var(--border);
-    border-left-width: 4px;
-    border-radius: 5px;
+    border: 1.5px solid var(--border);
+    border-left-width: 5px;
+    border-radius: 7px;
+    text-align: center;
+    line-height: 1.15;
 }
 
 .fc {
@@ -1121,17 +1182,21 @@ html[data-theme="dark"] .upcoming-service-banner {
         word-break: break-word;
     }
 
-    /* Referencias en la parte de abajo (Imagen 2) sin generar scroll */
+    /* IMAGEN 1: Referencias de servicios en la parte de abajo con TEXTO MÁS GRANDE Y ACCESIBLE en el APK */
     .cal-company-legend-bottom {
-        gap: 4px;
-        margin-top: 4px;
-        padding-top: 4px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+        margin-top: 6px;
+        padding-top: 6px;
     }
 
     .cal-emp-chip {
-        padding: 1px 5px;
-        font-size: 0.58rem;
-        border-left-width: 3px;
+        padding: 6px 6px;
+        font-size: 0.78rem !important;
+        font-weight: 800;
+        border-left-width: 5px;
+        min-height: 32px;
     }
 
     /* Tabla de Historial de 5 columnas visible en Móvil */

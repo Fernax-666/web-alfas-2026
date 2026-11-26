@@ -34,17 +34,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=18">
-  <script src="js/utils/helpers.js?v=18"></script>
-  <script src="js/services/calculator.js?v=18"></script>
-  <script src="js/services/database.js?v=18"></script>
-  <script src="js/services/storage.js?v=18"></script>
-  <script src="js/services/cloudSync.js?v=18"></script>
-  <script src="js/services/exporter.js?v=18"></script>
-  <script src="js/services/platformPc.js?v=18"></script>
-  <script src="js/services/platformApk.js?v=18"></script>
-  <script src="js/services/notifications.js?v=18"></script>
-  <script src="js/scripts.js?v=18"></script>
+  <link rel="stylesheet" href="css/styles.css?v=19">
+  <script src="js/utils/helpers.js?v=19"></script>
+  <script src="js/services/calculator.js?v=19"></script>
+  <script src="js/services/database.js?v=19"></script>
+  <script src="js/services/storage.js?v=19"></script>
+  <script src="js/services/cloudSync.js?v=19"></script>
+  <script src="js/services/exporter.js?v=19"></script>
+  <script src="js/services/platformPc.js?v=19"></script>
+  <script src="js/services/platformApk.js?v=19"></script>
+  <script src="js/services/notifications.js?v=19"></script>
+  <script src="js/scripts.js?v=19"></script>
 </head>
 
 <body data-mobile-tab="agenda">
@@ -61,47 +61,49 @@
   </div>
 
   <div class="container">
-    <!-- CABECERA COMPACTA -->
-    <header class="app-header-bar">
-      <div class="header-titles">
-        <h1>Gestión de Servicios Adicionales</h1>
-        <div class="system-status-bar">
-          <span id="platformModeBadge" class="badge badge-empresa">🖥️ PC</span>
-          <span id="dbEngineBadge" class="badge badge-b">SQLite Local</span>
-          <span id="dbOutboxBadge" class="badge badge-a">Sincronizado</span>
-          <span id="gmailLinkedBadge" class="badge badge-ho display-none">☁️ Gmail Vinculado</span>
+    <!-- IMAGEN 2: ZONA SUPERIOR FIJA (STICKY) QUE SE VISUALIZA SIEMPRE CUANDO SE HACE SCROLL -->
+    <div class="sticky-top-dashboard">
+      <header class="app-header-bar">
+        <div class="header-titles">
+          <h1>Gestión de Servicios Adicionales</h1>
+          <div class="system-status-bar">
+            <span id="platformModeBadge" class="badge badge-empresa">🖥️ PC</span>
+            <span id="dbEngineBadge" class="badge badge-b">SQLite Local</span>
+            <span id="dbOutboxBadge" class="badge badge-a">Sincronizado</span>
+            <span id="gmailLinkedBadge" class="badge badge-ho display-none">☁️ Gmail Vinculado</span>
+          </div>
+        </div>
+        <div class="desktop-top-nav no-print">
+          <button type="button" class="btn-outline" onclick="cargarServiciosDesdeCloud()">🔄 Sincronizar Sheets</button>
+          <a href="Precarton_Adcionales.html" class="btn-outline">🗂️ Precartón Mensual</a>
+          <a href="Configuraciones.html" class="btn-primary">⚙️ Configuraciones</a>
+        </div>
+      </header>
+
+      <!-- TARJETAS KPI RESUMEN RÁPIDO (SIEMPRE VISIBLES AL HACER SCROLL) -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Turnos (Mes)</div>
+          <div id="stat-turnos" class="stat-val">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Costo Total (Mes)</div>
+          <div id="stat-costo" class="stat-val">$0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Policías Activos</div>
+          <div id="stat-policias" class="stat-val">0</div>
         </div>
       </div>
-      <div class="desktop-top-nav no-print">
-        <button type="button" class="btn-outline" onclick="cargarServiciosDesdeCloud()">🔄 Sincronizar Sheets</button>
-        <a href="Precarton_Adcionales.html" class="btn-outline">🗂️ Precartón Mensual</a>
-        <a href="Configuraciones.html" class="btn-primary">⚙️ Configuraciones</a>
-      </div>
-    </header>
+    </div>
 
-    <!-- BANNER DE ALERTA DE SERVICIO PRÓXIMO A CUMPLIMENTAR (24 HORAS ANTES - SINCRONIZADO EN FECHA Y TIEMPO) -->
+    <!-- BANNER DE ALERTA DE SERVICIO PRÓXIMO A CUMPLIMENTAR (24 HORAS ANTES) -->
     <div id="upcomingServiceAlertBanner" class="upcoming-service-banner display-none">
       <div class="upcoming-banner-text">
         <strong id="upcomingBannerTitle">🚨 Servicio Vigente Mañana</strong>
         <span id="upcomingBannerBody">Tiene un servicio próximo a cumplimentar.</span>
       </div>
       <button type="button" class="btn-primary btn-ver-servicio-alerta" id="btnPosicionarServicioAlerta">📅 Ir al Turno</button>
-    </div>
-
-    <!-- TARJETAS KPI RESUMEN RÁPIDO -->
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="stat-label">Turnos (Mes)</div>
-        <div id="stat-turnos" class="stat-val">0</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Costo Total (Mes)</div>
-        <div id="stat-costo" class="stat-val">$0</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Policías Activos</div>
-        <div id="stat-policias" class="stat-val">0</div>
-      </div>
     </div>
 
     <!-- 1. SECCIÓN AGENDA / CALENDARIO QUE OCUPA TODO EL LARGO DE PANTALLA -->
@@ -116,7 +118,7 @@
 
       <div id="calendar"></div>
 
-      <!-- Referencias de Empresas (Precartones) ubicadas en la parte inferior del calendario -->
+      <!-- IMAGEN 1: Referencias de Empresas (Precartones) ubicadas abajo con TEXTO MÁS GRANDE Y ACCESIBLE -->
       <div id="leyendaEmpresasCal" class="cal-company-legend-bottom"></div>
     </div>
 

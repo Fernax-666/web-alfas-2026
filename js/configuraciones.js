@@ -98,6 +98,30 @@
         if (overlay) overlay.classList.add("display-none");
     }
 
+    /**
+     * Abre la sección numerada seleccionada (1 a 5) y contrae automáticamente las demás secciones.
+     * @param {number|string} sectionNumber - Número de la sección a expandir.
+     */
+    function toggleSeccionConfig(sectionNumber) {
+        const targetStr = String(sectionNumber);
+        const cards = document.querySelectorAll(".accordion-card[data-acc-section]");
+        cards.forEach(card => {
+            const sec = card.getAttribute("data-acc-section");
+            const btn = card.querySelector(".accordion-trigger-btn");
+            const chev = card.querySelector(".accordion-chevron");
+            if (sec === targetStr) {
+                const isAlreadyActive = card.classList.contains("active");
+                card.classList.toggle("active", !isAlreadyActive);
+                if (btn) btn.setAttribute("aria-expanded", !isAlreadyActive ? "true" : "false");
+                if (chev) chev.textContent = !isAlreadyActive ? "▼" : "▶";
+            } else {
+                card.classList.remove("active");
+                if (btn) btn.setAttribute("aria-expanded", "false");
+                if (chev) chev.textContent = "▶";
+            }
+        });
+    }
+
     // =========================================================================
     // 2. ACTUALIZACIÓN DE MONTOS (TARIFAS) Y RECÁLCULO DE EVENTOS
     // =========================================================================
@@ -574,6 +598,7 @@
     }
 
     if (typeof window !== 'undefined') {
+        window.toggleSeccionConfig = toggleSeccionConfig;
         window.seleccionarTemaApp = seleccionarTemaApp;
         window.seleccionarPortadaApp = seleccionarPortadaApp;
         window.previsualizarPortadaActiva = previsualizarPortadaActiva;
@@ -596,6 +621,7 @@
     }
 
     return {
+        toggleSeccionConfig,
         seleccionarTemaApp,
         seleccionarPortadaApp,
         vincularCuentaGmailYCrearSheet,

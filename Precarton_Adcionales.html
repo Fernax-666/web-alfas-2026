@@ -14,17 +14,29 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 
-  <!-- Estilos y Scripts Modulares (Incluyendo Scripts Separados por Plataforma PC y Android APK) -->
-  <link rel="stylesheet" href="css/styles.css?v=17">
-  <script src="js/utils/helpers.js?v=17"></script>
-  <script src="js/services/calculator.js?v=17"></script>
-  <script src="js/services/database.js?v=17"></script>
-  <script src="js/services/storage.js?v=17"></script>
-  <script src="js/services/cloudSync.js?v=17"></script>
-  <script src="js/services/platformPc.js?v=17"></script>
-  <script src="js/services/platformApk.js?v=17"></script>
-  <script src="js/precarton.js?v=17"></script>
+  <!-- Estilos y Scripts Modulares -->
+  <link rel="stylesheet" href="css/styles.css?v=19">
+  <script src="js/utils/helpers.js?v=19"></script>
+  <script src="js/services/calculator.js?v=19"></script>
+  <script src="js/services/database.js?v=19"></script>
+  <script src="js/services/storage.js?v=19"></script>
+  <script src="js/services/cloudSync.js?v=19"></script>
+  <script src="js/services/platformPc.js?v=19"></script>
+  <script src="js/services/platformApk.js?v=19"></script>
+  <script src="js/precarton.js?v=19"></script>
   <style>
+    /* IMAGEN 3: Zona superior de Precartón FIJA (Sticky) que se visualiza siempre cuando se hace scroll */
+    .sticky-top-precarton {
+      position: sticky;
+      top: 0;
+      z-index: 1200;
+      background: var(--bg-main);
+      padding-top: 6px;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
     .planilla-controls {
       display: flex;
       align-items: flex-end;
@@ -33,33 +45,48 @@
     }
     .planilla-controls select, .planilla-controls input {
       width: auto;
-      min-width: 140px;
+      min-width: 130px;
     }
 
-    .precarton-loaded-bar {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 12px;
-      padding-top: 10px;
+    /* IMAGEN 4: Botones de Precartones acomodados en GRILLA DE 4 POR LÍNEA (máximo 2 líneas) */
+    .precarton-loaded-section {
+      margin-top: 10px;
+      padding-top: 8px;
       border-top: 1px dashed var(--border);
     }
-    .precarton-chip {
-      display: inline-flex;
-      align-items: center;
+    .precarton-loaded-label {
+      display: block;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .precarton-loaded-grid-4col {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
       gap: 6px;
-      padding: 6px 10px;
+      width: 100%;
+    }
+    .precarton-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 6px 4px !important;
+      min-height: 40px !important;
       border-radius: 8px;
-      font-size: 0.78rem;
-      font-weight: 600;
+      font-size: 0.68rem !important;
+      font-weight: 700;
       border: 1.5px solid var(--border);
       background: var(--bg-main);
       color: var(--text-main);
       cursor: pointer;
+      text-align: center;
+      line-height: 1.15;
     }
     .precarton-chip.loaded {
-      background: rgba(16, 185, 129, 0.12);
+      background: rgba(16, 185, 129, 0.14);
       border-color: #10b981;
       color: #065f46;
     }
@@ -68,6 +95,77 @@
     }
     .precarton-chip.current {
       box-shadow: 0 0 0 2px var(--primary);
+    }
+
+    /* Selector Múltiple de Días (1 al 31) para Filtrar y Exportar a PDF Vertical A4 */
+    .multi-day-picker-panel {
+      margin-top: 10px;
+      padding: 10px;
+      background: var(--bg-main);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: none;
+    }
+    .multi-day-picker-panel.open {
+      display: block;
+    }
+    .multi-day-actions-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .days-grid-31 {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+    }
+    .day-pill-chk {
+      padding: 6px 2px !important;
+      min-height: 34px !important;
+      font-size: 0.75rem !important;
+      border-radius: 6px;
+      background: var(--bg-card);
+      border: 1.5px solid var(--border);
+      color: var(--text-main);
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .day-pill-chk.selected {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    /* Galería de Fotos Capturadas de Precartón con Nombre Personalizado */
+    .capturas-precarton-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .captura-item-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--bg-main);
+      display: flex;
+      flex-direction: column;
+    }
+    .captura-item-card img {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      cursor: pointer;
+    }
+    .captura-item-meta {
+      padding: 6px;
+      font-size: 0.72rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
     .planilla-table {
@@ -151,16 +249,24 @@
     .planilla-table th.turno-header-3 { background-color: #7c3aed; }
     .planilla-table th.turno-header-4 { background-color: #e11d48; }
 
-    .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; text-align: left; }
-    .h1-planilla { font-size: 1.35rem; margin-bottom: 3px; }
-    .info-empresa-box { margin-top: 6px; font-size: 0.78rem; color: var(--text-muted); line-height: 1.55; display: none; }
-    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px; text-align: left; }
+    .h1-planilla { font-size: 1.25rem; margin-bottom: 2px; }
+    .info-empresa-box { margin-top: 4px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.45; display: none; }
+    .header-actions {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      width: 100%;
+    }
+    .header-actions > * {
+      min-height: 38px !important;
+      padding: 6px 4px !important;
+      font-size: 0.74rem !important;
+      text-align: center;
+    }
     .input-year { width: 100px !important; min-width: 100px !important; }
 
-    /* =========================================================================
-       VISOR PDF A PANTALLA COMPLETA (100% ANCHO Y ALTO DE LA PANTALLA EN USO)
-       CON BOTONES DE COMPARTIR Y CERRAR SIEMPRE VISIBLES ARRIBA Y ABAJO
-       ========================================================================= */
+    /* Visor PDF a Pantalla Completa */
     #modalVisorPDFPrecarton.modal-overlay {
       padding: 0 !important;
       background: rgba(15, 23, 42, 0.92);
@@ -234,20 +340,42 @@
     }
 
     @media print {
-      .no-print, .mobile-bottom-nav { display: none !important; }
+      .no-print, .mobile-bottom-nav, .sticky-top-precarton .header-actions { display: none !important; }
       .card { box-shadow: none; border: 1px solid #ccc; }
       .planilla-table select { display: none !important; }
       .policia-selected-tag { display: block !important; border: none; background: transparent; color: #000; }
     }
 
     @media (max-width: 768px) {
-      .header-flex { flex-direction: column; align-items: stretch; }
-      .header-actions { width: 100%; }
-      .header-actions > * { flex: 1; font-size: 0.78rem !important; padding: 8px 6px !important; }
+      .sticky-top-precarton {
+        top: 0;
+        padding-top: 4px;
+        padding-bottom: 6px;
+      }
+      .h1-planilla { font-size: 1.05rem; }
+      .header-actions {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+      }
+      .header-actions > * {
+        font-size: 0.66rem !important;
+        padding: 4px 2px !important;
+        min-height: 36px !important;
+        line-height: 1.1;
+      }
       .planilla-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
       .planilla-controls .form-group,
       .planilla-controls select,
       .planilla-controls input { width: 100% !important; min-width: 0 !important; }
+      .precarton-loaded-grid-4col {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+      }
+      .precarton-chip {
+        font-size: 0.58rem !important;
+        padding: 4px 2px !important;
+        min-height: 36px !important;
+      }
       .planilla-table th, .planilla-table td { padding: 3px 4px; }
       .planilla-table td:first-child, .planilla-table td:nth-child(2) { width: 32px; font-size: 0.68rem; }
       .turno-cell-wrap { min-width: 112px; }
@@ -258,30 +386,33 @@
 </head>
 <body>
 <div class="container">
-  <header class="header-flex">
-    <div>
-      <h1 class="h1-planilla">🗂️ Planilla Mensual (Precartón)</h1>
-      <p class="subtitle" id="subtitulo">Cargando...</p>
-      <div id="infoEmpresa" class="info-empresa-box">
-        <span id="infoEmpNroSrv"></span>
-        <span id="infoEmpDomicilio"></span>
-        <span id="infoEmpBarrio"></span>
-        <span id="infoEmpTel"></span>
-        <br id="brRef" class="display-none">
-        <span id="infoEmpRef"></span>
-        <span id="infoEmpTelRef"></span>
-        <br id="brPol" class="display-none">
-        <span id="infoEmpPol"></span>
-        <span id="infoEmpTelPol"></span>
+  <!-- IMAGEN 3: CABECERA DE PRECARTÓN SIEMPRE VISIBLE AL HACER SCROLL -->
+  <div class="sticky-top-precarton">
+    <header class="header-flex">
+      <div style="width:100%;">
+        <h1 class="h1-planilla">🗂️ Planilla Mensual (Precartón)</h1>
+        <p class="subtitle" id="subtitulo">Cargando...</p>
+        <div id="infoEmpresa" class="info-empresa-box">
+          <span id="infoEmpNroSrv"></span>
+          <span id="infoEmpDomicilio"></span>
+          <span id="infoEmpBarrio"></span>
+          <span id="infoEmpTel"></span>
+          <br id="brRef" class="display-none">
+          <span id="infoEmpRef"></span>
+          <span id="infoEmpTelRef"></span>
+          <br id="brPol" class="display-none">
+          <span id="infoEmpPol"></span>
+          <span id="infoEmpTelPol"></span>
+        </div>
       </div>
-    </div>
-    <div class="no-print header-actions">
-      <a href="index.html" class="btn-outline">← Calendario</a>
-      <button type="button" class="btn-danger no-print" onclick="exportarPrecartonPDF()">📄 Guardar PDF</button>
-      <button type="button" class="btn-secondary no-print" onclick="guardarYCargarNuevoPrecarton()">➕ Guardar y Cargar Otra Empresa</button>
-      <button type="button" class="btn-primary no-print" onclick="guardarPlanilla()">💾 Guardar</button>
-    </div>
-  </header>
+      <div class="no-print header-actions">
+        <a href="index.html" class="btn-outline">← Calendario</a>
+        <button type="button" class="btn-danger no-print" onclick="exportarPrecartonPDF()">📄 PDF (A4)</button>
+        <button type="button" class="btn-secondary no-print" onclick="guardarYCargarNuevoPrecarton()">➕ Otra Empresa</button>
+        <button type="button" class="btn-primary no-print" onclick="guardarPlanilla()">💾 Guardar</button>
+      </div>
+    </header>
+  </div>
 
   <div class="card no-print">
     <div class="planilla-controls">
@@ -305,12 +436,39 @@
         <input type="number" id="selAnio" title="Seleccionar Año para la planilla" aria-label="Año" value="2026" min="2020" max="2040" onchange="generarPlanilla()" class="input-year">
       </div>
       <div class="form-group margin-0">
-        <label for="filtroDiaMovil">Filtrar Día (1-31)</label>
-        <input type="number" id="filtroDiaMovil" title="Filtrar por número de día del mes (1-31)" placeholder="Todos" min="1" max="31" oninput="filtrarDiaPlanillaMovil()" class="input-year">
+        <label>Elegir Días (Para Vista y PDF)</label>
+        <button type="button" id="btnToggleSelectorDias" class="btn-outline" style="width:100%;" onclick="togglePanelSelectorDias()">📅 Todos los días (31)</button>
       </div>
     </div>
 
-    <div id="barraPrecartonesMes" class="precarton-loaded-bar"></div>
+    <!-- PANEL DESPLEGABLE PARA SELECCIONAR MÚLTIPLES DÍAS ESPECÍFICOS A MOSTRAR Y EXPORTAR A PDF -->
+    <div id="panelSelectorDiasMultiples" class="multi-day-picker-panel">
+      <div class="multi-day-actions-top">
+        <span style="font-size:0.76rem; font-weight:700;">Toque los días que desea visualizar y exportar al PDF Vertical A4:</span>
+        <div class="flex-center-gap-10">
+          <button type="button" class="btn-outline" style="min-height:30px !important; padding:4px 8px !important; font-size:0.72rem !important;" onclick="seleccionarTodosLosDiasPrecarton()">Marcar Todos</button>
+          <button type="button" class="btn-outline" style="min-height:30px !important; padding:4px 8px !important; font-size:0.72rem !important;" onclick="limpiarSeleccionDiasPrecarton()">Limpiar Selección</button>
+        </div>
+      </div>
+      <div id="grillaDiasSeleccionables" class="days-grid-31"></div>
+    </div>
+
+    <!-- BOTÓN PARA CAPTURAR MEDIANTE CÁMARA O GALERÍA LA IMAGEN DEL PRECARTÓN CON NOMBRE PERSONALIZADO -->
+    <div class="flex-wrap-gap-10" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);">
+      <button type="button" class="btn-primary btn-indigo flex-1" onclick="abrirModalCapturaFotoPrecarton('camera')">📷 Capturar Precartón (Cámara)</button>
+      <button type="button" class="btn-outline flex-1" onclick="abrirModalCapturaFotoPrecarton('gallery')">🖼️ Elegir de Galería de Fotos</button>
+      <input type="file" id="inputCamaraPrecarton" accept="image/*" capture="environment" class="display-none" onchange="procesarImagenPrecartonSeleccionada(event)">
+      <input type="file" id="inputGaleriaPrecarton" accept="image/*" class="display-none" onchange="procesarImagenPrecartonSeleccionada(event)">
+    </div>
+
+    <!-- IMAGEN 4: Barra de Precartones Cargados acomodada en 4 botones por línea (máximo 2 líneas) -->
+    <div id="barraPrecartonesMes" class="precarton-loaded-section"></div>
+  </div>
+
+  <!-- GALERÍA DE IMÁGENES DE PRECARTÓN CAPTURADAS E IDENTIFICADAS CON NOMBRE PERSONALIZADO -->
+  <div id="cardGaleriaFotosPrecarton" class="card no-print display-none">
+    <h3>📸 Imágenes de Precartón Guardadas</h3>
+    <div id="contenedorFotosPrecarton" class="capturas-precarton-list"></div>
   </div>
 
   <div class="card" style="padding: 10px;">
@@ -323,12 +481,28 @@
   </div>
 </div>
 
-<!-- VISOR PDF A PANTALLA COMPLETA (USA EL 100% DEL ANCHO Y LARGO DE LA PANTALLA Y MUESTRA SIEMPRE LOS BOTONES) -->
+<!-- MODAL PARA IDENTIFICAR LA FOTO CAPTURADA DEL PRECARTÓN CON UN NOMBRE PERSONALIZADO -->
+<div id="modalNombreFotoPrecarton" class="modal-overlay">
+  <div class="modal">
+    <span class="close-modal" onclick="cerrarModalFotoPrecarton()">&times;</span>
+    <h3 class="mb-12">📷 Identificar Imagen del Precartón</h3>
+    <div class="form-group">
+      <label for="inputNombrePersonalizadoFoto">Nombre Personalizado del Precartón</label>
+      <input type="text" id="inputNombrePersonalizadoFoto" placeholder="Ej: Precartón Paladini Noviembre Firmado">
+    </div>
+    <div style="margin-bottom:12px; text-align:center;">
+      <img id="previewFotoPrecartonImg" src="" alt="Vista previa captura" style="max-width:100%; max-height:240px; border-radius:8px; border:1px solid var(--border);">
+    </div>
+    <button type="button" class="btn-primary btn-full-sm" onclick="guardarFotoPrecartonConNombre()">💾 Guardar Imagen Identificada</button>
+  </div>
+</div>
+
+<!-- VISOR PDF A PANTALLA COMPLETA (FORMATO VERTICAL A4) -->
 <div id="modalVisorPDFPrecarton" class="modal-overlay">
   <div class="modal pdf-viewer-fullscreen">
     <div class="pdf-viewer-topbar">
       <div class="pdf-viewer-title-wrap">
-        <h3 id="tituloVisorPDF">📄 Vista Previa de PDF Guardado</h3>
+        <h3 id="tituloVisorPDF">📄 Vista Previa de PDF Guardado (Vertical A4)</h3>
         <p class="text-muted-sm margin-0" id="subtituloVisorPDF">Archivo generado con éxito</p>
       </div>
       <div class="pdf-viewer-actions-bar">
