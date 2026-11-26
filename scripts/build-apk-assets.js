@@ -18,6 +18,8 @@ const FILES_TO_COPY = [
     'css/styles.css',
     'img/portada_1.jpg',
     'img/portada_2.jpg',
+    'img/portada_03.jpg',
+    'img/portada_04.jpg',
     'js/scripts.js',
     'js/configuraciones.js',
     'js/precarton.js',

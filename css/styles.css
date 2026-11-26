@@ -372,19 +372,23 @@ textarea:focus {
 
 .fc-h-event {
     border-radius: 4px !important;
-    padding: 1px !important;
+    padding: 0 !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
     overflow: hidden;
 }
 
-/* Tarjeta interna de evento en Calendario: Empresa, Horario y Policía COMPLETOS sin truncamiento */
+/* Tarjeta interna de evento en Calendario: Empresa, Horario y Policía COMPLETOS sin truncamiento y con color contrastante (nunca azul botón) */
 .alfa-cal-event-card {
     display: flex;
     flex-direction: column;
     line-height: 1.12;
-    padding: 1px 2px;
+    padding: 2px 3px;
+    border-radius: 4px;
     color: #ffffff;
     overflow: visible;
     word-break: break-word;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 }
 
 .alfa-cal-event-card .ev-line-emp {

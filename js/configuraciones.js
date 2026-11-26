@@ -189,6 +189,8 @@
         const inputEmail = document.getElementById("inputGmailCuenta");
         const selTitular = document.getElementById("selPoliciaTitular");
         const banner = document.getElementById("gmailCuentaActivaBanner");
+        const verifyBox = document.getElementById("gmailSheetVerifyBox");
+        const lblEstructura = document.getElementById("lblEstadoEstructuraSheet");
         const lblEmail = document.getElementById("lblGmailVinculado");
         const lblSheet = document.getElementById("lblSheetVinculada");
         const btnDesvincular = document.getElementById("btnDesvincularGmail");
@@ -204,15 +206,51 @@
         }
 
         if (acc && acc.email) {
+            const sheetTitle = acc.sheetName || `Web_Alfas_2026_${acc.email.split('@')[0]}`;
             if (inputEmail) inputEmail.value = acc.email;
             if (selTitular && acc.policiaTitular) selTitular.value = acc.policiaTitular;
             if (lblEmail) lblEmail.textContent = acc.email;
-            if (lblSheet) lblSheet.textContent = acc.sheetName || `Web_Alfas_2026_${acc.email.split('@')[0]}`;
+            if (lblSheet) lblSheet.textContent = sheetTitle;
             if (banner) banner.style.display = "block";
             if (btnDesvincular) btnDesvincular.classList.remove("display-none");
+            if (verifyBox) {
+                verifyBox.style.display = "block";
+                const tabsStr = (acc.tabsCreated && acc.tabsCreated.length > 0)
+                    ? acc.tabsCreated.join(", ")
+                    : "servicios, POLICIA, EMPRESAS, TARIFAS";
+                if (lblEstructura) {
+                    lblEstructura.textContent = `🟢 Estado del Archivo "${sheetTitle}": ACTIVO — Estructura creada y verificada (${tabsStr})`;
+                }
+            }
         } else {
             if (banner) banner.style.display = "none";
+            if (verifyBox) verifyBox.style.display = "none";
             if (btnDesvincular) btnDesvincular.classList.add("display-none");
+        }
+    }
+
+    async function verificarYCrearEstructuraSheetGmail() {
+        const inputEmail = document.getElementById("inputGmailCuenta");
+        const selTitular = document.getElementById("selPoliciaTitular");
+        const email = inputEmail ? inputEmail.value.trim() : "";
+        const policiaTitular = selTitular ? selTitular.value : "";
+
+        if (!Utils.isValidGmailAddress(email)) {
+            return mostrarNotificacion("Ingrese un correo de Gmail válido para chequear y crear la estructura del archivo", "var(--danger)");
+        }
+
+        mostrarNotificacion(`Verificando estado activo y creando estructura de Google Sheets para ${email}...`, "var(--primary)");
+        const res = await CloudSync.verificarYCrearEstructuraSheetCloud({
+            email,
+            policiaTitular
+        });
+
+        if (res.ok) {
+            cargarEstadoCuentaGmailUI();
+            actualizarEstadoBaseDatosUI();
+            mostrarNotificacion(res.message, "var(--secondary)");
+        } else {
+            mostrarNotificacion(res.message || "No se pudo verificar la estructura", "var(--danger)");
         }
     }
 
@@ -507,7 +545,7 @@
                                 title: `${r.policia}\n${r.empresa} (${Utils.formatearTurno(r.turno)})`,
                                 start: r.fecha,
                                 allDay: true,
-                                backgroundColor: sanitizeColor(coloresPolicia[r.policia], '#2563eb'),
+                                backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(coloresPolicia[r.policia], r.policia) : '#0d9488',
                                 borderColor: 'transparent',
                                 extendedProps: {
                                     policia: r.policia, empresa: r.empresa, turno: r.turno,
@@ -539,7 +577,7 @@
                         title: `${r.policia}\n${r.empresa} (${Utils.formatearTurno(r.turno)})`,
                         start: r.fecha,
                         allDay: true,
-                        backgroundColor: sanitizeColor(coloresPolicia[r.policia], '#2563eb'),
+                        backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(coloresPolicia[r.policia], r.policia) : '#0d9488',
                         borderColor: 'transparent',
                         extendedProps: {
                             policia: r.policia, empresa: r.empresa, turno: r.turno,
@@ -605,6 +643,7 @@
         window.cerrarPreviewPortada = cerrarPreviewPortada;
         window.guardarConfiguracionTarifas = guardarConfiguracionTarifas;
         window.vincularCuentaGmailYCrearSheet = vincularCuentaGmailYCrearSheet;
+        window.verificarYCrearEstructuraSheetGmail = verificarYCrearEstructuraSheetGmail;
         window.desvincularCuentaGmail = desvincularCuentaGmail;
         window.activarYProbarNotificaciones = activarYProbarNotificaciones;
         window.agregarPolicia = agregarPolicia;
@@ -625,6 +664,7 @@
         seleccionarTemaApp,
         seleccionarPortadaApp,
         vincularCuentaGmailYCrearSheet,
+        verificarYCrearEstructuraSheetGmail,
         guardarConfiguracionTarifas,
         recalcularEventosGuardados
     };

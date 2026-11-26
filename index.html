@@ -34,17 +34,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=19">
-  <script src="js/utils/helpers.js?v=19"></script>
-  <script src="js/services/calculator.js?v=19"></script>
-  <script src="js/services/database.js?v=19"></script>
-  <script src="js/services/storage.js?v=19"></script>
-  <script src="js/services/cloudSync.js?v=19"></script>
-  <script src="js/services/exporter.js?v=19"></script>
-  <script src="js/services/platformPc.js?v=19"></script>
-  <script src="js/services/platformApk.js?v=19"></script>
-  <script src="js/services/notifications.js?v=19"></script>
-  <script src="js/scripts.js?v=19"></script>
+  <link rel="stylesheet" href="css/styles.css?v=20">
+  <script src="js/utils/helpers.js?v=20"></script>
+  <script src="js/services/calculator.js?v=20"></script>
+  <script src="js/services/database.js?v=20"></script>
+  <script src="js/services/storage.js?v=20"></script>
+  <script src="js/services/cloudSync.js?v=20"></script>
+  <script src="js/services/exporter.js?v=20"></script>
+  <script src="js/services/platformPc.js?v=20"></script>
+  <script src="js/services/platformApk.js?v=20"></script>
+  <script src="js/services/notifications.js?v=20"></script>
+  <script src="js/scripts.js?v=20"></script>
 </head>
 
 <body data-mobile-tab="agenda">
@@ -61,7 +61,7 @@
   </div>
 
   <div class="container">
-    <!-- IMAGEN 2: ZONA SUPERIOR FIJA (STICKY) QUE SE VISUALIZA SIEMPRE CUANDO SE HACE SCROLL -->
+    <!-- ZONA SUPERIOR FIJA (STICKY) QUE SE VISUALIZA SIEMPRE CUANDO SE HACE SCROLL -->
     <div class="sticky-top-dashboard">
       <header class="app-header-bar">
         <div class="header-titles">
@@ -80,7 +80,7 @@
         </div>
       </header>
 
-      <!-- TARJETAS KPI RESUMEN RÁPIDO (SIEMPRE VISIBLES AL HACER SCROLL) -->
+      <!-- TARJETAS KPI RESUMEN RÁPIDO -->
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-label">Turnos (Mes)</div>
@@ -106,7 +106,7 @@
       <button type="button" class="btn-primary btn-ver-servicio-alerta" id="btnPosicionarServicioAlerta">📅 Ir al Turno</button>
     </div>
 
-    <!-- 1. SECCIÓN AGENDA / CALENDARIO QUE OCUPA TODO EL LARGO DE PANTALLA -->
+    <!-- 1. SECCIÓN AGENDA / CALENDARIO CON TURNOS DE COLOR CONTRASTANTE (DISTINTO A LOS BOTONES) -->
     <div class="card calendar-card" id="zonaCapturaCalendario" data-mobile-section="agenda">
       <div class="calendar-header">
         <h3 class="margin-0">📅 Calendario de Servicios</h3>
@@ -118,58 +118,78 @@
 
       <div id="calendar"></div>
 
-      <!-- IMAGEN 1: Referencias de Empresas (Precartones) ubicadas abajo con TEXTO MÁS GRANDE Y ACCESIBLE -->
+      <!-- Referencias de Empresas (Precartones) ubicadas abajo con TEXTO MÁS GRANDE Y ACCESIBLE -->
       <div id="leyendaEmpresasCal" class="cal-company-legend-bottom"></div>
     </div>
 
-    <!-- 2. SECCIÓN GRÁFICOS: 2 GRÁFICOS DE BARRAS CON ETIQUETAS DE TOTAL Y FILTRO DE AÑO -->
+    <!-- 2. SECCIÓN GRÁFICOS: 2 GRÁFICOS DE BARRAS INDIVIDUALES PARA COMPARACIÓN (MES/AÑO vs ANUAL/MES+AÑO) -->
     <div data-mobile-section="resumen">
       <div class="dashboard-header">
-        <h2 class="dashboard-title">📊 Estadísticas por Día de la Semana</h2>
+        <h2 class="dashboard-title">📊 Comparativa de Gráficos por Día de la Semana</h2>
       </div>
 
       <div class="grid">
+        <!-- Gráfico de Barras 1: Período A (Mes + Año) -->
         <div class="card">
           <div class="chart-card-header">
             <div>
-              <h3>Turnos por Día (Mensual)</h3>
-              <span id="subtituloGraficoMes" class="badge badge-empresa">Mes Actual</span>
+              <h3>Gráfico 1: Turnos por Día (Mensual)</h3>
+              <span id="subtituloGraficoMes" class="badge badge-empresa">Mes Seleccionado</span>
             </div>
             <div class="flex-center-gap-10">
-              <label for="filtroMesDashboard" class="label-filter">Mes:</label>
-              <select id="filtroMesDashboard" title="Seleccionar Mes para Gráfico Mensual" class="select-auto" onchange="calcularResumen()"></select>
+              <label for="filtroMesDashboard" class="label-filter">Período 1:</label>
+              <select id="filtroMesDashboard" title="Seleccionar Mes y Año para Gráfico 1" class="select-auto" onchange="calcularResumen()"></select>
             </div>
           </div>
           <div class="chart-wrapper">
             <canvas id="graficoMensual"></canvas>
           </div>
           <div id="footerTotalMensual" class="chart-total-footer">
-            Total Mensual: <strong>0 turnos</strong> | Monto: <strong>$0</strong>
+            Total Gráfico 1: <strong>0 turnos</strong> | Monto: <strong>$0</strong>
           </div>
         </div>
 
+        <!-- Gráfico de Barras 2: Anual / Comparativo con filtro de Mes y Año (permite comparar ej. Enero 2026 vs Enero 2025 o Año completo) -->
         <div class="card">
           <div class="chart-card-header">
             <div>
-              <h3>Acumulado Anual Apilado</h3>
-              <span id="subtituloGraficoAnual" class="badge badge-b">Año Vigente</span>
+              <h3>Gráfico 2: Anual / Comparativo</h3>
+              <span id="subtituloGraficoAnual" class="badge badge-b">Año / Mes Comparado</span>
             </div>
             <div class="flex-center-gap-10">
-              <label for="filtroAnioDashboard" class="label-filter">Año:</label>
-              <select id="filtroAnioDashboard" title="Seleccionar Año para visualizar años anteriores o actual" class="select-auto" onchange="calcularResumen()"></select>
+              <select id="filtroMesAnualDashboard" title="Seleccionar Mes específico o Todos los meses del Año en Gráfico 2" class="select-auto" style="min-width:130px;" onchange="calcularResumen()">
+                <option value="">Todos los meses (Anual)</option>
+                <option value="01">Enero</option>
+                <option value="02">Febrero</option>
+                <option value="03">Marzo</option>
+                <option value="04">Abril</option>
+                <option value="05">Mayo</option>
+                <option value="06">Junio</option>
+                <option value="07">Julio</option>
+                <option value="08">Agosto</option>
+                <option value="09">Septiembre</option>
+                <option value="10">Octubre</option>
+                <option value="11">Noviembre</option>
+                <option value="12">Diciembre</option>
+              </select>
+              <select id="filtroAnioDashboard" title="Seleccionar Año para Gráfico 2 y Tabla de Resumen" class="select-auto" style="min-width:95px;" onchange="calcularResumen()"></select>
             </div>
           </div>
           <div class="chart-wrapper">
             <canvas id="graficoAnual"></canvas>
           </div>
           <div id="footerTotalAnual" class="chart-total-footer">
-            Total Anual Vigente: <strong>0 turnos</strong> | Monto: <strong>$0</strong>
+            Total Gráfico 2: <strong>0 turnos</strong> | Monto: <strong>$0</strong>
           </div>
         </div>
       </div>
 
+      <!-- IMAGEN 2: Tabla de Resumen por Policía conectada directamente a lo que filtra el Gráfico Anual / Comparativo -->
       <div class="card">
-        <h3>Resumen por Policía (Mes Seleccionado)</h3>
+        <div class="chart-card-header">
+          <h3 id="tituloResumenPoliciaAnual">Resumen por Policía (Filtro Anual / Gráfico 2)</h3>
+          <span id="badgeResumenPoliciaPeriodo" class="badge badge-b">Año Vigente</span>
+        </div>
         <div class="table-container">
           <table class="compact-history-table">
             <thead>

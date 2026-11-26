@@ -24,11 +24,25 @@ function getTargetSpreadsheet(ownerEmail) {
   return SpreadsheetApp.getActiveSpreadsheet();
 }
 
+const REQUIRED_TABS_HEADERS = {
+  'servicios': ['Fecha', 'Empresa', 'Policia', 'Turno', 'Categoria', 'Hora', 'Costo'],
+  'POLICIA': ['Nombre Completo', 'Jerarquía'],
+  'EMPRESAS': ['Nombre', 'Turnos', 'Cat.Sem', 'Cat.Fin', 'N°Serv', 'Tel', 'Dom', 'Barrio', 'Referente', 'Tel.Ref', 'Pol.Enc', 'Tel.PolEnc'],
+  'TARIFAS': ['Categoría', 'Valor Hora']
+};
+
+/**
+ * Crea las 4 solapas obligatorias e inicializa su fila de cabeceras (estructura completa)
+ * aunque la base de datos o la hoja estén completamente vacías.
+ */
 function ensureTabs(ss) {
-  const requiredTabs = ['servicios', 'POLICIA', 'EMPRESAS', 'TARIFAS'];
-  requiredTabs.forEach(function(tabName) {
-    if (!ss.getSheetByName(tabName)) {
-      ss.insertSheet(tabName);
+  Object.keys(REQUIRED_TABS_HEADERS).forEach(function(tabName) {
+    let sheet = ss.getSheetByName(tabName);
+    if (!sheet) {
+      sheet = ss.insertSheet(tabName);
+    }
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(REQUIRED_TABS_HEADERS[tabName]);
     }
   });
 }
@@ -45,9 +59,9 @@ function doGet(e) {
   const action = payload.action || params.action || '';
   const ownerEmail = payload.ownerEmail || payload.email || params.ownerEmail || '';
 
-  // 1. CREAR Y VINCULAR ARCHIVO GOOGLE SHEETS EN LA CUENTA GMAIL ACTIVA
-  if (action === 'createOrBindGmailSheet') {
-    const email = String(payload.email || '').trim().toLowerCase();
+  // 1. CREAR, VERIFICAR ESTADO ACTIVO E INICIALIZAR ESTRUCTURA VACÍA EN GOOGLE SHEETS PARA LA CUENTA GMAIL
+  if (action === 'createOrBindGmailSheet' || action === 'verifyOrInitEmptySheetStructure') {
+    const email = String(payload.email || ownerEmail || '').trim().toLowerCase();
     const sheetName = payload.sheetName || ('Web_Alfas_2026_' + email.split('@')[0]);
     const props = PropertiesService.getScriptProperties();
     let sheetId = props.getProperty('SHEET_ID_' + email);
@@ -60,14 +74,25 @@ function doGet(e) {
       ss = SpreadsheetApp.create(sheetName);
       sheetId = ss.getId();
       props.setProperty('SHEET_ID_' + email, sheetId);
-      ensureTabs(ss);
       if (email) {
         try { ss.addEditor(email); } catch (shareErr) {}
       }
     }
 
+    // Garantizar que las 4 solapas y sus cabeceras existan siempre aunque esté vacío
+    ensureTabs(ss);
+
     return ContentService
-      .createTextOutput(JSON.stringify({ ok: true, sheetId: sheetId, sheetUrl: ss.getUrl(), email: email }))
+      .createTextOutput(JSON.stringify({
+        ok: true,
+        isActive: true,
+        structureVerified: true,
+        sheetId: sheetId,
+        sheetName: ss.getName(),
+        sheetUrl: ss.getUrl(),
+        email: email,
+        tabsCreated: Object.keys(REQUIRED_TABS_HEADERS)
+      }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 

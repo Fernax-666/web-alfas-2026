@@ -11,15 +11,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/styles.css?v=19">
-  <script src="js/utils/helpers.js?v=19"></script>
-  <script src="js/services/calculator.js?v=19"></script>
-  <script src="js/services/database.js?v=19"></script>
-  <script src="js/services/storage.js?v=19"></script>
-  <script src="js/services/cloudSync.js?v=19"></script>
-  <script src="js/services/exporter.js?v=19"></script>
-  <script src="js/services/notifications.js?v=19"></script>
-  <script src="js/configuraciones.js?v=19"></script>
+  <link rel="stylesheet" href="css/styles.css?v=20">
+  <script src="js/utils/helpers.js?v=20"></script>
+  <script src="js/services/calculator.js?v=20"></script>
+  <script src="js/services/database.js?v=20"></script>
+  <script src="js/services/storage.js?v=20"></script>
+  <script src="js/services/cloudSync.js?v=20"></script>
+  <script src="js/services/exporter.js?v=20"></script>
+  <script src="js/services/notifications.js?v=20"></script>
+  <script src="js/configuraciones.js?v=20"></script>
 </head>
 
 <body>
@@ -72,15 +72,29 @@
             <div class="splash-option-card" data-splash-id="portada_1" onclick="seleccionarPortadaApp('portada_1')">
               <img src="img/portada_1.jpg" alt="Portada 1 Realista Institucional" class="splash-thumb-img">
               <div class="splash-option-info">
-                <strong>Portada 1</strong>
+                <strong>Portada 01</strong>
                 <span>Realista Institucional</span>
               </div>
             </div>
             <div class="splash-option-card" data-splash-id="portada_2" onclick="seleccionarPortadaApp('portada_2')">
               <img src="img/portada_2.jpg" alt="Portada 2 Ilustrada Diurna" class="splash-thumb-img">
               <div class="splash-option-info">
-                <strong>Portada 2</strong>
+                <strong>Portada 02</strong>
                 <span>Ilustrada Diurna</span>
+              </div>
+            </div>
+            <div class="splash-option-card" data-splash-id="portada_03" onclick="seleccionarPortadaApp('portada_03')">
+              <img src="img/portada_03.jpg" alt="Portada 03 Digital Cyber Azul" class="splash-thumb-img">
+              <div class="splash-option-info">
+                <strong>Portada 03</strong>
+                <span>Digital Cyber Azul</span>
+              </div>
+            </div>
+            <div class="splash-option-card" data-splash-id="portada_04" onclick="seleccionarPortadaApp('portada_04')">
+              <img src="img/portada_04.jpg" alt="Portada 04 Táctica Carbono Dorado" class="splash-thumb-img">
+              <div class="splash-option-info">
+                <strong>Portada 04</strong>
+                <span>Táctica Carbono Dorado</span>
               </div>
             </div>
           </div>
@@ -131,6 +145,10 @@
             ☁️ Cuenta Gmail Activa: <strong id="lblGmailVinculado"></strong> — Planilla en Nube: <b id="lblSheetVinculada"></b>
           </div>
 
+          <div id="gmailSheetVerifyBox" class="banner-edit mb-10" style="display:none; background:#f0fdf4; border-color:#86efac; color:#166534;">
+            <span id="lblEstadoEstructuraSheet">🟢 Estado del Archivo Google Sheets: ACTIVO — Estructura verificada (Solapas: servicios, POLICIA, EMPRESAS, TARIFAS)</span>
+          </div>
+
           <div class="grid-2col">
             <div class="form-group mb-8">
               <label for="inputGmailCuenta">Correo Electrónico de Gmail</label>
@@ -144,6 +162,7 @@
 
           <div class="flex-gap-10">
             <button type="button" class="btn-primary flex-1" onclick="vincularCuentaGmailYCrearSheet()">🔗 Vincular Gmail y Crear Google Sheets en la Nube</button>
+            <button type="button" class="btn-secondary flex-1" onclick="verificarYCrearEstructuraSheetGmail()">✅ Chequear Archivo Activo y Crear Estructura (Aunque Esté Vacío)</button>
             <button type="button" id="btnDesvincularGmail" class="btn-outline display-none" onclick="desvincularCuentaGmail()">Desvincular</button>
           </div>
         </div>

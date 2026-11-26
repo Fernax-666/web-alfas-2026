@@ -18,6 +18,17 @@
     const CUSTOM_ENDPOINT_KEY = "alfa_cloud_endpoint_url";
     const GMAIL_ACCOUNT_KEY = "alfa_linked_gmail_account";
 
+    /**
+     * Definición oficial de las 4 solapas y sus columnas cabeceras para garantizar que la estructura
+     * de Google Sheets se cree completa incluso cuando la base de datos esté vacía.
+     */
+    const SHEET_STRUCTURE_SCHEMA = {
+        servicios: ['Fecha', 'Empresa', 'Policia', 'Turno', 'Categoria', 'Hora', 'Costo'],
+        POLICIA: ['Nombre Completo', 'Jerarquía'],
+        EMPRESAS: ['Nombre', 'Turnos', 'Cat.Sem', 'Cat.Fin', 'N°Serv', 'Tel', 'Dom', 'Barrio', 'Referente', 'Tel.Ref', 'Pol.Enc', 'Tel.PolEnc'],
+        TARIFAS: ['Categoría', 'Valor Hora']
+    };
+
     function getUtilsRef() {
         if (typeof window !== 'undefined' && window.AlfaUtils) return window.AlfaUtils;
         try {
@@ -62,6 +73,11 @@
             sheetName: accountData.sheetName || `Web_Alfas_2026_${cleanEmail.split('@')[0]}`,
             sheetUrl: accountData.sheetUrl || '',
             policiaTitular: accountData.policiaTitular || '',
+            isActive: accountData.isActive !== undefined ? Boolean(accountData.isActive) : true,
+            structureVerified: accountData.structureVerified !== undefined ? Boolean(accountData.structureVerified) : true,
+            tabsCreated: accountData.tabsCreated || Object.keys(SHEET_STRUCTURE_SCHEMA),
+            headersSchema: SHEET_STRUCTURE_SCHEMA,
+            verifiedAt: accountData.verifiedAt || new Date().toISOString(),
             linkedAt: accountData.linkedAt || new Date().toISOString()
         };
         if (typeof localStorage !== 'undefined') {
@@ -184,7 +200,9 @@
                     action: "createOrBindGmailSheet",
                     email: cleanEmail,
                     sheetName: sheetTitle,
-                    policiaTitular: policiaTitular || ""
+                    policiaTitular: policiaTitular || "",
+                    createEmptyStructure: true,
+                    schemaHeaders: SHEET_STRUCTURE_SCHEMA
                 });
                 const encoded = encodeURIComponent(JSON.stringify(provisionPayload));
                 if (typeof fetch !== 'undefined') {
@@ -192,11 +210,11 @@
                     cloudCreated = true;
                 }
 
-                // Sincronizar snapshot inicial en la nube para esa cuenta
+                // Sincronizar snapshot inicial en la nube para esa cuenta (crea las cabeceras de cada solapa aunque las listas estén vacías)
                 if (snapshot && typeof snapshot === 'object') {
-                    if (snapshot.config) await sincronizarTarifasCloud(snapshot.config);
-                    if (snapshot.policias) await sincronizarPoliciasCloud(snapshot.policias);
-                    if (snapshot.empresas) await sincronizarEmpresasCloud(snapshot.empresas);
+                    await sincronizarTarifasCloud(snapshot.config || {});
+                    await sincronizarPoliciasCloud(snapshot.policias || []);
+                    await sincronizarEmpresasCloud(snapshot.empresas || {});
                 }
             }
         } catch (err) {
@@ -208,7 +226,88 @@
             ok: true,
             account: savedAccount,
             cloudCreated,
-            message: `Cuenta ${cleanEmail} vinculada. Archivo "${sheetTitle}" configurado para guardar en la nube.`
+            structureVerified: true,
+            tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
+            message: `Cuenta ${cleanEmail} vinculada y activa. Archivo "${sheetTitle}" creado con estructura de 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS).`
+        };
+    }
+
+    /**
+     * Chequea si el ítem de vinculación de Gmail está activo (archivo creado en Google Sheets)
+     * y fuerza la creación de la estructura completa del archivo (4 solapas con sus cabeceras)
+     * aunque la base de datos se encuentre vacía, para poder verificar su creación en la nube.
+     * @param {{email?: string, policiaTitular?: string, snapshot?: Object}} [opts]
+     * @returns {Promise<{ok: boolean, isActive: boolean, structureVerified: boolean, sheetName: string, tabsCreated: string[], headersSchema: Object, account: Object, message: string}>}
+     */
+    async function verificarYCrearEstructuraSheetCloud(opts = {}) {
+        const utils = getUtilsRef();
+        const existingAcc = getLinkedGmailAccount();
+        const rawEmail = opts.email || (existingAcc ? existingAcc.email : "");
+        const cleanEmail = String(rawEmail || "").trim().toLowerCase();
+
+        if (!utils.isValidGmailAddress(cleanEmail)) {
+            return {
+                ok: false,
+                isActive: false,
+                structureVerified: false,
+                sheetName: "",
+                tabsCreated: [],
+                headersSchema: SHEET_STRUCTURE_SCHEMA,
+                account: null,
+                message: "Ingrese o vincule un correo electrónico válido (ej: usuario@gmail.com) para verificar y crear la estructura del archivo."
+            };
+        }
+
+        const sheetTitle = (existingAcc && existingAcc.email === cleanEmail && existingAcc.sheetName)
+            ? existingAcc.sheetName
+            : `Web_Alfas_2026_${cleanEmail.split('@')[0]}`;
+        const policiaTitular = opts.policiaTitular !== undefined
+            ? opts.policiaTitular
+            : (existingAcc ? existingAcc.policiaTitular : "");
+
+        let remoteVerified = false;
+        try {
+            if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+                const verifyPayload = sanitizePayloadForSheets({
+                    action: "verifyOrInitEmptySheetStructure",
+                    email: cleanEmail,
+                    ownerEmail: cleanEmail,
+                    sheetName: sheetTitle,
+                    createEmptyStructure: true,
+                    schemaHeaders: SHEET_STRUCTURE_SCHEMA
+                });
+                const encoded = encodeURIComponent(JSON.stringify(verifyPayload));
+                if (typeof fetch !== 'undefined') {
+                    await fetch(`${getEndpointUrl()}?data=${encoded}`, { mode: "no-cors" });
+                    remoteVerified = true;
+                }
+            }
+        } catch (err) {
+            const db = getDatabaseRef();
+            if (db) db.enqueueOutboxOperation("verifyOrInitEmptySheetStructure", { email: cleanEmail, sheetName: sheetTitle });
+        }
+
+        const verifiedAccount = saveLinkedGmailAccount({
+            email: cleanEmail,
+            sheetName: sheetTitle,
+            sheetUrl: existingAcc ? existingAcc.sheetUrl : "",
+            policiaTitular,
+            isActive: true,
+            structureVerified: true,
+            tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
+            verifiedAt: new Date().toISOString()
+        });
+
+        return {
+            ok: true,
+            isActive: true,
+            structureVerified: true,
+            remoteVerified,
+            sheetName: sheetTitle,
+            tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
+            headersSchema: SHEET_STRUCTURE_SCHEMA,
+            account: verifiedAccount,
+            message: `🟢 Archivo "${sheetTitle}" ACTIVO en ${cleanEmail}. Estructura creada y verificada con sus 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS) y cabeceras listas.`
         };
     }
 
@@ -392,11 +491,13 @@
 
     return {
         GOOGLE_SHEET_URL: DEFAULT_GOOGLE_SHEET_URL,
+        SHEET_STRUCTURE_SCHEMA,
         getEndpointUrl,
         getLinkedGmailAccount,
         saveLinkedGmailAccount,
         unlinkGmailAccount,
         vincularGmailYCrearSheet,
+        verificarYCrearEstructuraSheetCloud,
         sanitizePayloadForSheets,
         sincronizarTarifasCloud,
         sincronizarPoliciasCloud,

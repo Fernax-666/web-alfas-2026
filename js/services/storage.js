@@ -192,13 +192,16 @@
         });
 
         let coloresPolicia = safeParse(storageObj, "colores_policia", {});
+        // Paleta contrastante para turnos en el calendario: excluye el azul #2563eb de los botones (Imagen 1)
         const fixedTones = [
-            '#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
-            '#ec4899', '#06b6d4', '#f97316', '#0284c7', '#4f46e5',
-            '#0d9488', '#d97706', '#dc2626', '#7c3aed', '#db2777'
+            '#0d9488', '#7c3aed', '#d97706', '#db2777', '#059669',
+            '#dc2626', '#9333ea', '#ea580c', '#0891b2', '#4f46e5',
+            '#be123c', '#15803d', '#b45309', '#6d28d9', '#0f766e'
         ];
+        const forbiddenButtonBlues = ['#2563eb', '#1e40af', '#3b82f6', '#1d4ed8'];
         policias.forEach((p, idx) => {
-            if (!coloresPolicia[p.nombre]) {
+            const currentCol = String(coloresPolicia[p.nombre] || "").toLowerCase();
+            if (!currentCol || forbiddenButtonBlues.includes(currentCol)) {
                 coloresPolicia[p.nombre] = fixedTones[idx % fixedTones.length];
             }
         });

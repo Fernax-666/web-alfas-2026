@@ -273,7 +273,7 @@ const defaultServiciosRaw = [
 const defaultEventos = defaultServiciosRaw.map(s => ({
     title: `${s.policia}\n${s.empresa} (${formatearTurno(s.turno)})`,
     start: s.fecha,
-    backgroundColor: coloresPolicia[s.policia] || '#2563eb',
+    backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(coloresPolicia[s.policia], s.policia) : '#0d9488',
     borderColor: 'transparent',
     extendedProps: {
         policia: s.policia, empresa: s.empresa, turno: s.turno,
@@ -311,7 +311,11 @@ function extractStructuredEventInfo(eventObj) {
     const policiaLargo = jerarquia ? `${jerarquia} ${policia}` : policia;
 
     const empresaColor = Utils.getEmpresaColor ? Utils.getEmpresaColor(empresa) : '#16a34a';
-    const policiaColor = sanitizeColor((eventObj && eventObj.backgroundColor) || coloresPolicia[policia], '#2563eb');
+    // Imagen 1: Usar siempre un color contrastante distinto del azul (#2563eb) de los botones de la barra del calendario
+    const rawPolColor = (eventObj && eventObj.backgroundColor) || coloresPolicia[policia];
+    const policiaColor = Utils.ensureDistinctEventColor
+        ? Utils.ensureDistinctEventColor(rawPolColor, policia || empresa)
+        : sanitizeColor(rawPolColor, '#0d9488');
 
     return {
         empresa: empresa || "S/E",
@@ -365,7 +369,8 @@ function initCalendar() {
             const isMobile = window.innerWidth <= 768;
             const wrapper = document.createElement('div');
             wrapper.className = 'alfa-cal-event-card';
-            wrapper.style.borderLeft = `3px solid ${info.empresaColor}`;
+            wrapper.style.backgroundColor = info.policiaColor;
+            wrapper.style.borderLeft = `4px solid ${info.empresaColor}`;
             wrapper.innerHTML = `
                 <div class="ev-line-emp">${escapeHTML(info.empresa)}</div>
                 <div class="ev-line-time">${escapeHTML(isMobile ? info.horarioCorto : info.horarioLargo)}</div>
@@ -491,7 +496,7 @@ function guardarEvento() {
         title: `${p}\n${e} (${formatearTurno(t)})`,
         start: window.fechaSeleccionada,
         allDay: true,
-        backgroundColor: sanitizeColor(coloresPolicia[p], '#2563eb'),
+        backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(coloresPolicia[p], p) : '#0d9488',
         borderColor: 'transparent',
         extendedProps: {
             policia: p, empresa: e, turno: t,
@@ -543,7 +548,7 @@ function guardarEventosLocal() {
     let evs = calendar.getEvents().map(e => ({
         title: e.title,
         start: e.startStr,
-        backgroundColor: sanitizeColor(e.backgroundColor, '#2563eb'),
+        backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(e.backgroundColor, (e.extendedProps && e.extendedProps.policia) || '') : '#0d9488',
         extendedProps: e.extendedProps
     }));
     Storage.saveEventos(evs);
@@ -767,7 +772,7 @@ function limpiarFiltros() {
     aplicarPeriodoRapidoHistorial('todos');
 }
 
-function computeWeekdayBarStats(eventsList, targetYM, targetYear) {
+function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMonth = "") {
     const mensualPorDia = [0, 0, 0, 0, 0, 0, 0];
     let totalTurnosMes = 0;
     let totalCostoMes = 0;
@@ -777,6 +782,11 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear) {
     let totalCostoAnual = 0;
 
     const porPoliciaMes = {};
+    const porPoliciaAnual = {};
+
+    const filterAnualMonthIdx = (targetAnualMonth && /^\d{2}$/.test(String(targetAnualMonth)))
+        ? parseInt(String(targetAnualMonth), 10) - 1
+        : -1;
 
     (Array.isArray(eventsList) ? eventsList : []).forEach(e => {
         const dObj = (e.start instanceof Date)
@@ -794,12 +804,18 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear) {
         const costVal = Number.isFinite(rawCost) ? rawCost : 0;
         const polNombre = String(p.policia || p.Policia || "Desconocido");
 
-        if (yr === targetYear) {
+        // Gráfico 2 (Anual / Comparativo con soporte de filtro por Mes y Año) y Tabla de Resumen por Policía (Imagen 2)
+        if (yr === targetYear && (filterAnualMonthIdx === -1 || monthIdx === filterAnualMonthIdx)) {
             anualPorMesYDia[monthIdx][dayOfWeek]++;
             totalTurnosAnual++;
             totalCostoAnual += costVal;
+
+            if (!porPoliciaAnual[polNombre]) porPoliciaAnual[polNombre] = { turnos: 0, total: 0 };
+            porPoliciaAnual[polNombre].turnos++;
+            porPoliciaAnual[polNombre].total += costVal;
         }
 
+        // Gráfico 1 (Mensual)
         if (!targetYM || ym === targetYM) {
             mensualPorDia[dayOfWeek]++;
             totalTurnosMes++;
@@ -818,13 +834,15 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear) {
         anualPorMesYDia,
         totalTurnosAnual,
         totalCostoAnual,
-        porPoliciaMes
+        porPoliciaMes,
+        porPoliciaAnual
     };
 }
 
 function calcularResumen() {
     if (!calendar) return;
     const mesFiltroElem = document.getElementById("filtroMesDashboard");
+    const mesAnualFiltroElem = document.getElementById("filtroMesAnualDashboard");
     const anioFiltroElem = document.getElementById("filtroAnioDashboard");
     const refDate = obtenerFechaReferenciaActiva();
     let mesFiltro = (mesFiltroElem && mesFiltroElem.value) ? mesFiltroElem.value : getLocalYM(refDate);
@@ -846,7 +864,9 @@ function calcularResumen() {
         if (anioFiltroElem) anioFiltroElem.value = String(activeYear);
     }
 
-    const stats = computeWeekdayBarStats(allEvents, mesFiltro, activeYear);
+    const mesAnualVal = (mesAnualFiltroElem && mesAnualFiltroElem.value) ? mesAnualFiltroElem.value : "";
+
+    const stats = computeWeekdayBarStats(allEvents, mesFiltro, activeYear, mesAnualVal);
 
     const statTurnos = document.getElementById("stat-turnos");
     const statCosto = document.getElementById("stat-costo");
@@ -857,30 +877,46 @@ function calcularResumen() {
     if (subMes) subMes.textContent = mesFiltro || "Todos los meses";
     const footerMes = document.getElementById("footerTotalMensual");
     if (footerMes) {
-        footerMes.innerHTML = `Total Mensual: <strong>${escapeHTML(stats.totalTurnosMes)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoMes.toLocaleString('es-AR'))}</strong>`;
+        footerMes.innerHTML = `Total Gráfico 1 (${escapeHTML(mesFiltro || 'Todos')}): <strong>${escapeHTML(stats.totalTurnosMes)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoMes.toLocaleString('es-AR'))}</strong>`;
     }
 
+    const etiquetaPeriodoAnual = mesAnualVal
+        ? `${MESES_CORTOS[parseInt(mesAnualVal, 10) - 1] || mesAnualVal} ${activeYear}`
+        : `Año ${activeYear} (Completo)`;
+
     const subAnual = document.getElementById("subtituloGraficoAnual");
-    if (subAnual) subAnual.textContent = `Año ${activeYear}`;
+    if (subAnual) subAnual.textContent = etiquetaPeriodoAnual;
     const footerAnual = document.getElementById("footerTotalAnual");
     if (footerAnual) {
-        footerAnual.innerHTML = `Total Anual (${escapeHTML(activeYear)}): <strong>${escapeHTML(stats.totalTurnosAnual)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoAnual.toLocaleString('es-AR'))}</strong>`;
+        footerAnual.innerHTML = `Total Gráfico 2 (${escapeHTML(etiquetaPeriodoAnual)}): <strong>${escapeHTML(stats.totalTurnosAnual)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoAnual.toLocaleString('es-AR'))}</strong>`;
     }
+
+    // IMAGEN 2: La tabla Resumen por Policía muestra exactamente lo que filtra el Gráfico Anual / Comparativo (porPoliciaAnual)
+    const badgeResumenPeriodo = document.getElementById("badgeResumenPoliciaPeriodo");
+    if (badgeResumenPeriodo) badgeResumenPeriodo.textContent = etiquetaPeriodoAnual;
 
     const tBody = document.getElementById("totalesBody");
     if (tBody) {
         tBody.innerHTML = "";
-        for (let name in stats.porPoliciaMes) {
-            let row = stats.porPoliciaMes[name];
-            const jer = obtenerJerarquiaPolicia(name);
-            const fullLabel = jer ? `${jer} ${name}` : name;
-            let tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>${escapeHTML(fullLabel)}</td>
-                <td>${escapeHTML(row.turnos)}</td>
-                <td class="font-weight-600">$${escapeHTML(row.total.toLocaleString('es-AR'))}</td>
-            `;
-            tBody.appendChild(tr);
+        const sourceMap = stats.porPoliciaAnual || {};
+        const keys = Object.keys(sourceMap);
+        if (keys.length === 0) {
+            let trEmpty = document.createElement("tr");
+            trEmpty.innerHTML = `<td colspan="3" style="text-align:center; color:var(--text-muted);">Sin servicios registrados en ${escapeHTML(etiquetaPeriodoAnual)}</td>`;
+            tBody.appendChild(trEmpty);
+        } else {
+            for (let name of keys) {
+                let row = sourceMap[name];
+                const jer = obtenerJerarquiaPolicia(name);
+                const fullLabel = jer ? `${jer} ${name}` : name;
+                let tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td>${escapeHTML(fullLabel)}</td>
+                    <td>${escapeHTML(row.turnos)}</td>
+                    <td class="font-weight-600">$${escapeHTML(row.total.toLocaleString('es-AR'))}</td>
+                `;
+                tBody.appendChild(tr);
+            }
         }
     }
 
@@ -1169,7 +1205,7 @@ function procesarYMostrarServiciosCloud(serviciosList) {
             title: `${r.policia}\n${r.empresa} (${formatearTurno(r.turno)})`,
             start: r.fecha,
             allDay: true,
-            backgroundColor: sanitizeColor(coloresPolicia[r.policia], '#2563eb'),
+            backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(coloresPolicia[r.policia], r.policia) : '#0d9488',
             borderColor: 'transparent',
             extendedProps: {
                 policia: r.policia,

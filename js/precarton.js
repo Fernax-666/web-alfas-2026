@@ -40,6 +40,8 @@
     let _ultimoPdfBlobUrl = null;
     let _diasSeleccionadosSet = new Set(); // Conjunto de días seleccionados para filtrar y exportar a PDF (vacío = todos)
     let _fotoTemporalDataUrl = "";
+    let _modoFiltroFotosPrecarton = "mes-empresa";
+    let _savedScrollYBeforeFullscreen = 0;
 
     function safeParse(key, fallback) {
         return Utils.safeParse(typeof localStorage !== 'undefined' ? localStorage : {}, key, fallback);
@@ -355,6 +357,7 @@
         renderizarSelectorDiasMultiples(diasEnMes);
         aplicarFiltroDiasSeleccionados();
         actualizarBarraPrecartonesMes();
+        renderizarGaleriaFotosPrecarton();
     }
 
     function onCambioSelect(sel) {
@@ -398,9 +401,14 @@
             const emp = document.getElementById("selEmpresa") ? document.getElementById("selEmpresa").value : "Precarton";
             const mesIdx = document.getElementById("selMes") ? parseInt(document.getElementById("selMes").value, 10) : 0;
             const anio = document.getElementById("selAnio") ? document.getElementById("selAnio").value : "2026";
+            const mesNombre = MESES[mesIdx] || "";
             const inputNombre = document.getElementById("inputNombrePersonalizadoFoto");
             if (inputNombre) {
-                inputNombre.value = `Precartón ${emp} - ${MESES[mesIdx] || ''} ${anio}`;
+                inputNombre.value = `Precartón ${emp} - ${mesNombre} ${anio}`;
+            }
+            const metaInfo = document.getElementById("metaIdentificacionFotoPrecarton");
+            if (metaInfo) {
+                metaInfo.textContent = `📌 Empresa: ${emp}  |  Mes: ${mesNombre}  |  Año: ${anio}`;
             }
 
             const modal = document.getElementById("modalNombreFotoPrecarton");
@@ -423,18 +431,26 @@
             return mostrarNotificacion("Seleccione o capture una imagen primero", "var(--danger)");
         }
 
+        const emp = document.getElementById("selEmpresa") ? document.getElementById("selEmpresa").value : "";
+        const mesIdx = document.getElementById("selMes") ? parseInt(document.getElementById("selMes").value, 10) : new Date().getMonth();
+        const anioVal = document.getElementById("selAnio") ? parseInt(document.getElementById("selAnio").value, 10) : new Date().getFullYear();
+        const mesNombre = MESES[mesIdx] || "";
+
         const fotosList = safeParse(FOTOS_PRECARTON_KEY, []);
         const nuevoItem = {
             id: `foto_${Date.now()}`,
             nombre: nombrePersonalizado,
-            empresa: document.getElementById("selEmpresa") ? document.getElementById("selEmpresa").value : "",
+            empresa: emp,
+            mes: mesIdx,
+            mesNombre: mesNombre,
+            anio: anioVal,
             fechaCaptura: new Date().toLocaleString('es-AR'),
             dataUrl: _fotoTemporalDataUrl
         };
         fotosList.unshift(nuevoItem);
         if (typeof localStorage !== 'undefined') {
             try {
-                localStorage.setItem(FOTOS_PRECARTON_KEY, JSON.stringify(fotosList.slice(0, 15)));
+                localStorage.setItem(FOTOS_PRECARTON_KEY, JSON.stringify(fotosList.slice(0, 20)));
             } catch (_) {}
         }
 
@@ -447,7 +463,7 @@
 
         cerrarModalFotoPrecarton();
         renderizarGaleriaFotosPrecarton();
-        mostrarNotificacion(`📸 Imagen "${nombrePersonalizado}" guardada con éxito`, "var(--secondary)");
+        mostrarNotificacion(`📸 Imagen "${nombrePersonalizado}" (${emp} - ${mesNombre} ${anioVal}) guardada`, "var(--secondary)");
     }
 
     function eliminarFotoPrecartonGuardada(fotoId) {
@@ -458,29 +474,140 @@
         renderizarGaleriaFotosPrecarton();
     }
 
+    function cambiarModoFiltroFotosPrecarton(nuevoModo) {
+        _modoFiltroFotosPrecarton = nuevoModo || "mes-empresa";
+        renderizarGaleriaFotosPrecarton();
+    }
+
+    /**
+     * Filtra la lista de fotos guardadas según el Mes, Año, Empresa y modo de filtro seleccionado.
+     * @param {Array} fotosList 
+     * @param {{empresa?: string, mes?: number, anio?: number, modo?: string}} filterOpts 
+     * @returns {Array}
+     */
+    function filterSavedPrecartonPhotos(fotosList, { empresa = "", mes = -1, anio = -1, modo = "mes-empresa" } = {}) {
+        if (!Array.isArray(fotosList)) return [];
+        if (modo === "todas") return fotosList;
+
+        return fotosList.filter(f => {
+            const fMes = (f.mes !== undefined && f.mes !== null) ? Number(f.mes) : -1;
+            const fAnio = (f.anio !== undefined && f.anio !== null) ? Number(f.anio) : -1;
+            const fEmp = String(f.empresa || "").trim();
+
+            const matchMes = (mes === -1 || fMes === -1)
+                ? (mes === -1 || String(f.nombre || "").toLowerCase().includes((MESES[mes] || "").toLowerCase()))
+                : (fMes === Number(mes) && (anio === -1 || fAnio === -1 || fAnio === Number(anio)));
+            const matchEmp = !empresa || !fEmp || fEmp === empresa;
+
+            if (modo === "mes") return matchMes;
+            if (modo === "empresa") return matchEmp;
+            return matchMes && matchEmp;
+        });
+    }
+
+    /**
+     * Abre la imagen del Precartón seleccionada en un visor a Pantalla Completa dentro de la aplicación
+     * guardando la posición actual de scroll para volver exactamente al mismo lugar al cerrar.
+     * @param {string} fotoId 
+     */
+    function abrirVisorImagenPrecartonCompleta(fotoId) {
+        const fotosList = safeParse(FOTOS_PRECARTON_KEY, []);
+        const found = fotosList.find(f => f.id === fotoId) || fotosList[0];
+        if (!found) return;
+
+        if (typeof window !== 'undefined') {
+            _savedScrollYBeforeFullscreen = window.scrollY || window.pageYOffset || 0;
+        }
+
+        const modal = document.getElementById("modalVisorImagenPrecarton");
+        const imgEl = document.getElementById("imgVisorFullscreenPrecarton");
+        const titEl = document.getElementById("tituloVisorImagenPrecarton");
+        const subEl = document.getElementById("subtituloVisorImagenPrecarton");
+        if (!modal || !imgEl) return;
+
+        imgEl.src = found.dataUrl;
+        if (titEl) titEl.textContent = `📸 ${found.nombre}`;
+        if (subEl) {
+            const periodoTxt = (found.mesNombre && found.anio) ? `${found.mesNombre} ${found.anio}` : found.fechaCaptura;
+            subEl.textContent = `${found.empresa || 'Precartón'} • ${periodoTxt}`;
+        }
+        modal.style.display = "flex";
+    }
+
+    /**
+     * Cierra el visor de imagen en pantalla completa y devuelve al usuario exactamente al mismo lugar.
+     */
+    function cerrarVisorImagenPrecartonCompleta() {
+        const modal = document.getElementById("modalVisorImagenPrecarton");
+        if (modal) modal.style.display = "none";
+        if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+            window.scrollTo({ top: _savedScrollYBeforeFullscreen, behavior: 'instant' });
+        }
+    }
+
     function renderizarGaleriaFotosPrecarton() {
         const card = document.getElementById("cardGaleriaFotosPrecarton");
         const cont = document.getElementById("contenedorFotosPrecarton");
+        const subFiltro = document.getElementById("subtituloFiltroFotosPrecarton");
         if (!card || !cont) return;
 
-        const fotosList = safeParse(FOTOS_PRECARTON_KEY, []);
-        if (!Array.isArray(fotosList) || fotosList.length === 0) {
+        const todasLasFotos = safeParse(FOTOS_PRECARTON_KEY, []);
+        if (!Array.isArray(todasLasFotos) || todasLasFotos.length === 0) {
             card.classList.add("display-none");
             cont.innerHTML = "";
             return;
         }
 
         card.classList.remove("display-none");
-        cont.innerHTML = fotosList.map(f => `
+
+        const empActual = document.getElementById("selEmpresa") ? document.getElementById("selEmpresa").value : "";
+        const mesActual = document.getElementById("selMes") ? parseInt(document.getElementById("selMes").value, 10) : -1;
+        const anioActual = document.getElementById("selAnio") ? parseInt(document.getElementById("selAnio").value, 10) : -1;
+        const mesLabel = MESES[mesActual] || "";
+
+        const fotosFiltradas = filterSavedPrecartonPhotos(todasLasFotos, {
+            empresa: empActual,
+            mes: mesActual,
+            anio: anioActual,
+            modo: _modoFiltroFotosPrecarton
+        });
+
+        if (subFiltro) {
+            const etiquetasModo = {
+                "mes-empresa": `Mostrando de ${empActual} en ${mesLabel} ${anioActual} (${fotosFiltradas.length} de ${todasLasFotos.length})`,
+                "mes": `Mostrando todas las de ${mesLabel} ${anioActual} (${fotosFiltradas.length} de ${todasLasFotos.length})`,
+                "empresa": `Mostrando todas las de ${empActual} (${fotosFiltradas.length} de ${todasLasFotos.length})`,
+                "todas": `Mostrando todas las imágenes guardadas (${todasLasFotos.length})`
+            };
+            subFiltro.textContent = etiquetasModo[_modoFiltroFotosPrecarton] || "";
+        }
+
+        if (fotosFiltradas.length === 0) {
+            cont.innerHTML = `
+                <div style="grid-column: 1 / -1; padding: 10px; text-align: center; font-size: 0.78rem; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 8px;">
+                    No hay imágenes guardadas para <b>${escapeHTML(empActual)}</b> en <b>${escapeHTML(mesLabel)} ${escapeHTML(anioActual)}</b>.
+                    <button type="button" class="btn-outline" style="margin-left:8px; min-height:28px !important; padding:2px 8px !important; font-size:0.72rem !important;" onclick="cambiarModoFiltroFotosPrecarton('todas'); document.getElementById('filtroModoGaleriaFotos').value='todas';">Ver todas (${todasLasFotos.length})</button>
+                </div>
+            `;
+            return;
+        }
+
+        cont.innerHTML = fotosFiltradas.map(f => {
+            const badgeMesAnio = (f.mesNombre && f.anio) ? `${f.mesNombre} ${f.anio}` : f.fechaCaptura;
+            return `
             <div class="captura-item-card">
-                <img src="${escapeHTML(f.dataUrl)}" alt="${escapeHTML(f.nombre)}" onclick="window.open('${escapeHTML(f.dataUrl)}', '_blank')">
+                <img src="${escapeHTML(f.dataUrl)}" alt="${escapeHTML(f.nombre)}" title="Toque para abrir en pantalla completa" onclick="abrirVisorImagenPrecartonCompleta('${escapeHTML(f.id)}')">
                 <div class="captura-item-meta">
                     <strong>${escapeHTML(f.nombre)}</strong>
-                    <span class="font-muted-sub">${escapeHTML(f.fechaCaptura)}</span>
-                    <button type="button" class="btn-danger" style="min-height:28px !important; padding:2px 6px !important; font-size:0.68rem !important;" onclick="eliminarFotoPrecartonGuardada('${escapeHTML(f.id)}')">🗑️ Eliminar</button>
+                    <span class="font-muted-sub">${escapeHTML(f.empresa || '')} • ${escapeHTML(badgeMesAnio)}</span>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-top:2px;">
+                        <button type="button" class="btn-primary" style="min-height:28px !important; padding:2px 6px !important; font-size:0.68rem !important;" onclick="abrirVisorImagenPrecartonCompleta('${escapeHTML(f.id)}')">🔍 Ampliar</button>
+                        <button type="button" class="btn-danger" style="min-height:28px !important; padding:2px 6px !important; font-size:0.68rem !important;" onclick="eliminarFotoPrecartonGuardada('${escapeHTML(f.id)}')">🗑️ Borrar</button>
+                    </div>
                 </div>
             </div>
-        `).join("");
+            `;
+        }).join("");
     }
 
     function persistirPlanillaActual(silent = false) {
@@ -522,7 +649,7 @@
                             title: `${valor}\n${empresa} (${formatearTurno(turnoStr)})`,
                             start: fechaIso,
                             allDay: true,
-                            backgroundColor: Utils.sanitizeColor(coloresPolicia[valor], '#2563eb'),
+                            backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(coloresPolicia[valor], valor) : '#0d9488',
                             borderColor: Utils.getEmpresaColor ? Utils.getEmpresaColor(empresa) : 'transparent',
                             extendedProps: {
                                 policia: valor,
@@ -820,6 +947,9 @@
         window.cerrarModalFotoPrecarton = cerrarModalFotoPrecarton;
         window.guardarFotoPrecartonConNombre = guardarFotoPrecartonConNombre;
         window.eliminarFotoPrecartonGuardada = eliminarFotoPrecartonGuardada;
+        window.cambiarModoFiltroFotosPrecarton = cambiarModoFiltroFotosPrecarton;
+        window.abrirVisorImagenPrecartonCompleta = abrirVisorImagenPrecartonCompleta;
+        window.cerrarVisorImagenPrecartonCompleta = cerrarVisorImagenPrecartonCompleta;
         document.addEventListener('DOMContentLoaded', init);
     }
 
@@ -833,6 +963,9 @@
         exportarPrecartonPDF,
         cerrarVisorPDFPrecarton,
         isDiaIncluidoEnExportacion,
-        toggleDiaSeleccionadoPrecarton
+        toggleDiaSeleccionadoPrecarton,
+        filterSavedPrecartonPhotos,
+        abrirVisorImagenPrecartonCompleta,
+        cerrarVisorImagenPrecartonCompleta
     };
 }));
