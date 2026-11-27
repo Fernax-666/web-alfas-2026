@@ -257,10 +257,12 @@
             }
             const lblPermisos = document.getElementById("lblPermisosEscrituraBorradoSheet");
             if (lblPermisos) {
-                const hasWriteDelete = acc.permissionsGranted !== false && acc.canWrite !== false && acc.canDelete !== false;
-                lblPermisos.textContent = hasWriteDelete
-                    ? "✅ ACTIVO (Conexión y Sincronización con Google Sheets Verificada)"
-                    : "⚠️ Pendiente de Autorización";
+                if (acc.autoCreateSupportedOnServer) {
+                    lblPermisos.textContent = `🟢 Archivo nuevo "${sheetTitle}" creado automáticamente en Google Drive`;
+                } else {
+                    const countNube = acc.remoteTurnosCount !== undefined ? `${acc.remoteTurnosCount} turnos en nube` : "Sincronizado";
+                    lblPermisos.textContent = `💾 Perfil en Base Local + ☁️ Guardando en Planilla Maestra Google Sheets "alfas_rec" (${countNube})`;
+                }
             }
             const inputDirectUrl = document.getElementById("inputDirectGoogleSheetUrl");
             if (inputDirectUrl && acc.sheetUrl && acc.sheetUrl.includes("docs.google.com/spreadsheets")) {
@@ -274,7 +276,9 @@
                     ? acc.tabsCreated.join(", ")
                     : "servicios, POLICIA, EMPRESAS, TARIFAS";
                 if (lblEstructura) {
-                    lblEstructura.textContent = `🟢 Estado del Archivo "${sheetTitle}": ACTIVO — Estructura creada y verificada (${tabsStr})`;
+                    lblEstructura.textContent = acc.autoCreateSupportedOnServer
+                        ? `🟢 Archivo "${sheetTitle}" creado en Google Drive con sus 4 solapas (${tabsStr}).`
+                        : `ℹ️ Aviso de Rastreo: El nombre "${sheetTitle}" se guarda localmente en la app. En tu Google Drive los datos se guardan en la planilla maestra "alfas_rec" (${tabsStr}). Para crear el archivo "${sheetTitle}.xlsx" en tu Drive, usa el Botón 4.`;
                 }
             }
         } else {
@@ -373,10 +377,96 @@
         if (res.ok) {
             cargarEstadoCuentaGmailUI();
             actualizarEstadoBaseDatosUI();
+            await ejecutarRastreoYDiagnosticoRealSheet();
             mostrarNotificacion(res.message, "var(--secondary)");
         } else {
             mostrarNotificacion(res.message || "No se pudo verificar la estructura", "var(--danger)");
         }
+    }
+
+    /**
+     * Rastrea en vivo dónde se están guardando los datos (Base Local vs Google Sheets en la nube),
+     * verifica cuántos registros reales hay en la nube y muestra el informe detallado en pantalla.
+     */
+    async function ejecutarRastreoYDiagnosticoRealSheet() {
+        const inputEmail = document.getElementById("inputGmailCuenta");
+        const email = inputEmail && inputEmail.value.trim() ? inputEmail.value.trim() : "ferna.psn.eu@gmail.com";
+        const panel = document.getElementById("panelRastreoRealGoogleSheets");
+        const cuerpo = document.getElementById("cuerpoRastreoRealGoogleSheets");
+
+        mostrarNotificacion("🔎 Rastreando ubicación real del archivo en Base Local y en Google Drive / Sheets...", "var(--primary)");
+
+        const evs = safeParse("eventos", []);
+        const diag = await CloudSync.rastrearYVerificarUbicacionRealArchivoCloud({
+            email,
+            snapshot: { config, policias, empresas, eventos: evs }
+        });
+
+        if (panel && cuerpo) {
+            const ultimoTurnoTxt = diag.lastRemoteRecord
+                ? `${escapeHTML(String(diag.lastRemoteRecord.fecha || '').split('T')[0])} — ${escapeHTML(diag.lastRemoteRecord.empresa || '')} — ${escapeHTML(diag.lastRemoteRecord.policia || '')} (${escapeHTML(diag.lastRemoteRecord.turno || '')})`
+                : "Sin registros";
+
+            cuerpo.innerHTML = `
+                <div style="margin-bottom:6px;">
+                    <b>1. ¿Dónde está "${escapeHTML(diag.requestedFileName)}"?</b><br>
+                    ${diag.newFileCreatedInDrive
+                        ? `<span style="color:#16a34a; font-weight:700;">✅ Creado como archivo nuevo en tu Google Drive.</span>`
+                        : `<span style="color:#d97706; font-weight:700;">⚠️ Ese nombre se guarda LOCALMENTE en la aplicación</span> porque tu servidor de Google Apps Script publicado usa la versión original que no incluye la función <code>SpreadsheetApp.create()</code>.`
+                    }
+                </div>
+                <div style="margin-bottom:6px;">
+                    <b>2. ¿Dónde se están guardando los datos en la NUBE (Google Drive)?</b><br>
+                    • <b>Archivo Real en Google Drive:</b> <code>${escapeHTML(diag.realCloudSheetName)}</code> (ubicado en tu carpeta <code>bdd/alfas_rec.gsheet</code> o raíz de Google Drive).<br>
+                    • <b>Conexión al Servidor Google Sheets:</b> ${diag.remoteSheetReachable ? '<span style="color:#16a34a; font-weight:700;">🟢 CONECTADO Y ACTIVO</span>' : '<span style="color:#dc2626;">🔴 Sin conexión</span>'}<br>
+                    • <b>Registros en Solapa <code>servicios</code> (Nube):</b> <b>${escapeHTML(diag.remoteTurnosCount)} turnos guardados en Google Sheets</b> (en Base Local: <b>${escapeHTML(diag.localTurnosCount)} turnos</b>).<br>
+                    • <b>Último turno leído desde Google Sheets:</b> <code>${ultimoTurnoTxt}</code>
+                </div>
+                <div style="margin-bottom:6px;">
+                    <b>3. Estado de Estructura de las 4 Solapas en Google Sheets:</b><br>
+                    • <code>servicios</code>: ${escapeHTML(diag.tabsStatus.servicios)}<br>
+                    • <code>POLICIA</code>: ${escapeHTML(diag.tabsStatus.POLICIA)} (${policias.length} efectivos)<br>
+                    • <code>EMPRESAS</code>: ${escapeHTML(diag.tabsStatus.EMPRESAS)} (${Object.keys(empresas).length} empresas)<br>
+                    • <code>TARIFAS</code>: ${escapeHTML(diag.tabsStatus.TARIFAS)} (${Object.keys(config).length} categorías)
+                </div>
+                <div style="padding:8px; background:rgba(37,99,235,0.08); border-radius:6px; font-size:0.75rem;">
+                    💡 <b>¿Cómo tener el archivo con el nombre "${escapeHTML(diag.requestedFileName)}" en tu Google Drive?</b><br>
+                    • <b>Opción inmediata (1 toque):</b> Toca el <b>Botón 4 (Crear y Subir Archivo .xlsx a Google Drive)</b> y elige <b>Guardar en Drive</b>.<br>
+                    • <b>Opción automática permanente:</b> Toca el <b>Botón 6 (Copiar Código Apps Script)</b>, pégalo en tu proyecto de Google Apps Script y dale a <i>Implementar → Nueva implementación</i>.
+                </div>
+            `;
+            panel.classList.remove("display-none");
+        }
+
+        cargarEstadoCuentaGmailUI();
+        mostrarNotificacion(`Rastreo completado: ${diag.remoteTurnosCount} turnos hallados en Google Sheets ("alfas_rec")`, "var(--secondary)");
+        return diag;
+    }
+
+    /**
+     * Copia al portapapeles el código actualizado de GoogleAppsScript_AutoSheet.gs para que el usuario
+     * pueda actualizar su WebApp si desea que Google Apps Script cree archivos nuevos automáticamente.
+     */
+    async function copiarCodigoAppsScriptAutoCreacion() {
+        try {
+            const res = await fetch("bdd/GoogleAppsScript_AutoSheet.gs");
+            const codeText = res.ok ? await res.text() : "";
+            if (codeText && typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(codeText);
+                mostrarNotificacion("📋 Código de GoogleAppsScript_AutoSheet.gs copiado. Péguelo en script.google.com e implemente nueva versión.", "var(--secondary)");
+                return true;
+            }
+            const txtDirect = document.getElementById("textareaRespaldoJsonDirecto");
+            const boxDirect = document.getElementById("boxRespaldoJsonDirecto");
+            if (txtDirect && boxDirect && codeText) {
+                txtDirect.value = codeText;
+                boxDirect.classList.remove("display-none");
+                mostrarNotificacion("📋 Código mostrado en el cuadro inferior para copiarlo a script.google.com", "var(--primary)");
+                return true;
+            }
+        } catch (_) {}
+        mostrarNotificacion("Consulte el archivo bdd/GoogleAppsScript_AutoSheet.gs del proyecto", "var(--warning)");
+        return false;
     }
 
     /**
@@ -1233,6 +1323,8 @@
         window.guardarConfiguracionTarifas = guardarConfiguracionTarifas;
         window.vincularCuentaGmailYCrearSheet = vincularCuentaGmailYCrearSheet;
         window.autenticarYOtorgarPermisosGoogleSheets = autenticarYOtorgarPermisosGoogleSheets;
+        window.ejecutarRastreoYDiagnosticoRealSheet = ejecutarRastreoYDiagnosticoRealSheet;
+        window.copiarCodigoAppsScriptAutoCreacion = copiarCodigoAppsScriptAutoCreacion;
         window.verificarYCrearEstructuraSheetGmail = verificarYCrearEstructuraSheetGmail;
         window.exportarYGuardarArchivoGoogleSheets4Solapas = exportarYGuardarArchivoGoogleSheets4Solapas;
         window.guardarUrlDirectaGoogleSheet = guardarUrlDirectaGoogleSheet;
@@ -1263,6 +1355,8 @@
         seleccionarPortadaApp,
         vincularCuentaGmailYCrearSheet,
         autenticarYOtorgarPermisosGoogleSheets,
+        ejecutarRastreoYDiagnosticoRealSheet,
+        copiarCodigoAppsScriptAutoCreacion,
         verificarYCrearEstructuraSheetGmail,
         buildFourTabsWorkbookMatrices,
         exportarYGuardarArchivoGoogleSheets4Solapas,

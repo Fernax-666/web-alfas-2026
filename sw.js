@@ -3,14 +3,14 @@
  * @description Service Worker Offline-First para soporte PWA y caché de activos en móvil/PC.
  */
 
-const CACHE_NAME = 'alfas-caminera-v25';
+const CACHE_NAME = 'alfas-caminera-v26';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
     './Configuraciones.html',
     './Precarton_Adcionales.html',
     './manifest.webmanifest',
-    './css/styles.css?v=25',
+    './css/styles.css?v=26',
     './img/portada_1.jpg',
     './img/portada_2.jpg',
     './img/portada_03.jpg',
@@ -35,18 +35,18 @@ const ASSETS_TO_CACHE = [
     './img/icons/p4_icon_3.png',
     './img/icons/p4_icon_4.png',
     './img/icons/p4_icon_5.png',
-    './js/utils/helpers.js?v=25',
-    './js/services/calculator.js?v=25',
-    './js/services/database.js?v=25',
-    './js/services/storage.js?v=25',
-    './js/services/cloudSync.js?v=25',
-    './js/services/exporter.js?v=25',
-    './js/services/platformPc.js?v=25',
-    './js/services/platformApk.js?v=25',
-    './js/services/notifications.js?v=25',
-    './js/scripts.js?v=25',
-    './js/configuraciones.js?v=25',
-    './js/precarton.js?v=25'
+    './js/utils/helpers.js?v=26',
+    './js/services/calculator.js?v=26',
+    './js/services/database.js?v=26',
+    './js/services/storage.js?v=26',
+    './js/services/cloudSync.js?v=26',
+    './js/services/exporter.js?v=26',
+    './js/services/platformPc.js?v=26',
+    './js/services/platformApk.js?v=26',
+    './js/services/notifications.js?v=26',
+    './js/scripts.js?v=26',
+    './js/configuraciones.js?v=26',
+    './js/precarton.js?v=26'
 ];
 
 self.addEventListener('install', (event) => {

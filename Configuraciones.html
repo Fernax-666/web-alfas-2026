@@ -15,17 +15,17 @@
   <link rel="apple-touch-icon" href="img/icons/p1_icon_3.png">
   <!-- SheetJS (XLSX) para generar el archivo físico de 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS) compatible con Google Sheets / Drive -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <link rel="stylesheet" href="css/styles.css?v=25">
-  <script src="js/utils/helpers.js?v=25"></script>
-  <script src="js/services/calculator.js?v=25"></script>
-  <script src="js/services/database.js?v=25"></script>
-  <script src="js/services/storage.js?v=25"></script>
-  <script src="js/services/cloudSync.js?v=25"></script>
-  <script src="js/services/exporter.js?v=25"></script>
-  <script src="js/services/platformPc.js?v=25"></script>
-  <script src="js/services/platformApk.js?v=25"></script>
-  <script src="js/services/notifications.js?v=25"></script>
-  <script src="js/configuraciones.js?v=25"></script>
+  <link rel="stylesheet" href="css/styles.css?v=26">
+  <script src="js/utils/helpers.js?v=26"></script>
+  <script src="js/services/calculator.js?v=26"></script>
+  <script src="js/services/database.js?v=26"></script>
+  <script src="js/services/storage.js?v=26"></script>
+  <script src="js/services/cloudSync.js?v=26"></script>
+  <script src="js/services/exporter.js?v=26"></script>
+  <script src="js/services/platformPc.js?v=26"></script>
+  <script src="js/services/platformApk.js?v=26"></script>
+  <script src="js/services/notifications.js?v=26"></script>
+  <script src="js/configuraciones.js?v=26"></script>
 </head>
 
 <body>
@@ -185,13 +185,19 @@
           <p class="text-muted-sm">Al vincular su cuenta Gmail, la aplicación crea el archivo de Google Sheets asociado a su correo activo para guardar todos sus registros en la nube.</p>
 
           <div id="gmailCuentaActivaBanner" class="banner-edit mb-10" style="display:none;">
-            ☁️ Cuenta Gmail Activa: <strong id="lblGmailVinculado"></strong> — Planilla en Nube: <b id="lblSheetVinculada"></b><br>
+            ☁️ Cuenta Gmail Activa (Perfil Local): <strong id="lblGmailVinculado"></strong> — Identificador: <b id="lblSheetVinculada"></b><br>
             👮 Policía Predefinido (Calendario y Alertas 24h): <strong id="lblPoliciaTitularVinculado"></strong><br>
-            🔐 Permisos de Escritura y Borrado: <strong id="lblPermisosEscrituraBorradoSheet">Verificando...</strong>
+            🔐 Estado de Almacenamiento Real: <strong id="lblPermisosEscrituraBorradoSheet">Verificando ubicación (Local vs Google Drive)...</strong>
           </div>
 
           <div id="gmailSheetVerifyBox" class="banner-edit mb-10" style="display:none; background:#f0fdf4; border-color:#86efac; color:#166534;">
-            <span id="lblEstadoEstructuraSheet">🟢 Estado del Archivo Google Sheets: ACTIVO — Estructura verificada (Solapas: servicios, POLICIA, EMPRESAS, TARIFAS)</span>
+            <span id="lblEstadoEstructuraSheet">🟢 Rastreo de Archivo: pulse el Botón 3 para verificar dónde se está guardando exactamente en la nube y en local.</span>
+          </div>
+
+          <!-- PANEL DE RASTREO EN VIVO: MUESTRA DÓNDE SE GUARDAN LOS DATOS (LOCAL vs GOOGLE SHEETS REMOTO) Y LOS ÚLTIMOS REGISTROS EN LA NUBE -->
+          <div id="panelRastreoRealGoogleSheets" class="gmail-sync-box mb-10 display-none" style="background:var(--bg-card); border:1.5px solid var(--primary);">
+            <h4 style="color:var(--primary); margin-bottom:6px;">🔎 Resultado del Rastreo Real (Base Local vs Google Drive / Google Sheets)</h4>
+            <div id="cuerpoRastreoRealGoogleSheets" style="font-size:0.78rem; line-height:1.45;"></div>
           </div>
 
           <div class="grid-2col">
@@ -235,14 +241,15 @@
 
           <div class="flex-gap-10">
             <button type="button" class="btn-primary flex-1" onclick="vincularCuentaGmailYCrearSheet()">🔗 1. Vincular Gmail, Fijar Policía Predefinido y Sincronizar 4 Solapas en Sheets</button>
-            <button type="button" class="btn-indigo flex-1" id="btnAutenticarPermisosGoogle" onclick="autenticarYOtorgarPermisosGoogleSheets()">🔐 2. Autenticar y Verificar Conexión Real con Google Sheets (Sin Errores)</button>
+            <button type="button" class="btn-indigo flex-1" id="btnAutenticarPermisosGoogle" onclick="ejecutarRastreoYDiagnosticoRealSheet()">🔎 2. Rastrear y Verificar Dónde se Guarda el Archivo (Local vs Google Drive)</button>
           </div>
           <div class="flex-gap-10">
-            <button type="button" class="btn-secondary flex-1" onclick="verificarYCrearEstructuraSheetGmail()">✅ 3. Chequear Servidor Activo y Crear/Sincronizar Estructura (4 Solapas)</button>
-            <button type="button" class="btn-outline flex-1" id="btnExportarArchivoSheetDrive" onclick="exportarYGuardarArchivoGoogleSheets4Solapas()">📊 4. Generar y Guardar Archivo `Web_Alfas_2026.xlsx` (4 Solapas) en Google Drive / Dispositivo</button>
+            <button type="button" class="btn-secondary flex-1" onclick="verificarYCrearEstructuraSheetGmail()">✅ 3. Chequear Servidor Activo y Sincronizar Estructura (4 Solapas)</button>
+            <button type="button" class="btn-outline flex-1" id="btnExportarArchivoSheetDrive" onclick="exportarYGuardarArchivoGoogleSheets4Solapas()">📊 4. Crear y Subir Archivo `Web_Alfas_2026_ferna.psn.eu.xlsx` (4 Solapas) a Google Drive</button>
           </div>
           <div class="flex-gap-10">
-            <button type="button" class="btn-outline flex-1" id="btnAbrirGoogleDriveSheet" onclick="abrirArchivoEnGoogleDrive(true)">📂 5. Abrir Google Drive / Pegar Link de tu Google Sheet</button>
+            <button type="button" class="btn-outline flex-1" id="btnAbrirGoogleDriveSheet" onclick="abrirArchivoEnGoogleDrive(true)">📂 5. Buscar Planilla Original (`alfas_rec`) en Google Drive</button>
+            <button type="button" class="btn-outline flex-1" onclick="copiarCodigoAppsScriptAutoCreacion()">📋 6. Copiar Código Apps Script (Para Auto-Crear Archivos Nuevos en Drive)</button>
             <button type="button" id="btnDesvincularGmail" class="btn-outline display-none" onclick="desvincularCuentaGmail()">Desvincular</button>
           </div>
 
