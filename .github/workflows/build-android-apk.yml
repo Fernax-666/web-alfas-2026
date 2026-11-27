@@ -40,7 +40,7 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
-          for dir in android/app/src/main/res/mipmap-*; do
+          for dir in android/app/src/main/res/mipmap-hdpi android/app/src/main/res/mipmap-mdpi android/app/src/main/res/mipmap-xhdpi android/app/src/main/res/mipmap-xxhdpi android/app/src/main/res/mipmap-xxxhdpi; do
             if [ -d "$dir" ]; then
               cp -f img/icons/p1_icon_3.png "$dir/ic_launcher.png" || true
               cp -f img/icons/p1_icon_3.png "$dir/ic_launcher_round.png" || true
