@@ -57,7 +57,16 @@ async function runTestSuite() {
         email: 'ferna.psn.eu@gmail.com'
     });
     assertEqual(traceRes.ok && traceRes.requestedFileName === 'Web_Alfas_2026_ferna.psn.eu', true, "El rastreador identifica el nombre solicitado Web_Alfas_2026_ferna.psn.eu");
-    assertEqual(traceRes.realCloudSheetName.includes('alfas_rec'), true, "El rastreador informa con exactitud que en Google Drive los datos se guardan en la planilla maestra alfas_rec.gsheet");
+    assertEqual(
+        CloudSync.getEndpointUrl(),
+        "https://script.google.com/macros/s/AKfycbw2QbxTAlP_k_76-zpeDhdrSGvX0PbZpbNyOpvrS94xd1S_FMW-COmpXqh738Ty2Bpneg/exec",
+        "CloudSync apunta a la nueva implementación Versión 10 de Google Apps Script"
+    );
+    assertEqual(
+        traceRes.newFileCreatedInDrive && traceRes.realCloudSheetName === 'Web_Alfas_2026_ferna.psn.eu',
+        true,
+        "El rastreador verifica en vivo que el archivo nuevo Web_Alfas_2026_ferna.psn.eu fue creado en Google Drive con la Versión 10 del Apps Script"
+    );
     assertEqual(Object.keys(traceRes.tabsStatus), ['servicios', 'POLICIA', 'EMPRESAS', 'TARIFAS'], "El rastreador verifica el estado de las 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS)");
 
     // 4. Generador de archivo físico .xlsx con las 4 solapas para Google Drive

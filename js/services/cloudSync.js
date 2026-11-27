@@ -14,7 +14,10 @@
     }
 }(typeof self !== 'undefined' ? self : this, function () {
 
-    const DEFAULT_GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzIc0RqibgvDtP8gK_G_B9d37DGNXJ-1_bctDGsZwAXT9AE2cjmPEnynFI54UmBJ2xy_w/exec";
+    const DEFAULT_GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbw2QbxTAlP_k_76-zpeDhdrSGvX0PbZpbNyOpvrS94xd1S_FMW-COmpXqh738Ty2Bpneg/exec";
+    const LEGACY_GOOGLE_SHEET_URLS = [
+        "https://script.google.com/macros/s/AKfycbzIc0RqibgvDtP8gK_G_B9d37DGNXJ-1_bctDGsZwAXT9AE2cjmPEnynFI54UmBJ2xy_w/exec"
+    ];
     const CUSTOM_ENDPOINT_KEY = "alfa_cloud_endpoint_url";
     const GMAIL_ACCOUNT_KEY = "alfa_linked_gmail_account";
     const OAUTH_CLIENT_ID_KEY = "alfa_google_oauth_client_id";
@@ -109,14 +112,21 @@
     }
 
     /**
-     * Obtiene la URL activa de Google Apps Script.
+     * Obtiene la URL activa de Google Apps Script migrando automáticamente URLs antiguas a la Versión 10.
      * @returns {string}
      */
     function getEndpointUrl() {
         if (typeof localStorage !== 'undefined') {
             const custom = localStorage.getItem(CUSTOM_ENDPOINT_KEY);
-            if (custom && /^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(custom.trim())) {
-                return custom.trim();
+            if (custom) {
+                const cleanCustom = custom.trim();
+                if (LEGACY_GOOGLE_SHEET_URLS.includes(cleanCustom)) {
+                    localStorage.removeItem(CUSTOM_ENDPOINT_KEY);
+                    return DEFAULT_GOOGLE_SHEET_URL;
+                }
+                if (/^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(cleanCustom)) {
+                    return cleanCustom;
+                }
             }
         }
         return DEFAULT_GOOGLE_SHEET_URL;
