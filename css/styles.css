@@ -1126,7 +1126,7 @@ html[data-theme="dark"] .upcoming-service-banner {
         display: none !important;
     }
 
-    /* SOLAPA AGENDA EN MÓVIL / APK: CERO SCROLL (100% DE LOS ELEMENTOS ENTRAN EN PANTALLA) */
+    /* SOLAPA AGENDA EN MÓVIL / APK: CERO SCROLL Y CALENDARIO OCUPANDO EL 100% DEL ESPACIO DISPONIBLE (IMAGEN 1, 2 Y 3) */
     body[data-mobile-tab="agenda"] {
         height: 100vh;
         height: 100dvh;
@@ -1134,19 +1134,8 @@ html[data-theme="dark"] .upcoming-service-banner {
         overflow: hidden !important;
         display: flex;
         flex-direction: column;
-        padding-top: calc(max(var(--sat), 22px) + 2px);
-        padding-bottom: calc(56px + var(--sab));
-    }
-
-    body[data-mobile-tab="agenda"] .app-cover-badge-icon {
-        width: 28px;
-        height: 28px;
-        border-radius: 7px;
-    }
-
-    body[data-mobile-tab="agenda"] .header-with-app-icon {
-        justify-content: center;
-        gap: 6px;
+        padding-top: calc(max(var(--sat), 20px) + 2px);
+        padding-bottom: calc(54px + var(--sab));
     }
 
     body[data-mobile-tab="agenda"] .sticky-top-dashboard {
@@ -1158,11 +1147,18 @@ html[data-theme="dark"] .upcoming-service-banner {
 
     body[data-mobile-tab="agenda"] .app-header-bar {
         margin-bottom: 2px;
+        justify-content: center;
+    }
+
+    body[data-mobile-tab="agenda"] .header-titles {
+        text-align: center;
+        width: 100%;
     }
 
     body[data-mobile-tab="agenda"] h1 {
-        font-size: 0.94rem;
-        line-height: 1.1;
+        font-size: 0.96rem;
+        line-height: 1.12;
+        text-align: center;
     }
 
     body[data-mobile-tab="agenda"] .stat-grid {
@@ -1215,17 +1211,27 @@ html[data-theme="dark"] .upcoming-service-banner {
         flex: 1;
         min-height: 0;
         height: 100% !important;
+        display: flex;
+        flex-direction: column;
     }
 
     .calendar-card .fc-view-harness {
-        flex: 1;
-        min-height: 0;
+        flex: 1 !important;
+        min-height: 0 !important;
+        height: 100% !important;
+    }
+
+    .calendar-card .fc-scrollgrid,
+    .calendar-card .fc-daygrid-body,
+    .calendar-card .fc-scrollgrid-sync-table {
+        height: 100% !important;
+        width: 100% !important;
     }
 
     .calendar-header {
         flex-direction: column;
         align-items: stretch;
-        gap: 3px;
+        gap: 2px;
         margin-bottom: 3px;
         flex-shrink: 0;
     }
@@ -1287,12 +1293,13 @@ html[data-theme="dark"] .upcoming-service-banner {
         line-height: 1;
     }
 
-    /* Ajustar dinámicamente las filas del mes para que entren las 5 o 6 semanas sin provocar scroll */
+    /* IMAGEN 3: El calendario ocupa todo el espacio vertical disponible en pantalla sin provocar scroll */
     .fc .fc-daygrid-day-frame {
-        min-height: clamp(46px, 8.2dvh, 72px) !important;
+        height: 100% !important;
+        min-height: clamp(50px, 8.8dvh, 84px) !important;
     }
 
-    /* Etiquetas de Eventos en el Calendario APK (Imagen 1):
+    /* Etiquetas de Eventos en el Calendario APK:
        Sin text-overflow: ellipsis para que se lean completos Empresa, Horario y Policía */
     .fc-daygrid-event-harness {
         margin-left: 0 !important;
@@ -1330,22 +1337,23 @@ html[data-theme="dark"] .upcoming-service-banner {
         word-break: break-word;
     }
 
-    /* IMAGEN 1: Referencias de servicios en la parte de abajo accesibles y sin scroll */
+    /* IMAGEN 2: Referencias de servicios en la parte de abajo MÁS GRANDES, LEGIBLES Y ACCESIBLES */
     .cal-company-legend-bottom {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 4px;
-        margin-top: 3px;
-        padding-top: 3px;
+        gap: 5px;
+        margin-top: 4px;
+        padding-top: 4px;
         flex-shrink: 0;
     }
 
     .cal-emp-chip {
-        padding: 3px 4px;
-        font-size: 0.74rem !important;
+        padding: 5px 6px;
+        font-size: 0.86rem !important;
         font-weight: 800;
-        border-left-width: 5px;
-        min-height: 24px;
+        border-left-width: 6px;
+        min-height: 30px;
+        letter-spacing: 0.01em;
     }
 
     /* Tabla de Historial de 5 columnas visible en Móvil */

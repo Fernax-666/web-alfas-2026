@@ -36,17 +36,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=21">
-  <script src="js/utils/helpers.js?v=21"></script>
-  <script src="js/services/calculator.js?v=21"></script>
-  <script src="js/services/database.js?v=21"></script>
-  <script src="js/services/storage.js?v=21"></script>
-  <script src="js/services/cloudSync.js?v=21"></script>
-  <script src="js/services/exporter.js?v=21"></script>
-  <script src="js/services/platformPc.js?v=21"></script>
-  <script src="js/services/platformApk.js?v=21"></script>
-  <script src="js/services/notifications.js?v=21"></script>
-  <script src="js/scripts.js?v=21"></script>
+  <link rel="stylesheet" href="css/styles.css?v=22">
+  <script src="js/utils/helpers.js?v=22"></script>
+  <script src="js/services/calculator.js?v=22"></script>
+  <script src="js/services/database.js?v=22"></script>
+  <script src="js/services/storage.js?v=22"></script>
+  <script src="js/services/cloudSync.js?v=22"></script>
+  <script src="js/services/exporter.js?v=22"></script>
+  <script src="js/services/platformPc.js?v=22"></script>
+  <script src="js/services/platformApk.js?v=22"></script>
+  <script src="js/services/notifications.js?v=22"></script>
+  <script src="js/scripts.js?v=22"></script>
 </head>
 
 <body data-mobile-tab="agenda">
@@ -63,19 +63,16 @@
   </div>
 
   <div class="container">
-    <!-- ZONA SUPERIOR FIJA (STICKY) QUE SE VISUALIZA SIEMPRE CUANDO SE HACE SCROLL -->
+    <!-- ZONA SUPERIOR FIJA (STICKY) CENTRADA Y SIN ÍCONO COMO ESTABA ANTES (IMAGEN 1) -->
     <div class="sticky-top-dashboard">
       <header class="app-header-bar">
-        <div class="header-titles header-with-app-icon">
-          <img src="img/icons/p1_icon_3.png" alt="Ícono Personalizado según Portada" class="app-cover-badge-icon" data-cover-app-icon>
-          <div>
-            <h1>Gestión de Servicios Adicionales</h1>
-            <div class="system-status-bar">
-              <span id="platformModeBadge" class="badge badge-empresa">🖥️ PC</span>
-              <span id="dbEngineBadge" class="badge badge-b">SQLite Local</span>
-              <span id="dbOutboxBadge" class="badge badge-a">Sincronizado</span>
-              <span id="gmailLinkedBadge" class="badge badge-ho display-none">☁️ Gmail Vinculado</span>
-            </div>
+        <div class="header-titles">
+          <h1>Gestión de Servicios Adicionales</h1>
+          <div class="system-status-bar">
+            <span id="platformModeBadge" class="badge badge-empresa">🖥️ PC</span>
+            <span id="dbEngineBadge" class="badge badge-b">SQLite Local</span>
+            <span id="dbOutboxBadge" class="badge badge-a">Sincronizado</span>
+            <span id="gmailLinkedBadge" class="badge badge-ho display-none">☁️ Gmail Vinculado</span>
           </div>
         </div>
         <div class="desktop-top-nav no-print">
@@ -127,23 +124,39 @@
       <div id="leyendaEmpresasCal" class="cal-company-legend-bottom"></div>
     </div>
 
-    <!-- 2. SECCIÓN GRÁFICOS: 2 GRÁFICOS DE BARRAS INDIVIDUALES PARA COMPARACIÓN (MES/AÑO vs ANUAL/MES+AÑO) -->
+    <!-- 2. SECCIÓN GRÁFICOS: GRÁFICOS CIRCULARES CON ETIQUETAS DE TOTAL Y PORCENTAJES + BARRA HORIZONTAL ANUAL -->
     <div data-mobile-section="resumen">
       <div class="dashboard-header">
-        <h2 class="dashboard-title">📊 Comparativa de Gráficos por Día de la Semana</h2>
+        <h2 class="dashboard-title">📊 Estadísticas y Comparativa de Servicios (Totales y Porcentajes)</h2>
       </div>
 
       <div class="grid">
-        <!-- Gráfico de Barras 1: Período A (Mes + Año) -->
+        <!-- N° 1: Gráfico Circular diferenciando Distintos Grupos Horarios -->
         <div class="card">
           <div class="chart-card-header">
             <div>
-              <h3>Gráfico 1: Turnos por Día (Mensual)</h3>
+              <h3>1. Distribución por Grupos Horarios (Circular)</h3>
+              <span id="subtituloGraficoHorarios" class="badge badge-ho">Grupos Horarios</span>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="graficoGruposHorarios"></canvas>
+          </div>
+          <div id="footerTotalHorarios" class="chart-total-footer">
+            Total Grupos Horarios: <strong>0 turnos (100%)</strong>
+          </div>
+        </div>
+
+        <!-- Gráfico 1: Turnos por Día (Mensual) en Formato Circular con Etiquetas Totales y Porcentajes -->
+        <div class="card">
+          <div class="chart-card-header">
+            <div>
+              <h3>Gráfico 1: Turnos por Día (Mensual - Circular)</h3>
               <span id="subtituloGraficoMes" class="badge badge-empresa">Mes Seleccionado</span>
             </div>
             <div class="flex-center-gap-10">
               <label for="filtroMesDashboard" class="label-filter">Período 1:</label>
-              <select id="filtroMesDashboard" title="Seleccionar Mes y Año para Gráfico 1" class="select-auto" onchange="calcularResumen()"></select>
+              <select id="filtroMesDashboard" title="Seleccionar Mes y Año para Gráfico 1 y Grupos Horarios" class="select-auto" onchange="calcularResumen()"></select>
             </div>
           </div>
           <div class="chart-wrapper">
@@ -154,11 +167,11 @@
           </div>
         </div>
 
-        <!-- Gráfico de Barras 2: Anual / Comparativo con filtro de Mes y Año (permite comparar ej. Enero 2026 vs Enero 2025 o Año completo) -->
+        <!-- Gráfico 2: Anual / Comparativo en Formato Circular con Etiquetas Totales y Porcentajes -->
         <div class="card">
           <div class="chart-card-header">
             <div>
-              <h3>Gráfico 2: Anual / Comparativo</h3>
+              <h3>Gráfico 2: Anual / Comparativo (Circular)</h3>
               <span id="subtituloGraficoAnual" class="badge badge-b">Año / Mes Comparado</span>
             </div>
             <div class="flex-center-gap-10">
@@ -185,6 +198,22 @@
           </div>
           <div id="footerTotalAnual" class="chart-total-footer">
             Total Gráfico 2: <strong>0 turnos</strong> | Monto: <strong>$0</strong>
+          </div>
+        </div>
+
+        <!-- Duplicado de Gráfico 2 Anual / Comparativo en Formato de Barra Horizontal con Totales y Porcentajes -->
+        <div class="card">
+          <div class="chart-card-header">
+            <div>
+              <h3>Gráfico 2 (Duplicado): Anual / Comparativo (Barras Horizontales)</h3>
+              <span id="subtituloGraficoAnualHorizontal" class="badge badge-b">Barras Horizontales</span>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="graficoAnualHorizontal"></canvas>
+          </div>
+          <div id="footerTotalAnualHorizontal" class="chart-total-footer">
+            Total Anual (Barras Horizontales): <strong>0 turnos (100%)</strong>
           </div>
         </div>
       </div>
@@ -254,26 +283,26 @@
   <button type="button" class="mobile-fab-whatsapp" id="btnFabCapturaWhatsapp" onclick="capturarYCompartirCalendarioWhatsApp()" title="Capturar Calendario y Compartir por WhatsApp" aria-label="Capturar Calendario y Compartir por WhatsApp">📸</button>
   <button type="button" class="mobile-fab-add" onclick="abrirNuevoServicioRapido()" title="Registrar Nuevo Servicio" aria-label="Registrar Nuevo Servicio">+</button>
 
-  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL CON ÍCONOS PERSONALIZADOS SEGÚN PORTADA -->
+  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL (CENTRADA Y SIN ÍCONOS DE IMAGEN COMO ESTABA ANTES) -->
   <nav class="mobile-bottom-nav" aria-label="Navegación principal móvil">
     <button type="button" class="mobile-nav-btn active" data-tab="agenda" onclick="cambiarTabMovil('agenda')">
-      <img src="img/icons/p1_icon_1.png" alt="Agenda" class="nav-custom-icon" data-cover-nav-icon="agenda">
+      <span class="nav-icon">📅</span>
       <span>Agenda</span>
     </button>
     <button type="button" class="mobile-nav-btn" data-tab="resumen" onclick="cambiarTabMovil('resumen')">
-      <img src="img/icons/p1_icon_4.png" alt="Gráficos" class="nav-custom-icon" data-cover-nav-icon="resumen">
+      <span class="nav-icon">📊</span>
       <span>Gráficos</span>
     </button>
     <button type="button" class="mobile-nav-btn" data-tab="historial" onclick="cambiarTabMovil('historial')">
-      <img src="img/icons/p1_icon_3.png" alt="Historial" class="nav-custom-icon" data-cover-nav-icon="app">
+      <span class="nav-icon">📋</span>
       <span>Historial</span>
     </button>
     <a href="Precarton_Adcionales.html" class="mobile-nav-btn">
-      <img src="img/icons/p1_icon_2.png" alt="Precartón" class="nav-custom-icon" data-cover-nav-icon="precarton">
+      <span class="nav-icon">🗂️</span>
       <span>Precartón</span>
     </a>
     <a href="Configuraciones.html" class="mobile-nav-btn">
-      <img src="img/icons/p1_icon_5.png" alt="Config." class="nav-custom-icon" data-cover-nav-icon="config">
+      <span class="nav-icon">⚙️</span>
       <span>Config.</span>
     </a>
   </nav>

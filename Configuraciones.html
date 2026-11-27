@@ -13,17 +13,17 @@
 
   <link rel="icon" href="img/icons/p1_icon_3.png" data-cover-favicon>
   <link rel="apple-touch-icon" href="img/icons/p1_icon_3.png">
-  <link rel="stylesheet" href="css/styles.css?v=21">
-  <script src="js/utils/helpers.js?v=21"></script>
-  <script src="js/services/calculator.js?v=21"></script>
-  <script src="js/services/database.js?v=21"></script>
-  <script src="js/services/storage.js?v=21"></script>
-  <script src="js/services/cloudSync.js?v=21"></script>
-  <script src="js/services/exporter.js?v=21"></script>
-  <script src="js/services/platformPc.js?v=21"></script>
-  <script src="js/services/platformApk.js?v=21"></script>
-  <script src="js/services/notifications.js?v=21"></script>
-  <script src="js/configuraciones.js?v=21"></script>
+  <link rel="stylesheet" href="css/styles.css?v=22">
+  <script src="js/utils/helpers.js?v=22"></script>
+  <script src="js/services/calculator.js?v=22"></script>
+  <script src="js/services/database.js?v=22"></script>
+  <script src="js/services/storage.js?v=22"></script>
+  <script src="js/services/cloudSync.js?v=22"></script>
+  <script src="js/services/exporter.js?v=22"></script>
+  <script src="js/services/platformPc.js?v=22"></script>
+  <script src="js/services/platformApk.js?v=22"></script>
+  <script src="js/services/notifications.js?v=22"></script>
+  <script src="js/configuraciones.js?v=22"></script>
 </head>
 
 <body>
@@ -39,12 +39,9 @@
 
   <div class="container">
     <header class="app-header-bar">
-      <div class="header-titles header-with-app-icon">
-        <img src="img/icons/p1_icon_3.png" alt="Ícono Personalizado según Portada" class="app-cover-badge-icon" data-cover-app-icon>
-        <div>
-          <h1>⚙️ Centro de Configuraciones</h1>
-          <p class="subtitle">Toque cada sección numerada para expandirla mientras las demás permanecen contraídas</p>
-        </div>
+      <div class="header-titles">
+        <h1>⚙️ Centro de Configuraciones</h1>
+        <p class="subtitle">Toque cada sección numerada para expandirla mientras las demás permanecen contraídas</p>
       </div>
       <div class="desktop-top-nav no-print">
         <a href="index.html" class="btn-outline">📅 Dashboard y Calendario</a>
@@ -186,7 +183,8 @@
           <p class="text-muted-sm">Al vincular su cuenta Gmail, la aplicación crea el archivo de Google Sheets asociado a su correo activo para guardar todos sus registros en la nube.</p>
 
           <div id="gmailCuentaActivaBanner" class="banner-edit mb-10" style="display:none;">
-            ☁️ Cuenta Gmail Activa: <strong id="lblGmailVinculado"></strong> — Planilla en Nube: <b id="lblSheetVinculada"></b>
+            ☁️ Cuenta Gmail Activa: <strong id="lblGmailVinculado"></strong> — Planilla en Nube: <b id="lblSheetVinculada"></b><br>
+            👮 Policía Predefinido (Calendario y Alertas 24h): <strong id="lblPoliciaTitularVinculado"></strong>
           </div>
 
           <div id="gmailSheetVerifyBox" class="banner-edit mb-10" style="display:none; background:#f0fdf4; border-color:#86efac; color:#166534;">
@@ -199,13 +197,41 @@
               <input type="email" id="inputGmailCuenta" placeholder="ejemplo@gmail.com" inputmode="email">
             </div>
             <div class="form-group mb-8">
-              <label for="selPoliciaTitular">Policía Titular de la Cuenta (Para Alertas 24h antes)</label>
-              <select id="selPoliciaTitular" title="Seleccionar efectivo titular para personalizar alertas"></select>
+              <label for="selPoliciaTitular">Policía Predefinido (Calendario y Alertas Personalizadas)</label>
+              <select id="selPoliciaTitular" title="Seleccionar o crear efectivo titular para mostrar como predefinido en el calendario y alertas" onchange="onCambioSelectorPoliciaTitular(this.value)"></select>
+            </div>
+          </div>
+
+          <!-- Formulario integrado para crear nuevo Policía Titular al vincular el correo Gmail -->
+          <div id="boxCrearPoliciaTitularGmail" class="gmail-sync-box mb-10" style="background:rgba(37, 99, 235, 0.06); border:1.5px dashed var(--primary);">
+            <h4 style="font-size:0.84rem; margin-bottom:6px; color:var(--primary);">👮 Crear / Registrar Policía Titular de este Correo (Predefinido en Calendario y Alertas)</h4>
+            <div class="grid-2col">
+              <div class="form-group mb-6">
+                <label for="inputNuevoPoliciaTitularGmail">Apellido y Nombre del Policía</label>
+                <input type="text" id="inputNuevoPoliciaTitularGmail" placeholder="Ej: Olivera Fernando">
+              </div>
+              <div class="form-group mb-6">
+                <label for="selJerarquiaTitularGmail">Jerarquía</label>
+                <select id="selJerarquiaTitularGmail" title="Seleccionar jerarquía del policía titular">
+                  <option value="Sgto. Ayte.">Sgto. Ayte.</option>
+                  <option value="Of. Ayte.">Of. Ayte.</option>
+                  <option value="Of. Sub. Insp.">Of. Sub. Insp.</option>
+                  <option value="Of. Insp.">Of. Insp.</option>
+                  <option value="Of. Ppal">Of. Ppal</option>
+                  <option value="Subof. My">Subof. My</option>
+                  <option value="Subof. Ppal">Subof. Ppal</option>
+                  <option value="Sgto 1°">Sgto 1°</option>
+                  <option value="Sgto.">Sgto.</option>
+                  <option value="Cabo 1°">Cabo 1°</option>
+                  <option value="Cabo">Cabo</option>
+                  <option value="Agente">Agente</option>
+                </select>
+              </div>
             </div>
           </div>
 
           <div class="flex-gap-10">
-            <button type="button" class="btn-primary flex-1" onclick="vincularCuentaGmailYCrearSheet()">🔗 Vincular Gmail y Crear Google Sheets en la Nube</button>
+            <button type="button" class="btn-primary flex-1" onclick="vincularCuentaGmailYCrearSheet()">🔗 Vincular Gmail, Fijar Policía Predefinido y Crear Sheets</button>
             <button type="button" class="btn-secondary flex-1" onclick="verificarYCrearEstructuraSheetGmail()">✅ Chequear Archivo Activo y Crear Estructura (Aunque Esté Vacío)</button>
             <button type="button" id="btnDesvincularGmail" class="btn-outline display-none" onclick="desvincularCuentaGmail()">Desvincular</button>
           </div>
@@ -401,26 +427,26 @@
     </div>
   </div>
 
-  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL CON ÍCONOS PERSONALIZADOS SEGÚN PORTADA -->
+  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL -->
   <nav class="mobile-bottom-nav" aria-label="Navegación principal móvil">
     <a href="index.html?tab=agenda" class="mobile-nav-btn">
-      <img src="img/icons/p1_icon_1.png" alt="Agenda" class="nav-custom-icon" data-cover-nav-icon="agenda">
+      <span class="nav-icon">📅</span>
       <span>Agenda</span>
     </a>
     <a href="index.html?tab=resumen" class="mobile-nav-btn">
-      <img src="img/icons/p1_icon_4.png" alt="Gráficos" class="nav-custom-icon" data-cover-nav-icon="resumen">
+      <span class="nav-icon">📊</span>
       <span>Gráficos</span>
     </a>
     <a href="index.html?tab=historial" class="mobile-nav-btn">
-      <img src="img/icons/p1_icon_3.png" alt="Historial" class="nav-custom-icon" data-cover-nav-icon="app">
+      <span class="nav-icon">📋</span>
       <span>Historial</span>
     </a>
     <a href="Precarton_Adcionales.html" class="mobile-nav-btn">
-      <img src="img/icons/p1_icon_2.png" alt="Precartón" class="nav-custom-icon" data-cover-nav-icon="precarton">
+      <span class="nav-icon">🗂️</span>
       <span>Precartón</span>
     </a>
     <a href="Configuraciones.html" class="mobile-nav-btn active">
-      <img src="img/icons/p1_icon_5.png" alt="Config." class="nav-custom-icon" data-cover-nav-icon="config">
+      <span class="nav-icon">⚙️</span>
       <span>Config.</span>
     </a>
   </nav>

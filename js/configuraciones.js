@@ -199,15 +199,19 @@
         const acc = CloudSync.getLinkedGmailAccount ? CloudSync.getLinkedGmailAccount() : null;
         const inputEmail = document.getElementById("inputGmailCuenta");
         const selTitular = document.getElementById("selPoliciaTitular");
+        const boxCrearTitular = document.getElementById("boxCrearPoliciaTitularGmail");
         const banner = document.getElementById("gmailCuentaActivaBanner");
         const verifyBox = document.getElementById("gmailSheetVerifyBox");
         const lblEstructura = document.getElementById("lblEstadoEstructuraSheet");
         const lblEmail = document.getElementById("lblGmailVinculado");
         const lblSheet = document.getElementById("lblSheetVinculada");
+        const lblPolTitular = document.getElementById("lblPoliciaTitularVinculado");
         const btnDesvincular = document.getElementById("btnDesvincularGmail");
 
         if (selTitular) {
-            selTitular.innerHTML = `<option value="">— Todos los efectivos —</option>`;
+            selTitular.innerHTML = `
+                <option value="__CREAR_NUEVO__">➕ Crear Nuevo Policía Predefinido...</option>
+            `;
             policias.forEach(p => {
                 const op = document.createElement("option");
                 op.value = p.nombre;
@@ -219,9 +223,23 @@
         if (acc && acc.email) {
             const sheetTitle = acc.sheetName || `Web_Alfas_2026_${acc.email.split('@')[0]}`;
             if (inputEmail) inputEmail.value = acc.email;
-            if (selTitular && acc.policiaTitular) selTitular.value = acc.policiaTitular;
+            if (selTitular) {
+                if (acc.policiaTitular && policias.some(p => p.nombre === acc.policiaTitular)) {
+                    selTitular.value = acc.policiaTitular;
+                    if (boxCrearTitular) boxCrearTitular.style.display = "none";
+                } else {
+                    selTitular.value = "__CREAR_NUEVO__";
+                    if (boxCrearTitular) boxCrearTitular.style.display = "block";
+                }
+            }
             if (lblEmail) lblEmail.textContent = acc.email;
             if (lblSheet) lblSheet.textContent = sheetTitle;
+            if (lblPolTitular) {
+                const foundPol = policias.find(p => p.nombre === acc.policiaTitular);
+                lblPolTitular.textContent = foundPol
+                    ? (foundPol.jerarquia ? `${foundPol.jerarquia} ${foundPol.nombre}` : foundPol.nombre)
+                    : (acc.policiaTitular || "Sin asignar");
+            }
             if (banner) banner.style.display = "block";
             if (btnDesvincular) btnDesvincular.classList.remove("display-none");
             if (verifyBox) {
@@ -234,10 +252,78 @@
                 }
             }
         } else {
+            if (selTitular) selTitular.value = "__CREAR_NUEVO__";
+            if (boxCrearTitular) boxCrearTitular.style.display = "block";
             if (banner) banner.style.display = "none";
             if (verifyBox) verifyBox.style.display = "none";
             if (btnDesvincular) btnDesvincular.classList.add("display-none");
         }
+    }
+
+    function onCambioSelectorPoliciaTitular(val) {
+        const boxCrearTitular = document.getElementById("boxCrearPoliciaTitularGmail");
+        if (!boxCrearTitular) return;
+        if (val === "__CREAR_NUEVO__" || !val) {
+            boxCrearTitular.style.display = "block";
+            const inputNuevo = document.getElementById("inputNuevoPoliciaTitularGmail");
+            if (inputNuevo) inputNuevo.focus();
+        } else {
+            boxCrearTitular.style.display = "none";
+        }
+    }
+
+    /**
+     * Registra o recupera el Policía Titular al vincular un correo Gmail para que quede predefinido
+     * en el calendario y en las alertas personalizadas (24h antes).
+     * @param {{selectedPolicia?: string, nuevoNombre?: string, nuevaJerarquia?: string}} params
+     * @returns {{ok: boolean, policiaTitular: string, created: boolean, message?: string}}
+     */
+    function ensureTitularPoliceOnGmailLink({ selectedPolicia = "", nuevoNombre = "", nuevaJerarquia = "Sgto. Ayte." } = {}) {
+        const cleanNuevo = String(nuevoNombre || "").trim();
+        const cleanSel = String(selectedPolicia || "").trim();
+
+        // 1. Si el usuario ingresó un nuevo nombre de policía titular (o eligió __CREAR_NUEVO__)
+        if (cleanNuevo || cleanSel === "__CREAR_NUEVO__") {
+            if (!cleanNuevo) {
+                return {
+                    ok: false,
+                    policiaTitular: "",
+                    created: false,
+                    message: "Para vincular el correo debe crear o seleccionar el Policía Predefinido para el calendario y las alertas"
+                };
+            }
+            const existingIdx = policias.findIndex(p => p.nombre.toLowerCase() === cleanNuevo.toLowerCase());
+            let finalName = cleanNuevo;
+            let created = false;
+            if (existingIdx === -1) {
+                coloresPolicia[cleanNuevo] = Utils.ensureDistinctEventColor
+                    ? Utils.ensureDistinctEventColor(Utils.colorAleatorio(), cleanNuevo)
+                    : '#0d9488';
+                policias.unshift({ nombre: cleanNuevo, jerarquia: String(nuevaJerarquia || "").trim() });
+                Storage.saveColores(coloresPolicia);
+                Storage.savePolicias(policias, coloresPolicia);
+                created = true;
+            } else {
+                finalName = policias[existingIdx].nombre;
+                if (nuevaJerarquia && !policias[existingIdx].jerarquia) {
+                    policias[existingIdx].jerarquia = nuevaJerarquia;
+                    Storage.savePolicias(policias, coloresPolicia);
+                }
+            }
+            return { ok: true, policiaTitular: finalName, created };
+        }
+
+        // 2. Si seleccionó un policía existente del padrón
+        if (cleanSel) {
+            return { ok: true, policiaTitular: cleanSel, created: false };
+        }
+
+        return {
+            ok: false,
+            policiaTitular: "",
+            created: false,
+            message: "Cree o seleccione un Policía Predefinido para mostrar en el calendario y recibir alertas personalizadas"
+        };
     }
 
     async function verificarYCrearEstructuraSheetGmail() {
@@ -268,14 +354,36 @@
     async function vincularCuentaGmailYCrearSheet() {
         const inputEmail = document.getElementById("inputGmailCuenta");
         const selTitular = document.getElementById("selPoliciaTitular");
+        const inputNuevoPol = document.getElementById("inputNuevoPoliciaTitularGmail");
+        const selJerTitular = document.getElementById("selJerarquiaTitularGmail");
+
         const email = inputEmail ? inputEmail.value.trim() : "";
-        const policiaTitular = selTitular ? selTitular.value : "";
+        const selectedPolicia = selTitular ? selTitular.value : "";
+        const nuevoNombre = inputNuevoPol ? inputNuevoPol.value.trim() : "";
+        const nuevaJerarquia = selJerTitular ? selJerTitular.value : "Sgto. Ayte.";
 
         if (!Utils.isValidGmailAddress(email)) {
             return mostrarNotificacion("Ingrese un correo electrónico válido (ej: usuario@gmail.com)", "var(--danger)");
         }
 
-        mostrarNotificacion(`Vinculando ${email} y creando archivo Google Sheets en la nube...`, "var(--primary)");
+        const titularRes = ensureTitularPoliceOnGmailLink({
+            selectedPolicia,
+            nuevoNombre,
+            nuevaJerarquia
+        });
+        if (!titularRes.ok || !titularRes.policiaTitular) {
+            const inputNuevo = document.getElementById("inputNuevoPoliciaTitularGmail");
+            if (inputNuevo) inputNuevo.focus();
+            return mostrarNotificacion(titularRes.message, "var(--warning)");
+        }
+
+        const policiaTitular = titularRes.policiaTitular;
+        if (titularRes.created) {
+            if (inputNuevoPol) inputNuevoPol.value = "";
+            inicializarListasEntidades();
+        }
+
+        mostrarNotificacion(`Vinculando ${email} con Policía Predefinido "${policiaTitular}" y creando Google Sheets...`, "var(--primary)");
 
         const evs = safeParse("eventos", []);
         const res = await CloudSync.vincularGmailYCrearSheet({
@@ -287,11 +395,11 @@
         if (res.ok) {
             cargarEstadoCuentaGmailUI();
             actualizarEstadoBaseDatosUI();
-            // Re-programar alertas de notificaciones filtradas por el policía titular seleccionado
+            // Re-programar alertas de notificaciones personalizadas para el policía titular predefinido
             if (Notifications && typeof Notifications.scheduleServiceReminders === 'function') {
                 await Notifications.scheduleServiceReminders(evs, { policiaTitular });
             }
-            mostrarNotificacion(res.message, "var(--secondary)");
+            mostrarNotificacion(`${res.message} Policía predefinido en calendario y alertas: ${policiaTitular}`, "var(--secondary)");
         } else {
             mostrarNotificacion(res.message || "Error al vincular cuenta Gmail", "var(--danger)");
         }
@@ -873,6 +981,7 @@
         window.guardarConfiguracionTarifas = guardarConfiguracionTarifas;
         window.vincularCuentaGmailYCrearSheet = vincularCuentaGmailYCrearSheet;
         window.verificarYCrearEstructuraSheetGmail = verificarYCrearEstructuraSheetGmail;
+        window.onCambioSelectorPoliciaTitular = onCambioSelectorPoliciaTitular;
         window.desvincularCuentaGmail = desvincularCuentaGmail;
         window.activarYProbarNotificaciones = activarYProbarNotificaciones;
         window.agregarPolicia = agregarPolicia;
@@ -897,6 +1006,7 @@
         seleccionarPortadaApp,
         vincularCuentaGmailYCrearSheet,
         verificarYCrearEstructuraSheetGmail,
+        ensureTitularPoliceOnGmailLink,
         guardarConfiguracionTarifas,
         recalcularEventosGuardados,
         buildAlfasBackupPayload,

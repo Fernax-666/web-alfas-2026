@@ -47,20 +47,109 @@ const COLORES_MESES = [
     '#ec4899', '#d946ef', '#8b5cf6', '#6366f1'
 ];
 
-// Plugin Chart.js personalizado para dibujar las etiquetas de Total encima de cada barra (en ambos gráficos)
+// Plugin Chart.js personalizado para dibujar las etiquetas de Total y Porcentaje en gráficos circulares, barras verticales y barras horizontales
 const barTotalLabelsPlugin = {
     id: 'barTotalLabelsPlugin',
     afterDatasetsDraw(chart) {
-        const { ctx, data, scales } = chart;
-        if (!scales || !scales.x || !scales.y) return;
+        const { ctx, data, scales, config: chartConfig } = chart;
+        if (!ctx || !data || !Array.isArray(data.datasets)) return;
 
         ctx.save();
         const isDark = typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark';
+        const chartType = chartConfig ? chartConfig.type : '';
+        const isHorizontalBar = chartType === 'bar' && chartConfig.options && chartConfig.options.indexAxis === 'y';
+
+        // 1. GRÁFICOS CIRCULARES (doughnut / pie): Dibujar Etiqueta de Total y Porcentaje sobre cada sector
+        if (chartType === 'doughnut' || chartType === 'pie') {
+            const ds = data.datasets[0];
+            const meta = chart.getDatasetMeta(0);
+            if (!ds || !meta || !Array.isArray(meta.data)) {
+                ctx.restore();
+                return;
+            }
+            const totalSum = (ds.data || []).reduce((acc, v) => acc + (Number(v) || 0), 0);
+            if (totalSum <= 0) {
+                ctx.restore();
+                return;
+            }
+
+            meta.data.forEach((arcElem, idx) => {
+                const val = Number(ds.data[idx]) || 0;
+                if (val <= 0) return;
+                const pct = Math.round((val / totalSum) * 100);
+                const pos = arcElem.tooltipPosition ? arcElem.tooltipPosition() : { x: arcElem.x, y: arcElem.y };
+                const labelTxt = `${val} (${pct}%)`;
+
+                ctx.font = 'bold 10.5px Inter, sans-serif';
+                const textWidth = ctx.measureText(labelTxt).width;
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+                ctx.beginPath();
+                if (typeof ctx.roundRect === 'function') {
+                    ctx.roundRect(pos.x - (textWidth / 2) - 4, pos.y - 8, textWidth + 8, 16, 4);
+                } else {
+                    ctx.rect(pos.x - (textWidth / 2) - 4, pos.y - 8, textWidth + 8, 16);
+                }
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(labelTxt, pos.x, pos.y);
+            });
+            ctx.restore();
+            return;
+        }
+
+        if (!scales || !scales.x || !scales.y) {
+            ctx.restore();
+            return;
+        }
+
         ctx.fillStyle = isDark ? '#f1f5f9' : '#1e293b';
         ctx.font = 'bold 11px Inter, sans-serif';
+
+        // 2. GRÁFICO DE BARRAS HORIZONTALES (indexAxis: 'y'): Dibujar Total y Porcentaje a la derecha de cada barra
+        if (isHorizontalBar) {
+            const numLabels = (data.labels || []).length;
+            let grandTotal = 0;
+            const rowTotals = [];
+            for (let i = 0; i < numLabels; i++) {
+                let rowSum = 0;
+                data.datasets.forEach((ds, dsIdx) => {
+                    const meta = chart.getDatasetMeta(dsIdx);
+                    if (!meta.hidden) {
+                        rowSum += Number(ds.data[i]) || 0;
+                    }
+                });
+                rowTotals.push(rowSum);
+                grandTotal += rowSum;
+            }
+
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            for (let i = 0; i < numLabels; i++) {
+                const totalRow = rowTotals[i];
+                if (totalRow > 0) {
+                    let rightX = scales.x.left;
+                    data.datasets.forEach((ds, dsIdx) => {
+                        const meta = chart.getDatasetMeta(dsIdx);
+                        if (!meta.hidden && meta.data[i]) {
+                            rightX = Math.max(rightX, meta.data[i].x);
+                        }
+                    });
+                    const pct = grandTotal > 0 ? Math.round((totalRow / grandTotal) * 100) : 0;
+                    const yPos = scales.y.getPixelForValue(i);
+                    const xPos = Math.min(rightX + 6, scales.x.right - 46);
+                    ctx.fillText(`${totalRow} (${pct}%)`, xPos, yPos);
+                }
+            }
+            ctx.restore();
+            return;
+        }
+
+        // 3. GRÁFICO DE BARRAS VERTICALES
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-
         const numLabels = (data.labels || []).length;
         for (let i = 0; i < numLabels; i++) {
             let totalCol = 0;
@@ -95,8 +184,10 @@ let policias = initialState.policias;
 let empresas = initialState.empresas;
 let coloresPolicia = initialState.coloresPolicia;
 
+let graficoGruposHorariosInstance = null;
 let graficoMensualInstance = null;
 let graficoAnualInstance = null;
+let graficoAnualHorizontalInstance = null;
 let calendar = null;
 let _currentMobileTab = 'agenda';
 let _periodoRapidoHistorial = 'todos';
@@ -142,8 +233,34 @@ function abrirNuevoServicioRapido() {
     if (inputFecha) inputFecha.value = hoyIso;
     const tituloEl = document.getElementById("fechaTitulo");
     if (tituloEl) tituloEl.textContent = "Nuevo Servicio: " + hoyIso;
+    preseleccionarPoliciaTitularEnFormulario();
     actualizarCategoriaAuto();
     abrirModal('modalServicio');
+}
+
+/**
+ * Obtiene el policía titular predefinido asociado a la cuenta Gmail vinculada.
+ * @returns {string}
+ */
+function obtenerPoliciaTitularPredefinido() {
+    if (CloudSync && typeof CloudSync.getLinkedGmailAccount === 'function') {
+        const acc = CloudSync.getLinkedGmailAccount();
+        if (acc && acc.policiaTitular) {
+            return String(acc.policiaTitular).trim();
+        }
+    }
+    return "";
+}
+
+/**
+ * Preselecciona en el formulario de Nuevo Servicio al policía titular vinculado a la cuenta Gmail.
+ */
+function preseleccionarPoliciaTitularEnFormulario() {
+    const titular = obtenerPoliciaTitularPredefinido();
+    const sPol = document.getElementById("selPolicia");
+    if (sPol && titular && Array.from(sPol.options).some(o => o.value === titular)) {
+        sPol.value = titular;
+    }
 }
 
 /**
@@ -218,6 +335,19 @@ function inicializarSelects() {
 
     renderizarLeyendaEmpresasCalendario();
     cambiarTurnos();
+
+    // Si hay un policía titular predefinido al vincular el correo Gmail, preseleccionarlo en el formulario y en el filtro del calendario
+    const titular = obtenerPoliciaTitularPredefinido();
+    if (titular) {
+        if (sPol && Array.from(sPol.options).some(o => o.value === titular)) {
+            sPol.value = titular;
+        }
+        if (cPol && Array.from(cPol.options).some(o => o.value === titular)) {
+            cPol.value = titular;
+            filtrarCalendario();
+        }
+    }
+
     const statPol = document.getElementById("stat-policias");
     if (statPol) statPol.textContent = policias.length;
 }
@@ -398,6 +528,7 @@ function initCalendar() {
             if (inputFecha) inputFecha.value = info.dateStr;
             const tituloEl = document.getElementById("fechaTitulo");
             if (tituloEl) tituloEl.textContent = "Nuevo Servicio: " + info.dateStr;
+            preseleccionarPoliciaTitularEnFormulario();
             actualizarCategoriaAuto();
             abrirModal('modalServicio');
         },
@@ -777,10 +908,13 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMon
     let totalTurnosMes = 0;
     let totalCostoMes = 0;
 
+    const anualPorDia = [0, 0, 0, 0, 0, 0, 0];
     const anualPorMesYDia = Array.from({ length: 12 }, () => [0, 0, 0, 0, 0, 0, 0]);
     let totalTurnosAnual = 0;
     let totalCostoAnual = 0;
 
+    const porGrupoHorarioMes = {};
+    const porGrupoHorarioAnual = {};
     const porPoliciaMes = {};
     const porPoliciaAnual = {};
 
@@ -803,23 +937,30 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMon
         const rawCost = (p.cost !== undefined) ? Number(p.cost) : (p.costo !== undefined ? Number(p.costo) : 0);
         const costVal = Number.isFinite(rawCost) ? rawCost : 0;
         const polNombre = String(p.policia || p.Policia || "Desconocido");
+        const turnoRaw = String(p.turno || p.Turno || "07-15").trim();
+        const grupoHorarioLabel = Utils.formatearTurnoCorto ? Utils.formatearTurnoCorto(turnoRaw) : formatearTurno(turnoRaw);
 
-        // Gráfico 2 (Anual / Comparativo con soporte de filtro por Mes y Año) y Tabla de Resumen por Policía (Imagen 2)
+        // Gráfico 2 (Anual / Comparativo con soporte de filtro por Mes y Año) y Tabla de Resumen por Policía
         if (yr === targetYear && (filterAnualMonthIdx === -1 || monthIdx === filterAnualMonthIdx)) {
+            anualPorDia[dayOfWeek]++;
             anualPorMesYDia[monthIdx][dayOfWeek]++;
             totalTurnosAnual++;
             totalCostoAnual += costVal;
+
+            porGrupoHorarioAnual[grupoHorarioLabel] = (porGrupoHorarioAnual[grupoHorarioLabel] || 0) + 1;
 
             if (!porPoliciaAnual[polNombre]) porPoliciaAnual[polNombre] = { turnos: 0, total: 0 };
             porPoliciaAnual[polNombre].turnos++;
             porPoliciaAnual[polNombre].total += costVal;
         }
 
-        // Gráfico 1 (Mensual)
+        // Gráfico 1 (Mensual) y Gráfico N° 1 (Distribución por Grupos Horarios)
         if (!targetYM || ym === targetYM) {
             mensualPorDia[dayOfWeek]++;
             totalTurnosMes++;
             totalCostoMes += costVal;
+
+            porGrupoHorarioMes[grupoHorarioLabel] = (porGrupoHorarioMes[grupoHorarioLabel] || 0) + 1;
 
             if (!porPoliciaMes[polNombre]) porPoliciaMes[polNombre] = { turnos: 0, total: 0 };
             porPoliciaMes[polNombre].turnos++;
@@ -827,13 +968,21 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMon
         }
     });
 
+    const porcentajesMensualPorDia = mensualPorDia.map(c => totalTurnosMes > 0 ? Math.round((c / totalTurnosMes) * 100) : 0);
+    const porcentajesAnualPorDia = anualPorDia.map(c => totalTurnosAnual > 0 ? Math.round((c / totalTurnosAnual) * 100) : 0);
+
     return {
         mensualPorDia,
+        porcentajesMensualPorDia,
         totalTurnosMes,
         totalCostoMes,
+        anualPorDia,
+        porcentajesAnualPorDia,
         anualPorMesYDia,
         totalTurnosAnual,
         totalCostoAnual,
+        porGrupoHorarioMes,
+        porGrupoHorarioAnual,
         porPoliciaMes,
         porPoliciaAnual
     };
@@ -873,11 +1022,29 @@ function calcularResumen() {
     if (statTurnos) statTurnos.textContent = stats.totalTurnosMes;
     if (statCosto) statCosto.textContent = `$${stats.totalCostoMes.toLocaleString('es-AR')}`;
 
+    // Resumen de Grupos Horarios (Gráfico N° 1 Circular)
+    const mapaHorarios = Object.keys(stats.porGrupoHorarioMes).length > 0
+        ? stats.porGrupoHorarioMes
+        : stats.porGrupoHorarioAnual;
+    const totalHorarios = Object.values(mapaHorarios).reduce((a, b) => a + b, 0);
+    const subHorarios = document.getElementById("subtituloGraficoHorarios");
+    if (subHorarios) subHorarios.textContent = `${Object.keys(mapaHorarios).length} grupos horarios (${mesFiltro || activeYear})`;
+    const footerHorarios = document.getElementById("footerTotalHorarios");
+    if (footerHorarios) {
+        const desgloseHorarios = Object.entries(mapaHorarios).map(([k, v]) => {
+            const pct = totalHorarios > 0 ? Math.round((v / totalHorarios) * 100) : 0;
+            return `${escapeHTML(k)}: <b>${v} (${pct}%)</b>`;
+        }).join(" &nbsp;|&nbsp; ");
+        footerHorarios.innerHTML = desgloseHorarios
+            ? `Total: <strong>${totalHorarios} turnos (100%)</strong> &nbsp;—&nbsp; ${desgloseHorarios}`
+            : `Total Grupos Horarios: <strong>0 turnos (0%)</strong>`;
+    }
+
     const subMes = document.getElementById("subtituloGraficoMes");
     if (subMes) subMes.textContent = mesFiltro || "Todos los meses";
     const footerMes = document.getElementById("footerTotalMensual");
     if (footerMes) {
-        footerMes.innerHTML = `Total Gráfico 1 (${escapeHTML(mesFiltro || 'Todos')}): <strong>${escapeHTML(stats.totalTurnosMes)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoMes.toLocaleString('es-AR'))}</strong>`;
+        footerMes.innerHTML = `Total Gráfico 1 (${escapeHTML(mesFiltro || 'Todos')}): <strong>${escapeHTML(stats.totalTurnosMes)} turnos (100%)</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoMes.toLocaleString('es-AR'))}</strong>`;
     }
 
     const etiquetaPeriodoAnual = mesAnualVal
@@ -886,12 +1053,19 @@ function calcularResumen() {
 
     const subAnual = document.getElementById("subtituloGraficoAnual");
     if (subAnual) subAnual.textContent = etiquetaPeriodoAnual;
+    const subAnualHoriz = document.getElementById("subtituloGraficoAnualHorizontal");
+    if (subAnualHoriz) subAnualHoriz.textContent = `${etiquetaPeriodoAnual} • Barras Horizontales`;
+
     const footerAnual = document.getElementById("footerTotalAnual");
     if (footerAnual) {
-        footerAnual.innerHTML = `Total Gráfico 2 (${escapeHTML(etiquetaPeriodoAnual)}): <strong>${escapeHTML(stats.totalTurnosAnual)} turnos</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoAnual.toLocaleString('es-AR'))}</strong>`;
+        footerAnual.innerHTML = `Total Gráfico 2 Circular (${escapeHTML(etiquetaPeriodoAnual)}): <strong>${escapeHTML(stats.totalTurnosAnual)} turnos (100%)</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoAnual.toLocaleString('es-AR'))}</strong>`;
+    }
+    const footerAnualHoriz = document.getElementById("footerTotalAnualHorizontal");
+    if (footerAnualHoriz) {
+        footerAnualHoriz.innerHTML = `Total Gráfico 2 Barras Horizontales (${escapeHTML(etiquetaPeriodoAnual)}): <strong>${escapeHTML(stats.totalTurnosAnual)} turnos (100%)</strong> &nbsp;|&nbsp; Monto: <strong>$${escapeHTML(stats.totalCostoAnual.toLocaleString('es-AR'))}</strong>`;
     }
 
-    // IMAGEN 2: La tabla Resumen por Policía muestra exactamente lo que filtra el Gráfico Anual / Comparativo (porPoliciaAnual)
+    // Tabla Resumen por Policía conectada a lo que filtra el Gráfico Anual / Comparativo (porPoliciaAnual)
     const badgeResumenPeriodo = document.getElementById("badgeResumenPoliciaPeriodo");
     if (badgeResumenPeriodo) badgeResumenPeriodo.textContent = etiquetaPeriodoAnual;
 
@@ -922,43 +1096,125 @@ function calcularResumen() {
 
     if (typeof Chart === 'undefined') return;
 
-    const canvasMensual = document.getElementById('graficoMensual');
-    if (canvasMensual) {
-        if (graficoMensualInstance) graficoMensualInstance.destroy();
-        graficoMensualInstance = new Chart(canvasMensual.getContext('2d'), {
-            type: 'bar',
+    const PALETA_DIAS_CIRCULAR = ['#0d9488', '#2563eb', '#7c3aed', '#d97706', '#e11d48', '#16a34a', '#0891b2'];
+
+    // A) GRÁFICO N° 1: CIRCULAR DIFERENCIANDO DISTINTOS GRUPOS HORARIOS CON TOTALES Y PORCENTAJES
+    const canvasHorarios = document.getElementById('graficoGruposHorarios');
+    if (canvasHorarios) {
+        if (graficoGruposHorariosInstance) graficoGruposHorariosInstance.destroy();
+        const rawKeys = Object.keys(mapaHorarios);
+        const labelsHorarios = rawKeys.length > 0
+            ? rawKeys.map(k => {
+                const v = mapaHorarios[k];
+                const pct = totalHorarios > 0 ? Math.round((v / totalHorarios) * 100) : 0;
+                return `${k}: ${v} (${pct}%)`;
+            })
+            : ['Sin turnos registrados (0%)'];
+        const dataHorarios = rawKeys.length > 0 ? rawKeys.map(k => mapaHorarios[k]) : [0];
+        const colorsHorarios = ['#16a34a', '#0891b2', '#d97706', '#7c3aed', '#e11d48', '#2563eb', '#0d9488', '#ea580c'];
+
+        graficoGruposHorariosInstance = new Chart(canvasHorarios.getContext('2d'), {
+            type: 'doughnut',
             plugins: [barTotalLabelsPlugin],
             data: {
-                labels: DIAS_SEMANA_LABELS,
+                labels: labelsHorarios,
                 datasets: [{
-                    label: `Turnos (${mesFiltro || 'Mes'})`,
-                    data: stats.mensualPorDia,
-                    backgroundColor: ['#3b82f6', '#2563eb', '#1d4ed8', '#1e40af', '#0ea5e9', '#10b981', '#f59e0b'],
-                    borderRadius: 6,
-                    borderSkipped: false
+                    label: 'Turnos por Grupo Horario',
+                    data: dataHorarios,
+                    backgroundColor: colorsHorarios.slice(0, Math.max(dataHorarios.length, 1)),
+                    borderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                layout: { padding: { top: 20 } },
+                cutout: '42%',
                 plugins: {
-                    legend: { display: false }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grace: '15%',
-                        ticks: { stepSize: 1, precision: 0 }
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, padding: 8, font: { size: 11 } }
                     }
                 }
             }
         });
     }
 
+    // B) GRÁFICO 1: TURNOS POR DÍA (MENSUAL) EN FORMATO CIRCULAR CON ETIQUETAS TOTALES Y PORCENTAJES
+    const canvasMensual = document.getElementById('graficoMensual');
+    if (canvasMensual) {
+        if (graficoMensualInstance) graficoMensualInstance.destroy();
+        const labelsMesConPorcentaje = DIAS_SEMANA_LABELS.map((dLabel, idx) => {
+            const cnt = stats.mensualPorDia[idx];
+            const pct = stats.porcentajesMensualPorDia[idx];
+            return `${dLabel}: ${cnt} (${pct}%)`;
+        });
+
+        graficoMensualInstance = new Chart(canvasMensual.getContext('2d'), {
+            type: 'doughnut',
+            plugins: [barTotalLabelsPlugin],
+            data: {
+                labels: labelsMesConPorcentaje,
+                datasets: [{
+                    label: `Turnos (${mesFiltro || 'Mes'})`,
+                    data: stats.mensualPorDia,
+                    backgroundColor: PALETA_DIAS_CIRCULAR,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '42%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 11, padding: 7, font: { size: 10.5 } }
+                    }
+                }
+            }
+        });
+    }
+
+    // C) GRÁFICO 2: ANUAL / COMPARATIVO EN FORMATO CIRCULAR CON ETIQUETAS TOTALES Y PORCENTAJES
     const canvasAnual = document.getElementById('graficoAnual');
     if (canvasAnual) {
         if (graficoAnualInstance) graficoAnualInstance.destroy();
+        const labelsAnualConPorcentaje = DIAS_SEMANA_LABELS.map((dLabel, idx) => {
+            const cnt = stats.anualPorDia[idx];
+            const pct = stats.porcentajesAnualPorDia[idx];
+            return `${dLabel}: ${cnt} (${pct}%)`;
+        });
+
+        graficoAnualInstance = new Chart(canvasAnual.getContext('2d'), {
+            type: 'doughnut',
+            plugins: [barTotalLabelsPlugin],
+            data: {
+                labels: labelsAnualConPorcentaje,
+                datasets: [{
+                    label: `Turnos (${etiquetaPeriodoAnual})`,
+                    data: stats.anualPorDia,
+                    backgroundColor: PALETA_DIAS_CIRCULAR,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '42%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 11, padding: 7, font: { size: 10.5 } }
+                    }
+                }
+            }
+        });
+    }
+
+    // D) DUPLICADO DEL GRÁFICO 2 ANUAL / COMPARATIVO EN FORMATO DE BARRAS HORIZONTALES (indexAxis: 'y')
+    const canvasAnualHoriz = document.getElementById('graficoAnualHorizontal');
+    if (canvasAnualHoriz) {
+        if (graficoAnualHorizontalInstance) graficoAnualHorizontalInstance.destroy();
 
         const activeDatasets = [];
         stats.anualPorMesYDia.forEach((countsByDay, mIdx) => {
@@ -968,7 +1224,7 @@ function calcularResumen() {
                     label: MESES_CORTOS[mIdx],
                     data: countsByDay,
                     backgroundColor: COLORES_MESES[mIdx % COLORES_MESES.length],
-                    borderRadius: 3
+                    borderRadius: 4
                 });
             }
         });
@@ -981,7 +1237,7 @@ function calcularResumen() {
             });
         }
 
-        graficoAnualInstance = new Chart(canvasAnual.getContext('2d'), {
+        graficoAnualHorizontalInstance = new Chart(canvasAnualHoriz.getContext('2d'), {
             type: 'bar',
             plugins: [barTotalLabelsPlugin],
             data: {
@@ -989,23 +1245,24 @@ function calcularResumen() {
                 datasets: activeDatasets
             },
             options: {
+                indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
-                layout: { padding: { top: 20 } },
+                layout: { padding: { right: 54, top: 6 } },
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { boxWidth: 12, padding: 10, font: { size: 11 } }
+                        labels: { boxWidth: 12, padding: 8, font: { size: 10.5 } }
                     }
                 },
                 scales: {
-                    x: { stacked: true },
-                    y: {
+                    x: {
                         stacked: true,
                         beginAtZero: true,
-                        grace: '15%',
+                        grace: '18%',
                         ticks: { stepSize: 1, precision: 0 }
-                    }
+                    },
+                    y: { stacked: true }
                 }
             }
         });
@@ -1076,7 +1333,8 @@ function actualizarEstadoBaseDatosUI() {
     if (gmailBadge && CloudSync && typeof CloudSync.getLinkedGmailAccount === 'function') {
         const acc = CloudSync.getLinkedGmailAccount();
         if (acc && acc.email) {
-            gmailBadge.textContent = `☁️ ${acc.email}`;
+            const polTag = acc.policiaTitular ? ` • 👮 ${acc.policiaTitular}` : '';
+            gmailBadge.textContent = `☁️ ${acc.email}${polTag}`;
             gmailBadge.classList.remove("display-none");
         } else {
             gmailBadge.classList.add("display-none");
@@ -1340,6 +1598,7 @@ if (typeof module !== 'undefined' && module.exports) {
         etiquetaPolicia,
         extractStructuredEventInfo,
         computeWeekdayBarStats,
+        obtenerPoliciaTitularPredefinido,
         capturarYCompartirCalendarioWhatsApp,
         getActivePlatformHandler,
         defaultServiciosRaw,
