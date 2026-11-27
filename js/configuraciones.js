@@ -22,6 +22,8 @@
     const Database = (typeof window !== 'undefined' && window.AlfaDatabase) ? window.AlfaDatabase : require('./services/database.js');
     const Storage = (typeof window !== 'undefined' && window.AlfaStorage) ? window.AlfaStorage : require('./services/storage.js');
     const CloudSync = (typeof window !== 'undefined' && window.AlfaCloudSync) ? window.AlfaCloudSync : require('./services/cloudSync.js');
+    const PlatformPC = (typeof window !== 'undefined' && window.AlfaPlatformPC) ? window.AlfaPlatformPC : require('./services/platformPc.js');
+    const PlatformAPK = (typeof window !== 'undefined' && window.AlfaPlatformAPK) ? window.AlfaPlatformAPK : require('./services/platformApk.js');
     const Notifications = (typeof window !== 'undefined' && window.AlfaNotifications) ? window.AlfaNotifications : require('./services/notifications.js');
 
     const escapeHTML = Utils.escapeHTML;
@@ -72,8 +74,11 @@
 
     function seleccionarPortadaApp(coverId) {
         const chosen = Utils.setSplashCover(coverId);
+        if (Utils.applySplashCoverIconTheme) {
+            Utils.applySplashCoverIconTheme(chosen.id);
+        }
         actualizarTarjetasPortadaUI(chosen.id);
-        mostrarNotificacion(`Portada de inicio seleccionada: ${chosen.nombre}`, "var(--secondary)");
+        mostrarNotificacion(`Portada e íconos aplicados: ${chosen.nombre}`, "var(--secondary)");
     }
 
     function actualizarTarjetasPortadaUI(activeCoverId) {
@@ -82,6 +87,12 @@
             const isMatch = card.getAttribute("data-splash-id") === activeCoverId;
             card.classList.toggle("active", isMatch);
         });
+
+        const coverObj = Utils.getCoverIconSet ? Utils.getCoverIconSet(activeCoverId) : (Utils.AVAILABLE_SPLASH_COVERS[activeCoverId] || Utils.AVAILABLE_SPLASH_COVERS.portada_1);
+        const stripTitle = document.getElementById("lblTemaIconosActivos");
+        if (stripTitle && coverObj) {
+            stripTitle.textContent = `Tema de Íconos Activo: ${coverObj.nombre}`;
+        }
     }
 
     function previsualizarPortadaActiva() {
@@ -516,52 +527,266 @@
         CloudSync.sincronizarEmpresasCloud(empresas).then(() => actualizarEstadoBaseDatosUI());
     }
 
-    function descargarRespaldoJSON() {
+    /**
+     * Construye el objeto completo de respaldo `alfas.json` (incluyendo eventos, tarifas, policías, empresas y precartones).
+     * @returns {{payload: Object, jsonString: string, countEventos: number}}
+     */
+    function buildAlfasBackupPayload() {
         const evs = safeParse("eventos", []);
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(evs, null, 2));
-        const a = document.createElement("a");
-        a.setAttribute("href", dataStr);
-        a.setAttribute("download", "alfas.json");
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        mostrarNotificacion("Archivo alfas.json exportado", "var(--secondary)");
+        const planillas = {};
+        if (typeof localStorage !== 'undefined' && typeof localStorage.length === 'number') {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.startsWith("planilla_")) {
+                    planillas[k] = safeParse(k, {});
+                }
+            }
+        }
+
+        const payload = {
+            app: "Web Alfas 2026",
+            version: 21,
+            exportedAt: new Date().toISOString(),
+            splashCover: Utils.getSavedSplashCover ? Utils.getSavedSplashCover() : "portada_1",
+            theme: Utils.getSavedTheme ? Utils.getSavedTheme() : "light",
+            config,
+            policias,
+            empresas,
+            coloresPolicia,
+            planillas,
+            eventos: Array.isArray(evs) ? evs : []
+        };
+
+        return {
+            payload,
+            jsonString: JSON.stringify(payload, null, 2),
+            countEventos: Array.isArray(evs) ? evs.length : 0
+        };
+    }
+
+    /**
+     * Exporta `alfas.json` delegando según plataforma:
+     * - En Android APK: usa `PlatformAPK.exportJsonFileAPK` (@capacitor/filesystem + @capacitor/share).
+     * - En Windows PC: usa `PlatformPC.exportJsonFilePC` (Blob URL download).
+     */
+    async function descargarRespaldoJSON() {
+        try {
+            const { jsonString, countEventos } = buildAlfasBackupPayload();
+            const fileName = "alfas.json";
+            const ctx = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isNativeAPK: false, isMobileViewport: false };
+
+            // Mostrar también en el cuadro de respaldo directo por si el usuario desea copiarlo o verificarlo
+            const txtDirect = document.getElementById("textareaRespaldoJsonDirecto");
+            const boxDirect = document.getElementById("boxRespaldoJsonDirecto");
+            if (txtDirect) txtDirect.value = jsonString;
+            if (boxDirect) boxDirect.classList.remove("display-none");
+
+            if (ctx.isNativeAPK || ctx.isMobileViewport) {
+                const resApk = await PlatformAPK.exportJsonFileAPK(jsonString, fileName, true);
+                if (resApk && resApk.saved) {
+                    mostrarNotificacion(`✅ alfas.json (${countEventos} turnos) guardado en ${resApk.directory}`, "var(--secondary)");
+                    return resApk;
+                }
+            }
+
+            const resPc = await PlatformPC.exportJsonFilePC(jsonString, fileName);
+            mostrarNotificacion(`✅ Archivo alfas.json (${countEventos} turnos) descargado en ${resPc.path}`, "var(--secondary)");
+            return resPc;
+        } catch (err) {
+            console.error("Error exportando alfas.json:", err);
+            mostrarNotificacion("Error al exportar alfas.json. Use el cuadro de copia directa.", "var(--danger)");
+            return { saved: false };
+        }
+    }
+
+    /**
+     * Parsea y restaura un contenido JSON de respaldo (`alfas.json`), aceptando tanto:
+     *  1) Un arreglo directo de eventos `[ { start, extendedProps }, ... ]` o `[ { fecha, empresa, policia, turno }, ... ]`
+     *  2) Un objeto completo de respaldo `{ eventos: [...], config: {...}, policias: [...], empresas: {...}, planillas: {...} }`
+     * @param {string|Object|Array} rawInput 
+     * @returns {{ok: boolean, countEventos: number, restoredConfig: boolean, restoredPolicias: boolean, restoredEmpresas: boolean, message: string}}
+     */
+    function parseAndRestoreAlfasJson(rawInput) {
+        try {
+            let parsed = rawInput;
+            if (typeof rawInput === 'string') {
+                const cleanText = rawInput.replace(/^\uFEFF/, '').trim();
+                if (!cleanText) {
+                    return { ok: false, countEventos: 0, restoredConfig: false, restoredPolicias: false, restoredEmpresas: false, message: "El archivo JSON está vacío" };
+                }
+                parsed = JSON.parse(cleanText);
+            }
+
+            if (!parsed || typeof parsed !== 'object') {
+                return { ok: false, countEventos: 0, restoredConfig: false, restoredPolicias: false, restoredEmpresas: false, message: "Formato de archivo alfas.json inválido" };
+            }
+
+            let rawEventos = [];
+            let restoredConfig = false;
+            let restoredPolicias = false;
+            let restoredEmpresas = false;
+
+            if (Array.isArray(parsed)) {
+                rawEventos = parsed;
+            } else {
+                if (Array.isArray(parsed.eventos)) {
+                    rawEventos = parsed.eventos;
+                } else if (Array.isArray(parsed.servicios)) {
+                    rawEventos = parsed.servicios;
+                } else if (Array.isArray(parsed.data)) {
+                    rawEventos = parsed.data;
+                }
+
+                if (parsed.config && typeof parsed.config === 'object' && !Array.isArray(parsed.config)) {
+                    CATEGORIAS.forEach(catKey => {
+                        const num = Number(parsed.config[catKey]);
+                        if (Number.isFinite(num) && num >= 0) {
+                            config[catKey] = num;
+                            restoredConfig = true;
+                        }
+                    });
+                    if (restoredConfig) Storage.saveConfig(config);
+                }
+
+                if (parsed.coloresPolicia && typeof parsed.coloresPolicia === 'object') {
+                    Object.assign(coloresPolicia, parsed.coloresPolicia);
+                    Storage.saveColores(coloresPolicia);
+                }
+
+                if (Array.isArray(parsed.policias) && parsed.policias.length > 0) {
+                    const cleanPols = parsed.policias
+                        .map(p => (typeof p === 'object' && p !== null)
+                            ? { nombre: String(p.nombre || '').trim(), jerarquia: String(p.jerarquia || '').trim() }
+                            : { nombre: String(p || '').trim(), jerarquia: '' })
+                        .filter(p => Boolean(p.nombre));
+                    if (cleanPols.length > 0) {
+                        policias = cleanPols;
+                        policias.forEach(p => {
+                            coloresPolicia[p.nombre] = Utils.ensureDistinctEventColor
+                                ? Utils.ensureDistinctEventColor(coloresPolicia[p.nombre], p.nombre)
+                                : '#0d9488';
+                        });
+                        Storage.saveColores(coloresPolicia);
+                        Storage.savePolicias(policias, coloresPolicia);
+                        restoredPolicias = true;
+                    }
+                }
+
+                if (parsed.empresas && typeof parsed.empresas === 'object' && !Array.isArray(parsed.empresas) && Object.keys(parsed.empresas).length > 0) {
+                    empresas = parsed.empresas;
+                    Storage.saveEmpresas(empresas);
+                    restoredEmpresas = true;
+                }
+
+                if (parsed.planillas && typeof parsed.planillas === 'object' && typeof localStorage !== 'undefined') {
+                    Object.entries(parsed.planillas).forEach(([k, v]) => {
+                        if (k.startsWith('planilla_') && v && typeof v === 'object') {
+                            localStorage.setItem(k, JSON.stringify(v));
+                        }
+                    });
+                }
+
+                if (parsed.splashCover && Utils.AVAILABLE_SPLASH_COVERS && Utils.AVAILABLE_SPLASH_COVERS[parsed.splashCover]) {
+                    Utils.setSplashCover(parsed.splashCover);
+                }
+            }
+
+            const validos = [];
+            rawEventos.forEach(item => {
+                const v = Utils.validateServicioRecord(item);
+                if (v.valid && v.record) {
+                    const r = v.record;
+                    validos.push({
+                        title: `${r.policia}\n${r.empresa} (${Utils.formatearTurno(r.turno)})`,
+                        start: r.fecha,
+                        allDay: true,
+                        backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(coloresPolicia[r.policia], r.policia) : '#0d9488',
+                        borderColor: 'transparent',
+                        extendedProps: {
+                            policia: r.policia, empresa: r.empresa, turno: r.turno,
+                            cat: r.cat, cost: r.cost, h: r.h, vh: r.vh, detail: r.detail
+                        }
+                    });
+                }
+            });
+
+            if (validos.length > 0 || Array.isArray(parsed) || Array.isArray(parsed.eventos)) {
+                Storage.saveEventos(validos);
+            }
+
+            if (typeof document !== 'undefined') {
+                initInputsTarifas();
+                inicializarListasEntidades();
+                cargarEstadoCuentaGmailUI();
+                actualizarEstadoBaseDatosUI();
+            }
+
+            return {
+                ok: true,
+                countEventos: validos.length,
+                restoredConfig,
+                restoredPolicias,
+                restoredEmpresas,
+                message: `✅ Importación exitosa: ${validos.length} servicios restaurados en la Base Local`
+            };
+        } catch (err) {
+            return {
+                ok: false,
+                countEventos: 0,
+                restoredConfig: false,
+                restoredPolicias: false,
+                restoredEmpresas: false,
+                message: "Error al leer el archivo alfas.json: verifique que sea un JSON válido"
+            };
+        }
     }
 
     function cargarAlfasJSONConfig(evt) {
-        const file = evt && evt.target && evt.target.files ? evt.target.files[0] : null;
+        const inputEl = (evt && evt.target) ? evt.target : document.getElementById("importarJson");
+        const file = (inputEl && inputEl.files) ? inputEl.files[0] : null;
         if (!file) return;
         const reader = new FileReader();
         reader.onload = function (e) {
-            try {
-                const parsed = JSON.parse(e.target.result);
-                if (Array.isArray(parsed)) {
-                    const validos = [];
-                    parsed.forEach(item => {
-                        const v = Utils.validateServicioRecord(item);
-                        if (v.valid && v.record) {
-                            const r = v.record;
-                            validos.push({
-                                title: `${r.policia}\n${r.empresa} (${Utils.formatearTurno(r.turno)})`,
-                                start: r.fecha,
-                                allDay: true,
-                                backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(coloresPolicia[r.policia], r.policia) : '#0d9488',
-                                borderColor: 'transparent',
-                                extendedProps: {
-                                    policia: r.policia, empresa: r.empresa, turno: r.turno,
-                                    cat: r.cat, cost: r.cost, h: r.h, vh: r.vh, detail: r.detail
-                                }
-                            });
-                        }
-                    });
-                    Storage.saveEventos(validos);
-                    mostrarNotificacion(`${validos.length} servicios importados a la Base Local`, "var(--secondary)");
-                }
-            } catch (_) {
-                mostrarNotificacion("Error al importar archivo JSON", "var(--danger)");
-            }
+            const res = parseAndRestoreAlfasJson(e.target.result);
+            mostrarNotificacion(res.message, res.ok ? "var(--secondary)" : "var(--danger)");
+            if (inputEl) inputEl.value = "";
         };
-        reader.readAsText(file);
+        reader.onerror = function () {
+            mostrarNotificacion("No se pudo leer el archivo seleccionado", "var(--danger)");
+            if (inputEl) inputEl.value = "";
+        };
+        reader.readAsText(file, "UTF-8");
+    }
+
+    function abrirSelectorImportarJSON() {
+        const inputEl = document.getElementById("importarJson");
+        if (inputEl) {
+            inputEl.value = "";
+            inputEl.click();
+        }
+    }
+
+    function restaurarDesdeTextoJSONDirecto() {
+        const txtDirect = document.getElementById("textareaRespaldoJsonDirecto");
+        if (!txtDirect || !txtDirect.value.trim()) {
+            return mostrarNotificacion("Pegue el contenido de alfas.json en el cuadro primero", "var(--warning)");
+        }
+        const res = parseAndRestoreAlfasJson(txtDirect.value);
+        mostrarNotificacion(res.message, res.ok ? "var(--secondary)" : "var(--danger)");
+    }
+
+    function toggleBoxRespaldoDirecto() {
+        const box = document.getElementById("boxRespaldoJsonDirecto");
+        const txt = document.getElementById("textareaRespaldoJsonDirecto");
+        if (!box) return;
+        const wasHidden = box.classList.contains("display-none");
+        if (wasHidden) {
+            const { jsonString } = buildAlfasBackupPayload();
+            if (txt) txt.value = jsonString;
+            box.classList.remove("display-none");
+        } else {
+            box.classList.add("display-none");
+        }
     }
 
     async function sincronizarDesdeSheets() {
@@ -628,7 +853,11 @@
         if (typeof document === 'undefined') return;
         const activeTheme = Utils.applyTheme(Utils.getSavedTheme());
         actualizarBotonesTemaUI(activeTheme);
-        actualizarTarjetasPortadaUI(Utils.getSavedSplashCover());
+        const savedCover = Utils.getSavedSplashCover();
+        if (Utils.applySplashCoverIconTheme) {
+            Utils.applySplashCoverIconTheme(savedCover);
+        }
+        actualizarTarjetasPortadaUI(savedCover);
         initInputsTarifas();
         inicializarListasEntidades();
         cargarEstadoCuentaGmailUI();
@@ -655,6 +884,9 @@
         window.eliminarEmpresa = eliminarEmpresa;
         window.descargarRespaldoJSON = descargarRespaldoJSON;
         window.cargarAlfasJSONConfig = cargarAlfasJSONConfig;
+        window.abrirSelectorImportarJSON = abrirSelectorImportarJSON;
+        window.restaurarDesdeTextoJSONDirecto = restaurarDesdeTextoJSONDirecto;
+        window.toggleBoxRespaldoDirecto = toggleBoxRespaldoDirecto;
         window.sincronizarDesdeSheets = sincronizarDesdeSheets;
         document.addEventListener('DOMContentLoaded', init);
     }
@@ -666,6 +898,9 @@
         vincularCuentaGmailYCrearSheet,
         verificarYCrearEstructuraSheetGmail,
         guardarConfiguracionTarifas,
-        recalcularEventosGuardados
+        recalcularEventosGuardados,
+        buildAlfasBackupPayload,
+        descargarRespaldoJSON,
+        parseAndRestoreAlfasJson
     };
 }));

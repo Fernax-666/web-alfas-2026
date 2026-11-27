@@ -914,6 +914,9 @@
         if (Utils.applyTheme && Utils.getSavedTheme) {
             Utils.applyTheme(Utils.getSavedTheme());
         }
+        if (Utils.applySplashCoverIconTheme) {
+            Utils.applySplashCoverIconTheme(Utils.getSavedSplashCover ? Utils.getSavedSplashCover() : 'portada_1');
+        }
         const hoy = new Date();
         const selMes = document.getElementById("selMes");
         const selAnio = document.getElementById("selAnio");

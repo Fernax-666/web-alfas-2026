@@ -11,15 +11,19 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/styles.css?v=20">
-  <script src="js/utils/helpers.js?v=20"></script>
-  <script src="js/services/calculator.js?v=20"></script>
-  <script src="js/services/database.js?v=20"></script>
-  <script src="js/services/storage.js?v=20"></script>
-  <script src="js/services/cloudSync.js?v=20"></script>
-  <script src="js/services/exporter.js?v=20"></script>
-  <script src="js/services/notifications.js?v=20"></script>
-  <script src="js/configuraciones.js?v=20"></script>
+  <link rel="icon" href="img/icons/p1_icon_3.png" data-cover-favicon>
+  <link rel="apple-touch-icon" href="img/icons/p1_icon_3.png">
+  <link rel="stylesheet" href="css/styles.css?v=21">
+  <script src="js/utils/helpers.js?v=21"></script>
+  <script src="js/services/calculator.js?v=21"></script>
+  <script src="js/services/database.js?v=21"></script>
+  <script src="js/services/storage.js?v=21"></script>
+  <script src="js/services/cloudSync.js?v=21"></script>
+  <script src="js/services/exporter.js?v=21"></script>
+  <script src="js/services/platformPc.js?v=21"></script>
+  <script src="js/services/platformApk.js?v=21"></script>
+  <script src="js/services/notifications.js?v=21"></script>
+  <script src="js/configuraciones.js?v=21"></script>
 </head>
 
 <body>
@@ -35,9 +39,12 @@
 
   <div class="container">
     <header class="app-header-bar">
-      <div class="header-titles">
-        <h1>⚙️ Centro de Configuraciones</h1>
-        <p class="subtitle">Toque cada sección numerada para expandirla mientras las demás permanecen contraídas</p>
+      <div class="header-titles header-with-app-icon">
+        <img src="img/icons/p1_icon_3.png" alt="Ícono Personalizado según Portada" class="app-cover-badge-icon" data-cover-app-icon>
+        <div>
+          <h1>⚙️ Centro de Configuraciones</h1>
+          <p class="subtitle">Toque cada sección numerada para expandirla mientras las demás permanecen contraídas</p>
+        </div>
       </div>
       <div class="desktop-top-nav no-print">
         <a href="index.html" class="btn-outline">📅 Dashboard y Calendario</a>
@@ -67,13 +74,20 @@
         </div>
 
         <div class="splash-selector-section">
-          <label class="mb-8">🖼️ Cambiar Portada de Inicio (se visualiza una sola vez al iniciar la aplicación)</label>
+          <label class="mb-8">🖼️ Cambiar Portada de Inicio e Íconos Personalizados (cada portada activa su propio tema de 5 íconos)</label>
           <div class="splash-selector-grid">
             <div class="splash-option-card" data-splash-id="portada_1" onclick="seleccionarPortadaApp('portada_1')">
               <img src="img/portada_1.jpg" alt="Portada 1 Realista Institucional" class="splash-thumb-img">
               <div class="splash-option-info">
                 <strong>Portada 01</strong>
                 <span>Realista Institucional</span>
+                <div class="splash-icons-row-preview">
+                  <img src="img/icons/p1_icon_1.png" alt="Agenda">
+                  <img src="img/icons/p1_icon_2.png" alt="Precartón">
+                  <img src="img/icons/p1_icon_3.png" alt="App Icon">
+                  <img src="img/icons/p1_icon_4.png" alt="Gráficos">
+                  <img src="img/icons/p1_icon_5.png" alt="Config">
+                </div>
               </div>
             </div>
             <div class="splash-option-card" data-splash-id="portada_2" onclick="seleccionarPortadaApp('portada_2')">
@@ -81,6 +95,13 @@
               <div class="splash-option-info">
                 <strong>Portada 02</strong>
                 <span>Ilustrada Diurna</span>
+                <div class="splash-icons-row-preview">
+                  <img src="img/icons/p2_icon_1.png" alt="Agenda">
+                  <img src="img/icons/p2_icon_2.png" alt="Precartón">
+                  <img src="img/icons/p2_icon_3.png" alt="App Icon">
+                  <img src="img/icons/p2_icon_4.png" alt="Gráficos">
+                  <img src="img/icons/p2_icon_5.png" alt="Config">
+                </div>
               </div>
             </div>
             <div class="splash-option-card" data-splash-id="portada_03" onclick="seleccionarPortadaApp('portada_03')">
@@ -88,6 +109,13 @@
               <div class="splash-option-info">
                 <strong>Portada 03</strong>
                 <span>Digital Cyber Azul</span>
+                <div class="splash-icons-row-preview">
+                  <img src="img/icons/p3_icon_1.png" alt="Agenda">
+                  <img src="img/icons/p3_icon_2.png" alt="Precartón">
+                  <img src="img/icons/p3_icon_3.png" alt="App Icon">
+                  <img src="img/icons/p3_icon_4.png" alt="Gráficos">
+                  <img src="img/icons/p3_icon_5.png" alt="Config">
+                </div>
               </div>
             </div>
             <div class="splash-option-card" data-splash-id="portada_04" onclick="seleccionarPortadaApp('portada_04')">
@@ -95,9 +123,25 @@
               <div class="splash-option-info">
                 <strong>Portada 04</strong>
                 <span>Táctica Carbono Dorado</span>
+                <div class="splash-icons-row-preview">
+                  <img src="img/icons/p4_icon_1.png" alt="Agenda">
+                  <img src="img/icons/p4_icon_2.png" alt="Precartón">
+                  <img src="img/icons/p4_icon_3.png" alt="App Icon">
+                  <img src="img/icons/p4_icon_4.png" alt="Gráficos">
+                  <img src="img/icons/p4_icon_5.png" alt="Config">
+                </div>
               </div>
             </div>
           </div>
+
+          <div class="active-icon-theme-banner mt-10">
+            <img src="img/icons/p1_icon_3.png" alt="Ícono Activo" class="active-theme-main-icon" data-cover-app-icon>
+            <div class="active-icon-theme-meta">
+              <strong id="lblTemaIconosActivos">Tema de Íconos Activo: Portada 1 (Realista Institucional)</strong>
+              <span>Los 5 íconos de navegación y el ícono principal se adaptan automáticamente a la portada elegida.</span>
+            </div>
+          </div>
+
           <button type="button" class="btn-outline btn-full-xs mt-10" onclick="previsualizarPortadaActiva()">👁️ Previsualizar Portada Seleccionada</button>
         </div>
       </div>
@@ -181,8 +225,19 @@
         <div class="config-actions-grid">
           <button type="button" class="btn-primary btn-green" onclick="sincronizarDesdeSheets()">🔄 Leer Solapa Servicios (Sheets)</button>
           <button type="button" class="btn-outline btn-outline-green" onclick="descargarRespaldoJSON()">📤 Exportar alfas.json</button>
-          <button type="button" class="btn-outline btn-outline-green" onclick="document.getElementById('importarJson').click()">📥 Importar alfas.json</button>
-          <input type="file" id="importarJson" title="Importar archivo alfas.json" class="display-none" accept=".json" onchange="cargarAlfasJSONConfig(event)">
+          <button type="button" class="btn-outline btn-outline-green" onclick="abrirSelectorImportarJSON()">📥 Importar alfas.json</button>
+          <button type="button" class="btn-outline" onclick="toggleBoxRespaldoDirecto()">📋 Ver / Pegar JSON Directo</button>
+          <input type="file" id="importarJson" title="Importar archivo alfas.json" class="display-none" accept=".json,application/json,text/plain,*/*" onchange="cargarAlfasJSONConfig(event)">
+        </div>
+
+        <div id="boxRespaldoJsonDirecto" class="gmail-sync-box mt-10 display-none">
+          <h4>📦 Respaldo / Restauración Directa de `alfas.json` (Android APK y Windows PC)</h4>
+          <p class="text-muted-sm">Si su gestor de archivos móvil bloquea extensiones `.json`, puede copiar el texto exportado aquí o pegar su respaldo y tocar <b>Restaurar desde Texto JSON</b>.</p>
+          <textarea id="textareaRespaldoJsonDirecto" rows="5" placeholder='Pegue aquí el contenido de alfas.json...' style="font-family:monospace; font-size:0.74rem; margin-bottom:8px;"></textarea>
+          <div class="flex-gap-10">
+            <button type="button" class="btn-primary flex-1" onclick="restaurarDesdeTextoJSONDirecto()">📥 Restaurar desde Texto JSON</button>
+            <button type="button" class="btn-outline" onclick="document.getElementById('boxRespaldoJsonDirecto').classList.add('display-none')">Cerrar</button>
+          </div>
         </div>
       </div>
     </div>
@@ -346,26 +401,26 @@
     </div>
   </div>
 
-  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL -->
+  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL CON ÍCONOS PERSONALIZADOS SEGÚN PORTADA -->
   <nav class="mobile-bottom-nav" aria-label="Navegación principal móvil">
     <a href="index.html?tab=agenda" class="mobile-nav-btn">
-      <span class="nav-icon">📅</span>
+      <img src="img/icons/p1_icon_1.png" alt="Agenda" class="nav-custom-icon" data-cover-nav-icon="agenda">
       <span>Agenda</span>
     </a>
     <a href="index.html?tab=resumen" class="mobile-nav-btn">
-      <span class="nav-icon">📊</span>
+      <img src="img/icons/p1_icon_4.png" alt="Gráficos" class="nav-custom-icon" data-cover-nav-icon="resumen">
       <span>Gráficos</span>
     </a>
     <a href="index.html?tab=historial" class="mobile-nav-btn">
-      <span class="nav-icon">📋</span>
+      <img src="img/icons/p1_icon_3.png" alt="Historial" class="nav-custom-icon" data-cover-nav-icon="app">
       <span>Historial</span>
     </a>
     <a href="Precarton_Adcionales.html" class="mobile-nav-btn">
-      <span class="nav-icon">🗂️</span>
+      <img src="img/icons/p1_icon_2.png" alt="Precartón" class="nav-custom-icon" data-cover-nav-icon="precarton">
       <span>Precartón</span>
     </a>
     <a href="Configuraciones.html" class="mobile-nav-btn active">
-      <span class="nav-icon">⚙️</span>
+      <img src="img/icons/p1_icon_5.png" alt="Config." class="nav-custom-icon" data-cover-nav-icon="config">
       <span>Config.</span>
     </a>
   </nav>

@@ -1261,6 +1261,9 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         if (Utils.applyTheme && Utils.getSavedTheme) {
             Utils.applyTheme(Utils.getSavedTheme());
         }
+        if (Utils.applySplashCoverIconTheme) {
+            Utils.applySplashCoverIconTheme(Utils.getSavedSplashCover ? Utils.getSavedSplashCover() : 'portada_1');
+        }
 
         const mesFiltroElem = document.getElementById("filtroMesDashboard");
         if (mesFiltroElem) {

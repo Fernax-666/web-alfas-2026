@@ -231,13 +231,112 @@
         return { ok: true, mode: 'mobile-fallback-download' };
     }
 
+    /**
+     * Codifica una cadena de texto UTF-8 (como un archivo JSON) a Base64 puro compatible con Capacitor Filesystem.
+     * @param {string} textStr 
+     * @returns {string}
+     */
+    function encodeTextToBase64(textStr) {
+        const cleanStr = String(textStr || '');
+        if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+            return Buffer.from(cleanStr, 'utf8').toString('base64');
+        }
+        if (typeof TextEncoder !== 'undefined' && typeof btoa === 'function') {
+            const bytes = new TextEncoder().encode(cleanStr);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+        if (typeof btoa === 'function') {
+            return btoa(unescape(encodeURIComponent(cleanStr)));
+        }
+        return '';
+    }
+
+    /**
+     * Exporta y guarda el archivo `alfas.json` en Android APK usando `@capacitor/filesystem` (DOCUMENTS / CACHE)
+     * y abre el menú nativo `@capacitor/share` o descarga por Blob si se ejecuta en navegador móvil.
+     * @param {string} jsonString - Contenido JSON serializado.
+     * @param {string} [fileName="alfas.json"] - Nombre del archivo.
+     * @param {boolean} [autoShare=true] - Si debe abrir el diálogo nativo para enviar/guardar el archivo.
+     * @returns {Promise<{saved: boolean, shared: boolean, uri: string, directory: string, mode: string}>}
+     */
+    async function exportJsonFileAPK(jsonString, fileName = 'alfas.json', autoShare = true) {
+        const cleanJson = String(jsonString || '[]');
+        const base64Json = encodeTextToBase64(cleanJson);
+        const { Share } = getCapacitorPlugins();
+
+        // 1. Escribir nativamente en DOCUMENTS y CACHE del teléfono Android
+        const fileRes = await writeNativeFileAndroid(fileName, base64Json);
+        if (fileRes.saved) {
+            let shared = false;
+            if (autoShare && Share && typeof Share.share === 'function' && fileRes.uri) {
+                try {
+                    await Share.share({
+                        title: fileName,
+                        text: `📦 Respaldo de Base de Datos (${fileName}) — Web Alfas 2026`,
+                        url: fileRes.uri,
+                        files: [fileRes.uri],
+                        dialogTitle: 'Guardar o Compartir Respaldo alfas.json'
+                    });
+                    shared = true;
+                } catch (shareErr) {
+                    // Si el usuario cierra el menú de compartir, el archivo igualmente ya quedó guardado en Documentos/Descargas
+                }
+            }
+            return {
+                saved: true,
+                shared,
+                uri: fileRes.uri,
+                directory: fileRes.directory || 'Documentos / Descargas Android',
+                mode: 'apk-native-filesystem'
+            };
+        }
+
+        // 2. Fallback para navegador móvil Chrome Android (Web Share API con File o descarga Blob)
+        if (typeof Blob !== 'undefined') {
+            const blob = new Blob([cleanJson], { type: 'application/json;charset=utf-8' });
+            if (autoShare && typeof navigator !== 'undefined' && navigator.share && typeof File !== 'undefined') {
+                try {
+                    const file = new File([blob], fileName, { type: 'application/json' });
+                    if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            title: fileName,
+                            text: `📦 Respaldo ${fileName}`,
+                            files: [file]
+                        });
+                        return { saved: true, shared: true, uri: '', directory: 'Compartido en Android', mode: 'mobile-web-share' };
+                    }
+                } catch (_) {}
+            }
+
+            if (typeof URL !== 'undefined' && URL.createObjectURL && typeof document !== 'undefined') {
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+                return { saved: true, shared: false, uri: blobUrl, directory: 'Descargas del Navegador Móvil', mode: 'mobile-blob-download' };
+            }
+        }
+
+        return { saved: false, shared: false, uri: '', directory: '', mode: 'failed' };
+    }
+
     return {
         PLATFORM_ID: 'android-apk',
         getCapacitorPlugins,
         stripBase64Prefix,
+        encodeTextToBase64,
         writeNativeFileAndroid,
         savePdfFileAPK,
         sharePdfFileAPK,
-        captureAndShareCalendarAPK
+        captureAndShareCalendarAPK,
+        exportJsonFileAPK
     };
 }));

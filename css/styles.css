@@ -868,6 +868,83 @@ body.pdf-mode .event-past-month { opacity: 1 !important; }
     color: var(--text-muted);
 }
 
+/* Previsualización de los 5 íconos personalizados dentro de cada tarjeta de Portada */
+.splash-icons-row-preview {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border);
+}
+
+.splash-icons-row-preview img {
+    width: 100%;
+    max-width: 34px;
+    aspect-ratio: 1 / 1;
+    border-radius: 7px;
+    object-fit: cover;
+    margin: 0 auto;
+    display: block;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* Banner del tema de íconos activo y badge de ícono de portada en encabezados */
+.active-icon-theme-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--bg-main);
+    border: 1.5px solid var(--primary);
+}
+
+.active-theme-main-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    object-fit: cover;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.active-icon-theme-meta {
+    display: flex;
+    flex-direction: column;
+    font-size: 0.78rem;
+    line-height: 1.3;
+}
+
+.active-icon-theme-meta span {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+.header-with-app-icon {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.app-cover-badge-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    object-fit: cover;
+    flex-shrink: 0;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.22);
+}
+
+.nav-custom-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    object-fit: cover;
+    display: block;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+
 .mt-10 { margin-top: 10px; }
 
 /* Caja de Vinculación Gmail y Notificaciones en Configuraciones */
@@ -1049,64 +1126,129 @@ html[data-theme="dark"] .upcoming-service-banner {
         display: none !important;
     }
 
-    /* Cabecera del Calendario y Filtros en 1 sola línea ocupando el 100% del alto de pantalla (Imagen 1 vs Imagen 2) */
+    /* SOLAPA AGENDA EN MÓVIL / APK: CERO SCROLL (100% DE LOS ELEMENTOS ENTRAN EN PANTALLA) */
     body[data-mobile-tab="agenda"] {
-        min-height: 100dvh;
+        height: 100vh;
+        height: 100dvh;
+        max-height: 100dvh;
+        overflow: hidden !important;
         display: flex;
         flex-direction: column;
+        padding-top: calc(max(var(--sat), 22px) + 2px);
+        padding-bottom: calc(56px + var(--sab));
+    }
+
+    body[data-mobile-tab="agenda"] .app-cover-badge-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+    }
+
+    body[data-mobile-tab="agenda"] .header-with-app-icon {
+        justify-content: center;
+        gap: 6px;
+    }
+
+    body[data-mobile-tab="agenda"] .sticky-top-dashboard {
+        padding-top: 2px;
+        padding-bottom: 3px;
+        margin-bottom: 3px;
+        flex-shrink: 0;
+    }
+
+    body[data-mobile-tab="agenda"] .app-header-bar {
+        margin-bottom: 2px;
+    }
+
+    body[data-mobile-tab="agenda"] h1 {
+        font-size: 0.94rem;
+        line-height: 1.1;
+    }
+
+    body[data-mobile-tab="agenda"] .stat-grid {
+        gap: 4px;
+        margin-bottom: 2px;
+    }
+
+    body[data-mobile-tab="agenda"] .stat-card {
+        padding: 2px 3px;
+    }
+
+    body[data-mobile-tab="agenda"] .stat-val {
+        font-size: 0.8rem;
+        line-height: 1.05;
+    }
+
+    body[data-mobile-tab="agenda"] .stat-label {
+        font-size: 0.52rem;
     }
 
     body[data-mobile-tab="agenda"] .container {
         flex: 1;
+        min-height: 0;
         width: 100%;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
     }
 
     .calendar-card {
-        padding: 6px;
+        padding: 4px 5px;
         margin-bottom: 0;
         flex: 1;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
+        overflow: hidden;
     }
 
     .calendar-card #calendar {
         flex: 1;
+        min-height: 0;
         display: flex;
         flex-direction: column;
+        overflow: hidden;
     }
 
     .calendar-card .fc {
         flex: 1;
+        min-height: 0;
+        height: 100% !important;
+    }
+
+    .calendar-card .fc-view-harness {
+        flex: 1;
+        min-height: 0;
     }
 
     .calendar-header {
         flex-direction: column;
         align-items: stretch;
-        gap: 4px;
-        margin-bottom: 4px;
+        gap: 3px;
+        margin-bottom: 3px;
+        flex-shrink: 0;
     }
 
     .calendar-header h3 {
-        font-size: 0.82rem;
+        font-size: 0.76rem;
+        line-height: 1.1;
     }
 
     .cal-filters-bar {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 6px;
+        gap: 5px;
         width: 100%;
         max-width: 100%;
     }
 
     .select-cal-inline {
-        min-height: 30px !important;
-        height: 30px !important;
-        padding: 2px 6px !important;
-        font-size: 0.72rem !important;
-        border-radius: 6px;
+        min-height: 26px !important;
+        height: 26px !important;
+        padding: 1px 5px !important;
+        font-size: 0.68rem !important;
+        border-radius: 5px;
     }
 
     /* Toolbar de FullCalendar en 1 sola línea compacta */
@@ -1114,24 +1256,25 @@ html[data-theme="dark"] .upcoming-service-banner {
         flex-direction: row !important;
         justify-content: space-between !important;
         align-items: center !important;
-        margin-bottom: 4px !important;
+        margin-bottom: 2px !important;
         gap: 4px !important;
+        flex-shrink: 0;
     }
 
     .fc .fc-toolbar-title {
-        font-size: 0.84rem !important;
+        font-size: 0.8rem !important;
         text-align: center;
     }
 
     .fc .fc-button {
-        padding: 2px 6px !important;
-        font-size: 0.68rem !important;
-        min-height: 26px !important;
+        padding: 1px 5px !important;
+        font-size: 0.64rem !important;
+        min-height: 23px !important;
     }
 
     .fc .fc-col-header-cell-cushion {
-        padding: 2px 1px !important;
-        font-size: 0.6rem !important;
+        padding: 1px 1px !important;
+        font-size: 0.56rem !important;
     }
 
     .fc .fc-daygrid-day-top {
@@ -1139,14 +1282,14 @@ html[data-theme="dark"] .upcoming-service-banner {
     }
 
     .fc .fc-daygrid-day-number {
-        padding: 1px 2px !important;
-        font-size: 0.62rem !important;
+        padding: 0 2px !important;
+        font-size: 0.58rem !important;
         line-height: 1;
     }
 
-    /* Ocupar todo el alto de pantalla disponible en la grilla del mes (como Imagen 2) */
+    /* Ajustar dinámicamente las filas del mes para que entren las 5 o 6 semanas sin provocar scroll */
     .fc .fc-daygrid-day-frame {
-        min-height: clamp(68px, 11.2dvh, 96px) !important;
+        min-height: clamp(46px, 8.2dvh, 72px) !important;
     }
 
     /* Etiquetas de Eventos en el Calendario APK (Imagen 1):
@@ -1154,6 +1297,7 @@ html[data-theme="dark"] .upcoming-service-banner {
     .fc-daygrid-event-harness {
         margin-left: 0 !important;
         margin-right: 0 !important;
+        margin-bottom: 1px !important;
     }
 
     .fc-h-event {
@@ -1163,44 +1307,45 @@ html[data-theme="dark"] .upcoming-service-banner {
 
     .alfa-cal-event-card {
         padding: 1px 2px;
-        line-height: 1.04;
+        line-height: 1.02;
     }
 
     .alfa-cal-event-card .ev-line-emp {
-        font-size: 0.5rem;
+        font-size: 0.48rem;
         font-weight: 800;
         white-space: normal;
         word-break: break-word;
     }
 
     .alfa-cal-event-card .ev-line-time {
-        font-size: 0.48rem;
+        font-size: 0.46rem;
         font-weight: 700;
         white-space: nowrap;
     }
 
     .alfa-cal-event-card .ev-line-pol {
-        font-size: 0.48rem;
+        font-size: 0.46rem;
         font-weight: 600;
         white-space: normal;
         word-break: break-word;
     }
 
-    /* IMAGEN 1: Referencias de servicios en la parte de abajo con TEXTO MÁS GRANDE Y ACCESIBLE en el APK */
+    /* IMAGEN 1: Referencias de servicios en la parte de abajo accesibles y sin scroll */
     .cal-company-legend-bottom {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
-        margin-top: 6px;
-        padding-top: 6px;
+        gap: 4px;
+        margin-top: 3px;
+        padding-top: 3px;
+        flex-shrink: 0;
     }
 
     .cal-emp-chip {
-        padding: 6px 6px;
-        font-size: 0.78rem !important;
+        padding: 3px 4px;
+        font-size: 0.74rem !important;
         font-weight: 800;
         border-left-width: 5px;
-        min-height: 32px;
+        min-height: 24px;
     }
 
     /* Tabla de Historial de 5 columnas visible en Móvil */

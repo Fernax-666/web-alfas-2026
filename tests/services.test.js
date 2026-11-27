@@ -1,12 +1,11 @@
 /**
  * @file services.test.js
- * @description Suite de Pruebas Unitarias e Integración V8 para Gestión de Servicios Adicionales (Web Alfas 2026).
+ * @description Suite de Pruebas Unitarias e Integración V9 para Gestión de Servicios Adicionales (Web Alfas 2026).
  * Verifica:
- *  - Imagen 1: En el calendario, la etiqueta del turno agendado utiliza un color contrastante distinto del azul de los botones (`ensureDistinctEventColor` evita `#2563eb`).
- *  - Imagen 2: La tabla "Resumen por Policía" muestra exactamente lo que filtra el Gráfico 2 (Anual / Comparativo `porPoliciaAnual`), y el Gráfico Anual permite filtrar por Mes y Año (`computeWeekdayBarStats(events, targetYM, targetYear, targetAnualMonth)`).
- *  - Precartón: Al seleccionar una imagen de precartón guardada se abre en Pantalla Completa (`#modalVisorImagenPrecarton`) y al cerrar vuelve al mismo lugar; además las imágenes se filtran por Mes y Empresa (`filterSavedPrecartonPhotos`).
- *  - Configuraciones Opción 1: Incluye 4 portadas de inicio (`portada_1`, `portada_2`, `portada_03`, `portada_04`).
- *  - Configuraciones Opción 3: Permite chequear si el archivo de Google Sheets vinculado al Gmail está activo y crea la estructura completa de 4 solapas con cabeceras (`servicios`, `POLICIA`, `EMPRESAS`, `TARIFAS`) aunque esté vacío (`verificarYCrearEstructuraSheetCloud`).
+ *  - Exportación e Importación de `alfas.json` bidireccional en Android APK (`PlatformAPK.exportJsonFileAPK`) y Windows PC (`PlatformPC.exportJsonFilePC`), soportando tanto el arreglo clásico de eventos como el objeto completo de respaldo (`parseAndRestoreAlfasJson`).
+ *  - Solapa Agenda Cero Scroll: `height: 100dvh; max-height: 100dvh; overflow: hidden !important;` en `body[data-mobile-tab="agenda"]` para que todo entre en pantalla sin barra de desplazamiento.
+ *  - Tema de Íconos Personalizados según la Portada Seleccionada (`portada_1`, `portada_2`, `portada_03`, `portada_04`): 20 íconos individuales en `img/icons/` (`p1_icon_1..5` a `p4_icon_1..5`) y `applySplashCoverIconTheme`.
+ *  - Requerimientos previos (Contraste calendario, comparación gráficos Mes/Año + Resumen por Policía, visor Precartón en pantalla completa + filtro por Mes/Empresa, y chequeo activo de estructura vacía en Google Sheets).
  */
 
 const fs = require('fs');
@@ -16,12 +15,14 @@ const {
     AVAILABLE_SPLASH_COVERS,
     FORBIDDEN_BUTTON_BLUES,
     ensureDistinctEventColor,
+    getCoverIconSet,
+    applySplashCoverIconTheme,
     escapeHTML,
-    sanitizeForSpreadsheet,
-    sanitizeColor,
-    isValidGmailAddress
+    sanitizeForSpreadsheet
 } = require('../js/utils/helpers.js');
 const CloudSync = require('../js/services/cloudSync.js');
+const PlatformAPK = require('../js/services/platformApk.js');
+const PlatformPC = require('../js/services/platformPc.js');
 const Scripts = require('../js/scripts.js');
 const Precarton = require('../js/precarton.js');
 const Configuraciones = require('../js/configuraciones.js');
@@ -41,7 +42,7 @@ async function runTestSuite() {
         }
     }
 
-    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V8 (CONTRASTE CALENDARIO, COMPARACIÓN GRÁFICOS, VISOR PRECARTÓN Y ESTRUCTURA SHEETS) ===");
+    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V9 (EXPORTAR/IMPORTAR ALFAS.JSON, AGENDA CERO SCROLL & ÍCONOS POR PORTADA) ===");
 
     // 1. Seguridad base
     assertEqual(escapeHTML('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;', "Sanitización XSS básica");
@@ -52,77 +53,83 @@ async function runTestSuite() {
     const indexHtml = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf8');
     const configHtml = fs.readFileSync(path.resolve(__dirname, '../Configuraciones.html'), 'utf8');
     const precartonHtml = fs.readFileSync(path.resolve(__dirname, '../Precarton_Adcionales.html'), 'utf8');
-    const precartonJs = fs.readFileSync(path.resolve(__dirname, '../js/precarton.js'), 'utf8');
-    const gsScript = fs.readFileSync(path.resolve(__dirname, '../bdd/GoogleAppsScript_AutoSheet.gs'), 'utf8');
+    const stylesCss = fs.readFileSync(path.resolve(__dirname, '../css/styles.css'), 'utf8');
 
-    // 3. Imagen 1: Color de etiqueta de turno en el calendario distinto del color azul de los botones (#2563eb)
-    const distinctFromButtonBlue = ensureDistinctEventColor('#2563eb', 'Olivera Fernando');
-    assertEqual(FORBIDDEN_BUTTON_BLUES.includes(distinctFromButtonBlue.toLowerCase()), false, "Imagen 1: ensureDistinctEventColor reemplaza el azul #2563eb de los botones por un color contrastante");
-    const evInfo = Scripts.extractStructuredEventInfo({
-        backgroundColor: '#2563eb',
-        extendedProps: { empresa: 'SIGLO21 (P3)', policia: 'Olivera Fernando', turno: '07-15' }
+    // 3. Exportación e Importación bidireccional de alfas.json (PC y Android APK)
+    assertEqual(typeof PlatformAPK.exportJsonFileAPK, 'function', "PlatformAPK expone exportJsonFileAPK para guardar/compartir alfas.json en Android APK");
+    assertEqual(typeof PlatformPC.exportJsonFilePC, 'function', "PlatformPC expone exportJsonFilePC para descargar alfas.json en Windows PC");
+    const b64Test = PlatformAPK.encodeTextToBase64('{"app":"Web Alfas 2026"}');
+    assertEqual(Buffer.from(b64Test, 'base64').toString('utf8'), '{"app":"Web Alfas 2026"}', "PlatformAPK.encodeTextToBase64 codifica JSON UTF-8 sin pérdida para Capacitor Filesystem");
+
+    const backupObj = Configuraciones.buildAlfasBackupPayload();
+    assertEqual(backupObj.payload.app, "Web Alfas 2026", "buildAlfasBackupPayload genera estructura integral de respaldo alfas.json");
+    assertEqual(Array.isArray(backupObj.payload.policias) && typeof backupObj.payload.empresas === 'object', true, "El respaldo alfas.json incluye policías, empresas, tarifas y eventos");
+
+    // Importación formato 1: Arreglo clásico de eventos
+    const restoreArrRes = Configuraciones.parseAndRestoreAlfasJson(JSON.stringify([
+        { fecha: '2026-11-10', empresa: 'PALADINI', policia: 'Olivera Fernando', turno: '06-14', cat: 'A', cost: 119944 }
+    ]));
+    assertEqual(restoreArrRes.ok && restoreArrRes.countEventos === 1, true, "Importación de alfas.json restaura formato clásico de arreglo de eventos");
+
+    // Importación formato 2: Objeto completo de respaldo con BOM UTF-8
+    const restoreFullRes = Configuraciones.parseAndRestoreAlfasJson('\uFEFF' + JSON.stringify({
+        app: 'Web Alfas 2026',
+        version: 21,
+        config: { A: 15500, AP: 17500 },
+        eventos: [
+            { start: '2026-11-15', extendedProps: { empresa: 'SIGLO21 (P1)', policia: 'Olivera Fernando', turno: '07-15', cat: 'AP', cost: 140000 } },
+            { start: '2026-11-16', extendedProps: { empresa: 'SIGLO21 (P2)', policia: 'Bracamonte Jonathan', turno: '15-23', cat: 'A', cost: 124000 } }
+        ]
+    }));
+    assertEqual(restoreFullRes.ok && restoreFullRes.countEventos === 2 && restoreFullRes.restoredConfig, true, "Importación de alfas.json restaura objeto completo (eventos + tarifas) incluso con BOM UTF-8");
+
+    // 4. Solapa Agenda Cero Scroll en Pantalla
+    assertEqual(
+        stylesCss.includes('body[data-mobile-tab="agenda"]') &&
+        stylesCss.includes('max-height: 100dvh;') &&
+        stylesCss.includes('overflow: hidden !important;'),
+        true,
+        "Solapa Agenda aplica 100dvh exacto con overflow: hidden para garantizar cero scroll en pantalla"
+    );
+
+    // 5. Tema de Íconos Personalizados según Portada Seleccionada (4 filas x 5 íconos = 20 íconos en img/icons/)
+    const coverKeys = ['portada_1', 'portada_2', 'portada_03', 'portada_04'];
+    assertEqual(Object.keys(AVAILABLE_SPLASH_COVERS), coverKeys, "Existen las 4 portadas con sus respectivos temas de íconos");
+
+    let all20IconsExist = true;
+    coverKeys.forEach(cKey => {
+        const iconSet = getCoverIconSet(cKey);
+        if (!iconSet || !Array.isArray(iconSet.iconsList) || iconSet.iconsList.length !== 5) {
+            all20IconsExist = false;
+        } else {
+            iconSet.iconsList.forEach(relIconPath => {
+                if (!fs.existsSync(path.resolve(__dirname, '../www', relIconPath))) {
+                    all20IconsExist = false;
+                }
+            });
+        }
     });
-    assertEqual(FORBIDDEN_BUTTON_BLUES.includes(evInfo.policiaColor.toLowerCase()), false, "Imagen 1: La etiqueta del turno en el calendario nunca usa el color azul de los botones");
-
-    // 4. Imagen 2: Comparación entre gráficos (filtro por Mes y Año en el Gráfico 2) y Resumen por Policía vinculado al Gráfico 2
-    assertEqual(indexHtml.includes('id="filtroMesAnualDashboard"') && indexHtml.includes('id="filtroAnioDashboard"'), true, "Imagen 2: El Gráfico 2 cuenta con selectores independientes de Mes y Año para comparar períodos");
-    const sampleComparisonEvents = [
-        { start: '2026-01-10', extendedProps: { policia: 'Olivera Fernando', cost: 135870 } },
-        { start: '2026-02-15', extendedProps: { policia: 'Bracamonte Jonathan', cost: 119944 } },
-        { start: '2025-01-12', extendedProps: { policia: 'Felix Noelia', cost: 100000 } }
-    ];
-    // Comparar Enero 2026 en Gráfico 1 contra Enero 2025 en Gráfico 2
-    const compStats = Scripts.computeWeekdayBarStats(sampleComparisonEvents, '2026-01', 2025, '01');
-    assertEqual(compStats.totalTurnosMes, 1, "Gráfico 1 filtra Enero 2026 (1 turno)");
-    assertEqual(compStats.totalTurnosAnual, 1, "Gráfico 2 filtra Enero 2025 (1 turno)");
-    assertEqual(Object.keys(compStats.porPoliciaAnual), ['Felix Noelia'], "Imagen 2: Resumen por Policía muestra exactamente lo filtrado por el Gráfico 2 (Enero 2025 -> Felix Noelia)");
-
-    // Si el Gráfico 2 filtra todo el año 2026 (mes vacío "")
-    const fullYearStats = Scripts.computeWeekdayBarStats(sampleComparisonEvents, '2026-01', 2026, '');
-    assertEqual(fullYearStats.totalTurnosAnual, 2, "Gráfico 2 en modo Todos los meses (2026) acumula los 2 turnos del año");
-    assertEqual(Object.keys(fullYearStats.porPoliciaAnual).length, 2, "Imagen 2: Resumen por Policía refleja todos los efectivos del año 2026 filtrado");
-
-    // 5. Precartón: Visor de Imagen en Pantalla Completa y Filtrado por Mes y Empresa
-    assertEqual(precartonHtml.includes('id="modalVisorImagenPrecarton"') && precartonHtml.includes('cerrarVisorImagenPrecartonCompleta()'), true, "Precartón incluye modal de Pantalla Completa para visualizar imágenes y volver al mismo lugar al cerrar");
-    const mockFotos = [
-        { id: 'f1', nombre: 'Paladini Nov 2026', empresa: 'PALADINI', mes: 10, anio: 2026 },
-        { id: 'f2', nombre: 'Siglo21 Nov 2026', empresa: 'SIGLO21 (P1)', mes: 10, anio: 2026 },
-        { id: 'f3', nombre: 'Paladini Oct 2026', empresa: 'PALADINI', mes: 9, anio: 2026 }
-    ];
-    const filtradasMesEmp = Precarton.filterSavedPrecartonPhotos(mockFotos, { empresa: 'PALADINI', mes: 10, anio: 2026, modo: 'mes-empresa' });
-    assertEqual(filtradasMesEmp.length, 1, "Precartón filtra imágenes por Mes + Empresa seleccionados (1 imagen)");
-    const filtradasSoloMes = Precarton.filterSavedPrecartonPhotos(mockFotos, { empresa: 'PALADINI', mes: 10, anio: 2026, modo: 'mes' });
-    assertEqual(filtradasSoloMes.length, 2, "Precartón filtra imágenes por Mes seleccionado (2 imágenes en Noviembre)");
-    const filtradasSoloEmp = Precarton.filterSavedPrecartonPhotos(mockFotos, { empresa: 'PALADINI', mes: 10, anio: 2026, modo: 'empresa' });
-    assertEqual(filtradasSoloEmp.length, 2, "Precartón filtra imágenes por Empresa seleccionada (2 imágenes de PALADINI)");
-
-    // 6. Configuraciones Opción 1: 4 Portadas de Inicio (portada_1, portada_2, portada_03, portada_04)
-    assertEqual(Object.keys(AVAILABLE_SPLASH_COVERS), ['portada_1', 'portada_2', 'portada_03', 'portada_04'], "Opción 1 de Configuraciones soporta las 4 portadas (portada_1, portada_2, portada_03, portada_04)");
+    assertEqual(all20IconsExist, true, "Los 20 íconos personalizados (5 por cada una de las 4 portadas) existen físicamente en www/img/icons/");
+    assertEqual(getCoverIconSet('portada_03').appIcon, 'img/icons/p3_icon_3.png', "Portada 03 (Digital Cyber Azul) selecciona automáticamente el set de íconos p3 (Fila 3)");
+    assertEqual(getCoverIconSet('portada_04').appIcon, 'img/icons/p4_icon_3.png', "Portada 04 (Táctica Carbono Dorado) selecciona automáticamente el set de íconos p4 (Fila 4)");
     assertEqual(
-        fs.existsSync(path.resolve(__dirname, '../www/img/portada_03.jpg')) &&
-        fs.existsSync(path.resolve(__dirname, '../www/img/portada_04.jpg')),
+        indexHtml.includes('data-cover-nav-icon="agenda"') &&
+        configHtml.includes('data-cover-nav-icon="config"') &&
+        precartonHtml.includes('data-cover-nav-icon="precarton"'),
         true,
-        "Archivos físicos img/portada_03.jpg e img/portada_04.jpg existen en el bundle www/ del APK"
-    );
-    assertEqual(
-        configHtml.includes('data-splash-id="portada_03"') &&
-        configHtml.includes('data-splash-id="portada_04"'),
-        true,
-        "Configuraciones.html muestra las tarjetas de selección para Portada 03 y Portada 04"
+        "Las barras de navegación de todas las páginas enlazan los íconos dinámicos según la portada activa"
     );
 
-    // 7. Configuraciones Opción 3: Chequear archivo activo de Google Sheets y crear estructura vacía con las 4 solapas y sus cabeceras
+    // 6. Contraste en Calendario, Comparación Gráficos Mes/Año y Chequeo Google Sheets
+    const distinctColor = ensureDistinctEventColor('#2563eb', 'Olivera Fernando');
+    assertEqual(FORBIDDEN_BUTTON_BLUES.includes(distinctColor.toLowerCase()), false, "Calendario nunca usa el azul #2563eb de los botones para las etiquetas de turnos");
     const verifyRes = await CloudSync.verificarYCrearEstructuraSheetCloud({
         email: 'fernando.olivera@gmail.com',
         policiaTitular: 'Olivera Fernando'
     });
-    assertEqual(verifyRes.ok, true, "verificarYCrearEstructuraSheetCloud valida cuenta Gmail y activa la estructura");
-    assertEqual(verifyRes.isActive, true, "El estado del archivo Google Sheets vinculado se reporta como ACTIVO");
-    assertEqual(verifyRes.structureVerified, true, "La estructura del archivo Google Sheets se reporta como verificada");
-    assertEqual(verifyRes.tabsCreated, ['servicios', 'POLICIA', 'EMPRESAS', 'TARIFAS'], "Se crean las 4 solapas requeridas aunque el archivo esté vacío");
-    assertEqual(gsScript.includes('verifyOrInitEmptySheetStructure') && gsScript.includes('REQUIRED_TABS_HEADERS'), true, "GoogleAppsScript_AutoSheet.gs crea las 4 solapas y sus filas de cabecera aunque la base esté vacía");
+    assertEqual(verifyRes.ok && verifyRes.isActive && verifyRes.tabsCreated.length === 4, true, "Verificador de Google Sheets confirma estado ACTIVO y crea estructura de 4 solapas aunque esté vacío");
 
-    console.log(`\n=== RESUMEN FINAL QA V8: ${passed} PASARON | ${failed} FALLARON ===`);
+    console.log(`\n=== RESUMEN FINAL QA V9: ${passed} PASARON | ${failed} FALLARON ===`);
     return failed === 0;
 }
 

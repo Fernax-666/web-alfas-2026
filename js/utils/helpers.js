@@ -25,22 +25,90 @@
         'portada_1': {
             id: 'portada_1',
             nombre: 'Portada 1 (Realista Institucional)',
-            src: 'img/portada_1.jpg'
+            src: 'img/portada_1.jpg',
+            iconPrefix: 'p1',
+            appIcon: 'img/icons/p1_icon_3.png',
+            icons: {
+                agenda: 'img/icons/p1_icon_1.png',
+                precarton: 'img/icons/p1_icon_2.png',
+                app: 'img/icons/p1_icon_3.png',
+                resumen: 'img/icons/p1_icon_4.png',
+                historial: 'img/icons/p1_icon_5.png',
+                config: 'img/icons/p1_icon_5.png'
+            },
+            iconsList: [
+                'img/icons/p1_icon_1.png',
+                'img/icons/p1_icon_2.png',
+                'img/icons/p1_icon_3.png',
+                'img/icons/p1_icon_4.png',
+                'img/icons/p1_icon_5.png'
+            ]
         },
         'portada_2': {
             id: 'portada_2',
             nombre: 'Portada 2 (Ilustrada Diurna)',
-            src: 'img/portada_2.jpg'
+            src: 'img/portada_2.jpg',
+            iconPrefix: 'p2',
+            appIcon: 'img/icons/p2_icon_3.png',
+            icons: {
+                agenda: 'img/icons/p2_icon_1.png',
+                precarton: 'img/icons/p2_icon_2.png',
+                app: 'img/icons/p2_icon_3.png',
+                resumen: 'img/icons/p2_icon_4.png',
+                historial: 'img/icons/p2_icon_5.png',
+                config: 'img/icons/p2_icon_5.png'
+            },
+            iconsList: [
+                'img/icons/p2_icon_1.png',
+                'img/icons/p2_icon_2.png',
+                'img/icons/p2_icon_3.png',
+                'img/icons/p2_icon_4.png',
+                'img/icons/p2_icon_5.png'
+            ]
         },
         'portada_03': {
             id: 'portada_03',
             nombre: 'Portada 03 (Digital Cyber Azul)',
-            src: 'img/portada_03.jpg'
+            src: 'img/portada_03.jpg',
+            iconPrefix: 'p3',
+            appIcon: 'img/icons/p3_icon_3.png',
+            icons: {
+                agenda: 'img/icons/p3_icon_1.png',
+                precarton: 'img/icons/p3_icon_2.png',
+                app: 'img/icons/p3_icon_3.png',
+                resumen: 'img/icons/p3_icon_4.png',
+                historial: 'img/icons/p3_icon_5.png',
+                config: 'img/icons/p3_icon_5.png'
+            },
+            iconsList: [
+                'img/icons/p3_icon_1.png',
+                'img/icons/p3_icon_2.png',
+                'img/icons/p3_icon_3.png',
+                'img/icons/p3_icon_4.png',
+                'img/icons/p3_icon_5.png'
+            ]
         },
         'portada_04': {
             id: 'portada_04',
             nombre: 'Portada 04 (Táctica Carbono Dorado)',
-            src: 'img/portada_04.jpg'
+            src: 'img/portada_04.jpg',
+            iconPrefix: 'p4',
+            appIcon: 'img/icons/p4_icon_3.png',
+            icons: {
+                agenda: 'img/icons/p4_icon_1.png',
+                precarton: 'img/icons/p4_icon_2.png',
+                app: 'img/icons/p4_icon_3.png',
+                resumen: 'img/icons/p4_icon_4.png',
+                historial: 'img/icons/p4_icon_5.png',
+                config: 'img/icons/p4_icon_5.png'
+            },
+            iconsList: [
+                'img/icons/p4_icon_1.png',
+                'img/icons/p4_icon_2.png',
+                'img/icons/p4_icon_3.png',
+                'img/icons/p4_icon_4.png',
+                'img/icons/p4_icon_5.png'
+            ]
         }
     };
 
@@ -307,16 +375,71 @@
     }
 
     /**
-     * Guarda la portada de inicio elegida por el usuario.
+     * Guarda la portada de inicio elegida por el usuario y aplica el tema de íconos correspondiente.
      * @param {string} coverId 
-     * @returns {{id: string, nombre: string, src: string}}
+     * @returns {{id: string, nombre: string, src: string, appIcon: string, icons: Object, iconsList: string[]}}
      */
     function setSplashCover(coverId) {
         const validId = AVAILABLE_SPLASH_COVERS[coverId] ? coverId : 'portada_1';
         if (typeof localStorage !== 'undefined') {
             localStorage.setItem(SPLASH_STORAGE_KEY, validId);
         }
+        applySplashCoverIconTheme(validId);
         return AVAILABLE_SPLASH_COVERS[validId];
+    }
+
+    /**
+     * Obtiene el paquete de íconos personalizados asociado a una portada (o a la portada activa guardada).
+     * @param {string} [coverId]
+     * @returns {{id: string, nombre: string, src: string, appIcon: string, icons: Object, iconsList: string[]}}
+     */
+    function getCoverIconSet(coverId) {
+        const targetId = (coverId && AVAILABLE_SPLASH_COVERS[coverId]) ? coverId : getSavedSplashCover();
+        return AVAILABLE_SPLASH_COVERS[targetId] || AVAILABLE_SPLASH_COVERS.portada_1;
+    }
+
+    /**
+     * Aplica dinámicamente el tema de íconos personalizados según la portada seleccionada:
+     * actualiza el favicon/apple-touch-icon, el ícono institucional del encabezado (`[data-cover-app-icon]`)
+     * y los 5 íconos de la barra de navegación (`[data-cover-nav-icon]`).
+     * @param {string} [coverId]
+     * @returns {Object} Objeto de la portada aplicada con sus íconos.
+     */
+    function applySplashCoverIconTheme(coverId) {
+        const coverObj = getCoverIconSet(coverId);
+        if (typeof document === 'undefined') return coverObj;
+
+        if (document.documentElement) {
+            document.documentElement.setAttribute('data-cover-theme', coverObj.id);
+        }
+
+        // 1. Actualizar Favicon y Apple Touch Icon dinámicamente al ícono central del patrullero (icon_3.png)
+        ['icon', 'apple-touch-icon'].forEach(relType => {
+            let linkEl = document.querySelector(`link[rel="${relType}"]`);
+            if (!linkEl && document.head) {
+                linkEl = document.createElement('link');
+                linkEl.setAttribute('rel', relType);
+                document.head.appendChild(linkEl);
+            }
+            if (linkEl) {
+                linkEl.setAttribute('href', coverObj.appIcon);
+            }
+        });
+
+        // 2. Actualizar ícono principal de la aplicación en encabezados
+        document.querySelectorAll('[data-cover-app-icon]').forEach(imgEl => {
+            imgEl.setAttribute('src', coverObj.appIcon);
+            imgEl.setAttribute('alt', `Ícono ${coverObj.nombre}`);
+        });
+
+        // 3. Actualizar íconos de navegación personalizados según la fila de la portada activa
+        document.querySelectorAll('[data-cover-nav-icon]').forEach(imgEl => {
+            const slot = imgEl.getAttribute('data-cover-nav-icon');
+            const iconSrc = (coverObj.icons && coverObj.icons[slot]) ? coverObj.icons[slot] : coverObj.appIcon;
+            imgEl.setAttribute('src', iconSrc);
+        });
+
+        return coverObj;
     }
 
     function shouldShowSplashOnce(markAsShown = true) {
@@ -352,6 +475,8 @@
         applyTheme,
         getSavedSplashCover,
         setSplashCover,
+        getCoverIconSet,
+        applySplashCoverIconTheme,
         shouldShowSplashOnce
     };
 }));

@@ -100,10 +100,42 @@
         return { ok: true, mode: 'pc-download-whatsapp-web' };
     }
 
+    /**
+     * Exporta y descarga el archivo `alfas.json` en Windows PC utilizando un objeto Blob URL estándar.
+     * @param {string} jsonString - Contenido JSON serializado.
+     * @param {string} [fileName="alfas.json"] - Nombre del archivo.
+     * @returns {Promise<{saved: boolean, path: string, mode: string}>}
+     */
+    async function exportJsonFilePC(jsonString, fileName = 'alfas.json') {
+        const cleanJson = String(jsonString || '[]');
+        if (typeof Blob !== 'undefined' && typeof URL !== 'undefined' && URL.createObjectURL && typeof document !== 'undefined') {
+            const blob = new Blob([cleanJson], { type: 'application/json;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+            return {
+                saved: true,
+                path: `Descargas/${fileName}`,
+                mode: 'pc-blob-download'
+            };
+        }
+        return {
+            saved: true,
+            path: `Descargas/${fileName}`,
+            mode: 'headless-node'
+        };
+    }
+
     return {
         PLATFORM_ID: 'pc-windows',
         savePdfFilePC,
         sharePdfFilePC,
-        captureAndShareCalendarPC
+        captureAndShareCalendarPC,
+        exportJsonFilePC
     };
 }));

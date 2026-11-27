@@ -10,6 +10,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Web Alfas 2026 | Gestión de Servicios Adicionales</title>
 
+  <link rel="icon" href="img/icons/p1_icon_3.png" data-cover-favicon>
+  <link rel="apple-touch-icon" href="img/icons/p1_icon_3.png">
   <link rel="manifest" href="manifest.webmanifest">
 
   <!-- Google Fonts -->
@@ -34,17 +36,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=20">
-  <script src="js/utils/helpers.js?v=20"></script>
-  <script src="js/services/calculator.js?v=20"></script>
-  <script src="js/services/database.js?v=20"></script>
-  <script src="js/services/storage.js?v=20"></script>
-  <script src="js/services/cloudSync.js?v=20"></script>
-  <script src="js/services/exporter.js?v=20"></script>
-  <script src="js/services/platformPc.js?v=20"></script>
-  <script src="js/services/platformApk.js?v=20"></script>
-  <script src="js/services/notifications.js?v=20"></script>
-  <script src="js/scripts.js?v=20"></script>
+  <link rel="stylesheet" href="css/styles.css?v=21">
+  <script src="js/utils/helpers.js?v=21"></script>
+  <script src="js/services/calculator.js?v=21"></script>
+  <script src="js/services/database.js?v=21"></script>
+  <script src="js/services/storage.js?v=21"></script>
+  <script src="js/services/cloudSync.js?v=21"></script>
+  <script src="js/services/exporter.js?v=21"></script>
+  <script src="js/services/platformPc.js?v=21"></script>
+  <script src="js/services/platformApk.js?v=21"></script>
+  <script src="js/services/notifications.js?v=21"></script>
+  <script src="js/scripts.js?v=21"></script>
 </head>
 
 <body data-mobile-tab="agenda">
@@ -64,13 +66,16 @@
     <!-- ZONA SUPERIOR FIJA (STICKY) QUE SE VISUALIZA SIEMPRE CUANDO SE HACE SCROLL -->
     <div class="sticky-top-dashboard">
       <header class="app-header-bar">
-        <div class="header-titles">
-          <h1>Gestión de Servicios Adicionales</h1>
-          <div class="system-status-bar">
-            <span id="platformModeBadge" class="badge badge-empresa">🖥️ PC</span>
-            <span id="dbEngineBadge" class="badge badge-b">SQLite Local</span>
-            <span id="dbOutboxBadge" class="badge badge-a">Sincronizado</span>
-            <span id="gmailLinkedBadge" class="badge badge-ho display-none">☁️ Gmail Vinculado</span>
+        <div class="header-titles header-with-app-icon">
+          <img src="img/icons/p1_icon_3.png" alt="Ícono Personalizado según Portada" class="app-cover-badge-icon" data-cover-app-icon>
+          <div>
+            <h1>Gestión de Servicios Adicionales</h1>
+            <div class="system-status-bar">
+              <span id="platformModeBadge" class="badge badge-empresa">🖥️ PC</span>
+              <span id="dbEngineBadge" class="badge badge-b">SQLite Local</span>
+              <span id="dbOutboxBadge" class="badge badge-a">Sincronizado</span>
+              <span id="gmailLinkedBadge" class="badge badge-ho display-none">☁️ Gmail Vinculado</span>
+            </div>
           </div>
         </div>
         <div class="desktop-top-nav no-print">
@@ -249,26 +254,26 @@
   <button type="button" class="mobile-fab-whatsapp" id="btnFabCapturaWhatsapp" onclick="capturarYCompartirCalendarioWhatsApp()" title="Capturar Calendario y Compartir por WhatsApp" aria-label="Capturar Calendario y Compartir por WhatsApp">📸</button>
   <button type="button" class="mobile-fab-add" onclick="abrirNuevoServicioRapido()" title="Registrar Nuevo Servicio" aria-label="Registrar Nuevo Servicio">+</button>
 
-  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL -->
+  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL CON ÍCONOS PERSONALIZADOS SEGÚN PORTADA -->
   <nav class="mobile-bottom-nav" aria-label="Navegación principal móvil">
     <button type="button" class="mobile-nav-btn active" data-tab="agenda" onclick="cambiarTabMovil('agenda')">
-      <span class="nav-icon">📅</span>
+      <img src="img/icons/p1_icon_1.png" alt="Agenda" class="nav-custom-icon" data-cover-nav-icon="agenda">
       <span>Agenda</span>
     </button>
     <button type="button" class="mobile-nav-btn" data-tab="resumen" onclick="cambiarTabMovil('resumen')">
-      <span class="nav-icon">📊</span>
+      <img src="img/icons/p1_icon_4.png" alt="Gráficos" class="nav-custom-icon" data-cover-nav-icon="resumen">
       <span>Gráficos</span>
     </button>
     <button type="button" class="mobile-nav-btn" data-tab="historial" onclick="cambiarTabMovil('historial')">
-      <span class="nav-icon">📋</span>
+      <img src="img/icons/p1_icon_3.png" alt="Historial" class="nav-custom-icon" data-cover-nav-icon="app">
       <span>Historial</span>
     </button>
     <a href="Precarton_Adcionales.html" class="mobile-nav-btn">
-      <span class="nav-icon">🗂️</span>
+      <img src="img/icons/p1_icon_2.png" alt="Precartón" class="nav-custom-icon" data-cover-nav-icon="precarton">
       <span>Precartón</span>
     </a>
     <a href="Configuraciones.html" class="mobile-nav-btn">
-      <span class="nav-icon">⚙️</span>
+      <img src="img/icons/p1_icon_5.png" alt="Config." class="nav-custom-icon" data-cover-nav-icon="config">
       <span>Config.</span>
     </a>
   </nav>

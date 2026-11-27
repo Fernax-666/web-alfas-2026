@@ -9,5 +9,28 @@
   "background_color": "#f8fafc",
   "theme_color": "#2563eb",
   "lang": "es-AR",
-  "categories": ["productivity", "business", "utilities"]
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "img/icons/p1_icon_3.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "img/icons/p2_icon_3.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "img/icons/p3_icon_3.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "img/icons/p4_icon_3.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    }
+  ]
 }
