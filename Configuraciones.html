@@ -13,17 +13,17 @@
 
   <link rel="icon" href="img/icons/p1_icon_3.png" data-cover-favicon>
   <link rel="apple-touch-icon" href="img/icons/p1_icon_3.png">
-  <link rel="stylesheet" href="css/styles.css?v=22">
-  <script src="js/utils/helpers.js?v=22"></script>
-  <script src="js/services/calculator.js?v=22"></script>
-  <script src="js/services/database.js?v=22"></script>
-  <script src="js/services/storage.js?v=22"></script>
-  <script src="js/services/cloudSync.js?v=22"></script>
-  <script src="js/services/exporter.js?v=22"></script>
-  <script src="js/services/platformPc.js?v=22"></script>
-  <script src="js/services/platformApk.js?v=22"></script>
-  <script src="js/services/notifications.js?v=22"></script>
-  <script src="js/configuraciones.js?v=22"></script>
+  <link rel="stylesheet" href="css/styles.css?v=23">
+  <script src="js/utils/helpers.js?v=23"></script>
+  <script src="js/services/calculator.js?v=23"></script>
+  <script src="js/services/database.js?v=23"></script>
+  <script src="js/services/storage.js?v=23"></script>
+  <script src="js/services/cloudSync.js?v=23"></script>
+  <script src="js/services/exporter.js?v=23"></script>
+  <script src="js/services/platformPc.js?v=23"></script>
+  <script src="js/services/platformApk.js?v=23"></script>
+  <script src="js/services/notifications.js?v=23"></script>
+  <script src="js/configuraciones.js?v=23"></script>
 </head>
 
 <body>
@@ -233,6 +233,7 @@
           <div class="flex-gap-10">
             <button type="button" class="btn-primary flex-1" onclick="vincularCuentaGmailYCrearSheet()">🔗 Vincular Gmail, Fijar Policía Predefinido y Crear Sheets</button>
             <button type="button" class="btn-secondary flex-1" onclick="verificarYCrearEstructuraSheetGmail()">✅ Chequear Archivo Activo y Crear Estructura (Aunque Esté Vacío)</button>
+            <button type="button" class="btn-outline flex-1" id="btnAbrirGoogleDriveSheet" onclick="abrirArchivoEnGoogleDrive(true)">📂 Abrir Google Drive / Visualizar Archivo Creado</button>
             <button type="button" id="btnDesvincularGmail" class="btn-outline display-none" onclick="desvincularCuentaGmail()">Desvincular</button>
           </div>
         </div>
@@ -427,26 +428,26 @@
     </div>
   </div>
 
-  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL -->
+  <!-- BARRA DE NAVEGACIÓN INFERIOR CON LOS 5 ÍCONOS PERSONALIZADOS SEGÚN SU CARÁTULA -->
   <nav class="mobile-bottom-nav" aria-label="Navegación principal móvil">
     <a href="index.html?tab=agenda" class="mobile-nav-btn">
-      <span class="nav-icon">📅</span>
+      <img src="img/icons/p1_icon_1.png" alt="Agenda" class="nav-custom-icon" data-cover-nav-icon="agenda">
       <span>Agenda</span>
     </a>
     <a href="index.html?tab=resumen" class="mobile-nav-btn">
-      <span class="nav-icon">📊</span>
+      <img src="img/icons/p1_icon_4.png" alt="Gráficos" class="nav-custom-icon" data-cover-nav-icon="resumen">
       <span>Gráficos</span>
     </a>
     <a href="index.html?tab=historial" class="mobile-nav-btn">
-      <span class="nav-icon">📋</span>
+      <img src="img/icons/p1_icon_3.png" alt="Historial" class="nav-custom-icon" data-cover-nav-icon="app">
       <span>Historial</span>
     </a>
     <a href="Precarton_Adcionales.html" class="mobile-nav-btn">
-      <span class="nav-icon">🗂️</span>
+      <img src="img/icons/p1_icon_2.png" alt="Precartón" class="nav-custom-icon" data-cover-nav-icon="precarton">
       <span>Precartón</span>
     </a>
     <a href="Configuraciones.html" class="mobile-nav-btn active">
-      <span class="nav-icon">⚙️</span>
+      <img src="img/icons/p1_icon_5.png" alt="Config." class="nav-custom-icon" data-cover-nav-icon="config">
       <span>Config.</span>
     </a>
   </nav>

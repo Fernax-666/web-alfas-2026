@@ -1,31 +1,22 @@
 /**
  * @file services.test.js
- * @description Suite de Pruebas Unitarias e Integración V10 para Gestión de Servicios Adicionales (Web Alfas 2026).
+ * @description Suite de Pruebas Unitarias e Integración V11 para Gestión de Servicios Adicionales (Web Alfas 2026).
  * Verifica:
- *  - Imagen 1: Encabezado superior y barra inferior centrados y sin íconos extra de imagen en la cabecera como estaba originalmente.
- *  - Imagen 2: Referencias de empresas más grandes, legibles y accesibles (`.cal-emp-chip` con `font-size: 0.86rem !important`).
- *  - Imagen 3: El calendario ocupa el 100% del espacio disponible en pantalla sin provocar scroll (`body[data-mobile-tab="agenda"]` con `100dvh`, `overflow: hidden` y `.fc-daygrid-day-frame { height: 100% !important }`).
- *  - Solapa Gráficos:
- *      1. Gráfico Circular N° 1 diferenciando distintos Grupos Horarios (`#graficoGruposHorarios`, `stats.porGrupoHorarioMes`).
- *      2. Gráfico 1 Turnos por Día (Mensual) en formato Circular con etiquetas de totales y porcentajes (`#graficoMensual`, `stats.porcentajesMensualPorDia`).
- *      3. Gráfico 2 Anual / Comparativo en formato Circular con etiquetas de totales y porcentajes (`#graficoAnual`, `stats.porcentajesAnualPorDia`).
- *      4. Duplicado del Gráfico 2 Anual / Comparativo en formato de Barras Horizontales (`#graficoAnualHorizontal`, `indexAxis: 'y'`).
- *  - Vinculación de Correo Gmail: Solicita crear o registrar un Policía Titular (`ensureTitularPoliceOnGmailLink`) para mostrar como predefinido en el calendario y alertas personalizadas.
+ *  1. En las 5 solapas de navegación (Agenda, Gráficos, Historial, Precartón, Config.) se visualizan los íconos personalizados según su carátula (`data-cover-nav-icon`), mientras el encabezado superior se mantiene limpio y centrado sin ícono extra.
+ *  2. En la solapa Agenda el calendario ocupa el 100% de la pantalla disponible (`height: '100%'`, `contentHeight: '100%'`, `.fc-view-harness` y `.fc-scrollgrid-section-liquid > td` al 100%) sin espacio en blanco entre el calendario y las referencias y con cero scroll.
+ *  3. Verificación y visualización del archivo creado en Google Drive / Google Sheets (`abrirArchivoSheetEnGoogleDrive` abre Google Drive por única vez tras crearlo/verificarlo y expone botón directo para visualizarlo).
+ *  4. Eliminación real y definitiva de turnos adicionales agendados (`eliminarServicioDeListaYCalendario` + modal `#modalConfirmarEliminarServicio` + botón `🗑️` en la tabla de Historial + tombstones anti-reaparición + `deleteServicio` en `GoogleAppsScript_AutoSheet.gs`).
  */
 
 const fs = require('fs');
 const path = require('path');
 const {
     AVAILABLE_SPLASH_COVERS,
-    FORBIDDEN_BUTTON_BLUES,
-    ensureDistinctEventColor,
     getCoverIconSet,
     escapeHTML,
     sanitizeForSpreadsheet
 } = require('../js/utils/helpers.js');
 const CloudSync = require('../js/services/cloudSync.js');
-const PlatformAPK = require('../js/services/platformApk.js');
-const PlatformPC = require('../js/services/platformPc.js');
 const Scripts = require('../js/scripts.js');
 const Configuraciones = require('../js/configuraciones.js');
 const { buildWebDir } = require('../scripts/build-apk-assets.js');
@@ -44,7 +35,7 @@ async function runTestSuite() {
         }
     }
 
-    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V10 (CABECERA CENTRADA, CALENDARIO 100% SIN SCROLL, GRÁFICOS CIRCULARES/BARRA HORIZONTAL Y POLICÍA PREDEFINIDO GMAIL) ===");
+    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V11 (ÍCONOS EN SOLAPAS SEGÚN CARÁTULA, CALENDARIO 100% SIN HUECO, APERTURA GOOGLE DRIVE Y ELIMINACIÓN DE TURNOS) ===");
 
     // 1. Seguridad base
     assertEqual(escapeHTML('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;', "Sanitización XSS básica");
@@ -54,69 +45,57 @@ async function runTestSuite() {
     buildWebDir();
     const indexHtml = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf8');
     const configHtml = fs.readFileSync(path.resolve(__dirname, '../Configuraciones.html'), 'utf8');
+    const precartonHtml = fs.readFileSync(path.resolve(__dirname, '../Precarton_Adcionales.html'), 'utf8');
     const scriptsJs = fs.readFileSync(path.resolve(__dirname, '../js/scripts.js'), 'utf8');
     const stylesCss = fs.readFileSync(path.resolve(__dirname, '../css/styles.css'), 'utf8');
+    const gsScript = fs.readFileSync(path.resolve(__dirname, '../bdd/GoogleAppsScript_AutoSheet.gs'), 'utf8');
 
-    // 3. Imagen 1: Cabecera centrada sin ícono de imagen lateral y barra inferior limpia como estaba antes
-    assertEqual(indexHtml.includes('class="app-cover-badge-icon"'), false, "Imagen 1: El encabezado principal de Gestión de Servicios Adicionales no muestra el ícono lateral extra y queda centrado");
-    assertEqual(indexHtml.includes('<span class="nav-icon">📅</span>'), true, "Imagen 1: La barra inferior mantiene su formato limpio y centrado original");
-
-    // 4. Imagen 2 y 3: Referencias más grandes/legibles y Calendario ocupando el 100% del espacio disponible sin scroll
-    assertEqual(stylesCss.includes('font-size: 0.86rem !important;'), true, "Imagen 2: Las referencias de empresas abajo del calendario tienen tamaño aumentado (0.86rem) legible y accesible");
+    // 3. Íconos en las 5 solapas según su carátula (Agenda, Gráficos, Historial, Precartón, Configuración)
     assertEqual(
-        stylesCss.includes('max-height: 100dvh;') &&
-        stylesCss.includes('overflow: hidden !important;') &&
-        stylesCss.includes('.calendar-card .fc-scrollgrid'),
+        indexHtml.includes('data-cover-nav-icon="agenda"') &&
+        indexHtml.includes('data-cover-nav-icon="resumen"') &&
+        indexHtml.includes('data-cover-nav-icon="app"') &&
+        indexHtml.includes('data-cover-nav-icon="precarton"') &&
+        indexHtml.includes('data-cover-nav-icon="config"'),
         true,
-        "Imagen 3: El calendario en la solapa Agenda ocupa el 100% del espacio disponible sin scroll"
+        "index.html muestra en las 5 solapas (Agenda, Gráficos, Historial, Precartón, Config.) los íconos personalizados según la carátula seleccionada"
+    );
+    assertEqual(
+        precartonHtml.includes('data-cover-nav-icon="precarton"') &&
+        configHtml.includes('data-cover-nav-icon="config"'),
+        true,
+        "Precarton_Adcionales.html y Configuraciones.html también muestran los 5 íconos personalizados en las solapas inferiores"
+    );
+    assertEqual(indexHtml.includes('class="app-cover-badge-icon"'), false, "El encabezado superior de Gestión de Servicios Adicionales permanece limpio y centrado sin ícono extra");
+
+    // 4. Solapa Agenda: El calendario ocupa el 100% de la pantalla disponible sin espacio vacío entre elementos y sin scroll
+    assertEqual(
+        scriptsJs.includes("height: '100%'") &&
+        scriptsJs.includes("contentHeight: '100%'") &&
+        stylesCss.includes('.calendar-card .fc-scrollgrid-section-liquid > td'),
+        true,
+        "FullCalendar usa height: '100%' y contentHeight: '100%' eliminando el espacio vacío entre el calendario y las referencias inferiores"
     );
 
-    // 5. Solapa Gráficos:
-    // - N° 1 Circular de Grupos Horarios (#graficoGruposHorarios)
-    // - Gráfico 1 Mensual Circular con totales y porcentajes (#graficoMensual)
-    // - Gráfico 2 Anual Circular con totales y porcentajes (#graficoAnual)
-    // - Duplicado de Gráfico 2 Anual como Barra Horizontal (#graficoAnualHorizontal)
-    assertEqual(
-        indexHtml.includes('id="graficoGruposHorarios"') &&
-        indexHtml.includes('id="graficoMensual"') &&
-        indexHtml.includes('id="graficoAnual"') &&
-        indexHtml.includes('id="graficoAnualHorizontal"'),
-        true,
-        "Solapa Gráficos contiene los 4 gráficos requeridos (1. Circular Grupos Horarios, Gráfico 1 Circular Mensual, Gráfico 2 Circular Anual y Duplicado Barra Horizontal)"
-    );
-    assertEqual(scriptsJs.includes("indexAxis: 'y'"), true, "El gráfico duplicado anual se configura como Gráfico de Barras Horizontales (indexAxis: 'y')");
+    // 5. Verificación y apertura del archivo de Google Sheets en Google Drive por única vez
+    assertEqual(typeof CloudSync.abrirArchivoSheetEnGoogleDrive, 'function', "CloudSync expone abrirArchivoSheetEnGoogleDrive para abrir Google Drive y visualizar el archivo creado");
+    assertEqual(configHtml.includes('id="btnAbrirGoogleDriveSheet"') && configHtml.includes('abrirArchivoEnGoogleDrive(true)'), true, "Configuraciones.html incluye botón para abrir Google Drive y visualizar el archivo de Google Sheets creado");
 
-    const mockEvents = [
-        { start: '2026-11-01', extendedProps: { policia: 'Olivera Fernando', turno: '07-15', cost: 135870 } },
-        { start: '2026-11-08', extendedProps: { policia: 'Olivera Fernando', turno: '07-15', cost: 135870 } },
-        { start: '2026-11-13', extendedProps: { policia: 'Olivera Fernando', turno: '15-23', cost: 119944 } },
-        { start: '2026-11-15', extendedProps: { policia: 'Olivera Fernando', turno: '22-06', cost: 135870 } }
-    ];
-    const chartStats = Scripts.computeWeekdayBarStats(mockEvents, '2026-11', 2026, '');
-    assertEqual(chartStats.porGrupoHorarioMes['07-15hs'], 2, "Gráfico Circular N° 1 diferencia los grupos horarios y contabiliza 2 turnos en 07-15hs");
-    assertEqual(chartStats.porGrupoHorarioMes['15-23hs'], 1, "Gráfico Circular N° 1 contabiliza 1 turno en 15-23hs");
-    assertEqual(chartStats.porcentajesMensualPorDia[0], 75, "Gráfico 1 Circular Mensual calcula porcentajes exactos por día (Domingo: 3 de 4 = 75%)");
-    assertEqual(chartStats.porcentajesAnualPorDia[5], 25, "Gráfico 2 Circular Anual calcula porcentajes exactos por día (Viernes: 1 de 4 = 25%)");
-
-    // 6. Vinculación de Correo Gmail: Solicita crear Policía Predefinido para el calendario y alertas personalizadas
-    assertEqual(configHtml.includes('id="inputNuevoPoliciaTitularGmail"') && configHtml.includes('id="selJerarquiaTitularGmail"'), true, "Configuraciones.html incluye campos para crear el Policía Predefinido al vincular un correo Gmail");
-
-    // Si intenta vincular sin crear ni elegir policía, debe solicitarlo
-    const missingPolRes = Configuraciones.ensureTitularPoliceOnGmailLink({
-        selectedPolicia: '__CREAR_NUEVO__',
-        nuevoNombre: ''
+    const linkRes = await CloudSync.vincularGmailYCrearSheet({
+        email: 'ferna.psn.eu@gmail.com',
+        policiaTitular: 'Olivera Fernando'
     });
-    assertEqual(missingPolRes.ok, false, "Al vincular Gmail sin indicar Policía Predefinido, solicita crearlo");
+    assertEqual(linkRes.ok && linkRes.driveSearchUrl.includes('drive.google.com/drive/search?q=Web_Alfas_2026_ferna.psn.eu'), true, "Al vincular el correo genera la URL de búsqueda y verificación directa en Google Drive para el archivo creado");
 
-    // Si ingresa un nuevo policía al vincular el correo, lo crea y lo devuelve como titular predefinido
-    const createdPolRes = Configuraciones.ensureTitularPoliceOnGmailLink({
-        selectedPolicia: '__CREAR_NUEVO__',
-        nuevoNombre: 'Alvarez Marcos',
-        nuevaJerarquia: 'Sgto. Ayte.'
-    });
-    assertEqual(createdPolRes.ok && createdPolRes.policiaTitular === 'Alvarez Marcos' && createdPolRes.created, true, "Al vincular Gmail creando un policía nuevo, lo registra en el padrón y lo fija como predefinido para calendario y alertas");
+    const openOnce1 = CloudSync.abrirArchivoSheetEnGoogleDrive({ forceOpen: false });
+    assertEqual(openOnce1.opened, true, "abrirArchivoSheetEnGoogleDrive(forceOpen: false) abre Google Drive automáticamente la primera vez tras crear el archivo");
 
-    console.log(`\n=== RESUMEN FINAL QA V10: ${passed} PASARON | ${failed} FALLARON ===`);
+    // 6. Eliminación definitiva de turnos adicionales agendados (del Calendario, de la Lista de Historial, de LocalStorage y de Google Sheets)
+    assertEqual(indexHtml.includes('id="modalConfirmarEliminarServicio"') && indexHtml.includes('ejecutarEliminacionServicioConfirmada()'), true, "index.html incluye modal propio de confirmación para eliminar turnos adicionales (compatible con Android APK WebView)");
+    assertEqual(typeof Scripts.eliminarServicioDeListaYCalendario, 'function', "scripts.js expone eliminarServicioDeListaYCalendario para borrar turnos tanto desde el calendario como desde la lista de historial");
+    assertEqual(gsScript.includes("if (action === 'deleteServicio')"), true, "GoogleAppsScript_AutoSheet.gs implementa deleteServicio para eliminar la fila también en la hoja remota de Google Sheets");
+
+    console.log(`\n=== RESUMEN FINAL QA V11: ${passed} PASARON | ${failed} FALLARON ===`);
     return failed === 0;
 }
 

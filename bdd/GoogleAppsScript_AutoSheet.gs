@@ -140,5 +140,85 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
   }
 
+  // 4. ELIMINAR SERVICIO
+  if (action === 'deleteServicio') {
+    const sheet = ss.getSheetByName('servicios');
+    const targetFecha = String(params.fecha || payload.fecha || '').split('T')[0].trim();
+    const targetEmpresa = String(params.empresa || payload.empresa || '').trim().toUpperCase();
+    const targetPolicia = String(params.policia || payload.policia || '').trim().toUpperCase();
+    const targetTurno = String(params.turno || payload.turno || '').trim();
+    const rows = sheet.getDataRange().getValues();
+    let deletedCount = 0;
+
+    for (let i = rows.length - 1; i >= 1; i--) {
+      const r = rows[i];
+      let rowFecha = '';
+      if (r[0] instanceof Date) {
+        rowFecha = Utilities.formatDate(r[0], Session.getScriptTimeZone() || 'GMT-3', 'yyyy-MM-dd');
+      } else {
+        rowFecha = String(r[0] || '').split('T')[0].trim();
+      }
+      const rowEmpresa = String(r[1] || '').trim().toUpperCase();
+      const rowPolicia = String(r[2] || '').trim().toUpperCase();
+      const rowTurno = String(r[3] || '').trim();
+
+      if (rowFecha === targetFecha &&
+          (!targetEmpresa || rowEmpresa === targetEmpresa) &&
+          (!targetPolicia || rowPolicia === targetPolicia) &&
+          (!targetTurno || rowTurno === targetTurno)) {
+        sheet.deleteRow(i + 1);
+        deletedCount++;
+      }
+    }
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, deletedCount: deletedCount }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // 5. SINCRONIZAR POLICÍAS, EMPRESAS Y TARIFAS
+  if (action === 'syncPolicias' && Array.isArray(payload.policias)) {
+    const sheet = ss.getSheetByName('POLICIA');
+    sheet.clearContents();
+    sheet.appendRow(REQUIRED_TABS_HEADERS['POLICIA']);
+    payload.policias.forEach(function(p) {
+      sheet.appendRow([p.nombre || '', p.jerarquia || '']);
+    });
+    return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'syncEmpresas' && payload.empresas && typeof payload.empresas === 'object') {
+    const sheet = ss.getSheetByName('EMPRESAS');
+    sheet.clearContents();
+    sheet.appendRow(REQUIRED_TABS_HEADERS['EMPRESAS']);
+    Object.keys(payload.empresas).forEach(function(empName) {
+      const emp = payload.empresas[empName] || {};
+      sheet.appendRow([
+        empName,
+        Array.isArray(emp.turnos) ? emp.turnos.join(', ') : String(emp.turnos || ''),
+        emp.catSemana || 'A',
+        emp.catFinde || 'AP',
+        emp.nroServicio || '',
+        emp.telefono || '',
+        emp.domicilio || '',
+        emp.barrio || '',
+        emp.referente || '',
+        emp.telReferente || '',
+        emp.policiaEnc || '',
+        emp.telPoliciaEnc || ''
+      ]);
+    });
+    return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'syncTarifas' && payload.config && typeof payload.config === 'object') {
+    const sheet = ss.getSheetByName('TARIFAS');
+    sheet.clearContents();
+    sheet.appendRow(REQUIRED_TABS_HEADERS['TARIFAS']);
+    Object.keys(payload.config).forEach(function(catKey) {
+      sheet.appendRow([catKey, payload.config[catKey]]);
+    });
+    return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   return ContentService.createTextOutput(JSON.stringify({ ok: true, action: action })).setMimeType(ContentService.MimeType.JSON);
 }

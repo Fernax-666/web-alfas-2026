@@ -271,6 +271,7 @@ textarea:focus {
 #calendar {
     background: var(--bg-card);
     border-radius: var(--radius);
+    min-height: 540px;
 }
 
 .cal-filters-bar {
@@ -1200,32 +1201,49 @@ html[data-theme="dark"] .upcoming-service-banner {
     }
 
     .calendar-card #calendar {
-        flex: 1;
-        min-height: 0;
+        flex: 1 1 auto;
+        min-height: 0 !important;
+        height: 100% !important;
         display: flex;
         flex-direction: column;
         overflow: hidden;
     }
 
     .calendar-card .fc {
-        flex: 1;
-        min-height: 0;
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
         height: 100% !important;
-        display: flex;
-        flex-direction: column;
+        display: flex !important;
+        flex-direction: column !important;
     }
 
-    .calendar-card .fc-view-harness {
-        flex: 1 !important;
+    .calendar-card .fc-view-harness,
+    .calendar-card .fc-view-harness-active {
+        flex: 1 1 auto !important;
         min-height: 0 !important;
         height: 100% !important;
     }
 
-    .calendar-card .fc-scrollgrid,
+    .calendar-card .fc-daygrid,
+    .calendar-card .fc-dayGridMonth-view,
+    .calendar-card .fc-scrollgrid {
+        height: 100% !important;
+        width: 100% !important;
+    }
+
+    .calendar-card .fc-scrollgrid-section-body > td,
+    .calendar-card .fc-scrollgrid-section-liquid > td {
+        height: 100% !important;
+    }
+
     .calendar-card .fc-daygrid-body,
     .calendar-card .fc-scrollgrid-sync-table {
         height: 100% !important;
         width: 100% !important;
+    }
+
+    .calendar-card .fc-scrollgrid-sync-table tbody {
+        height: 100% !important;
     }
 
     .calendar-header {

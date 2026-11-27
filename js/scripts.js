@@ -191,6 +191,170 @@ let graficoAnualHorizontalInstance = null;
 let calendar = null;
 let _currentMobileTab = 'agenda';
 let _periodoRapidoHistorial = 'todos';
+let _servicioPendienteEliminar = null;
+const DELETED_TOMBSTONES_KEY = 'alfa_deleted_servicios_tombstones';
+
+function buildDeletedServiceKey(fecha, policia, empresa, turno) {
+    const f = String(fecha || "").split("T")[0].trim();
+    const p = String(policia || "").trim().toUpperCase();
+    const e = String(empresa || "").trim().toUpperCase();
+    const t = String(turno || "").trim();
+    return `${f}__${p}__${e}__${t}`;
+}
+
+function getDeletedServicesTombstones() {
+    const list = safeParse(DELETED_TOMBSTONES_KEY, []);
+    return new Set(Array.isArray(list) ? list : []);
+}
+
+function registerDeletedServiceTombstone(fecha, policia, empresa, turno) {
+    const key = buildDeletedServiceKey(fecha, policia, empresa, turno);
+    const set = getDeletedServicesTombstones();
+    set.add(key);
+    if (typeof localStorage !== 'undefined') {
+        try {
+            localStorage.setItem(DELETED_TOMBSTONES_KEY, JSON.stringify(Array.from(set).slice(-300)));
+        } catch (_) {}
+    }
+    return key;
+}
+
+function clearDeletedServiceTombstone(fecha, policia, empresa, turno) {
+    const key = buildDeletedServiceKey(fecha, policia, empresa, turno);
+    const set = getDeletedServicesTombstones();
+    if (set.has(key)) {
+        set.delete(key);
+        if (typeof localStorage !== 'undefined') {
+            try {
+                localStorage.setItem(DELETED_TOMBSTONES_KEY, JSON.stringify(Array.from(set)));
+            } catch (_) {}
+        }
+    }
+}
+
+/**
+ * Elimina de forma sincrónica y definitiva un turno adicional de:
+ *  1. El almacenamiento local `eventos` y base SQLite/IndexedDB
+ *  2. La planilla mensual de Precartón (`planilla_...`) si pertenecía a ese mes/empresa
+ *  3. La instancia activa de FullCalendar
+ *  4. La tabla de Historial y Google Sheets
+ */
+function eliminarServicioDeListaYCalendario({ fecha, policia, empresa, turno }) {
+    const cleanFecha = String(fecha || "").split("T")[0].trim();
+    const cleanPolicia = String(policia || "").trim();
+    const cleanEmpresa = String(empresa || "").trim();
+    const cleanTurno = String(turno || "").trim();
+    if (!cleanFecha) return { removedCount: 0 };
+
+    registerDeletedServiceTombstone(cleanFecha, cleanPolicia, cleanEmpresa, cleanTurno);
+
+    let removedCount = 0;
+
+    // 1. Eliminar de FullCalendar si está instanciado
+    if (calendar && typeof calendar.getEvents === 'function') {
+        calendar.getEvents().forEach(ev => {
+            const evFecha = ev.startStr ? String(ev.startStr).split("T")[0] : getLocalYMD(ev.start);
+            const props = ev.extendedProps || {};
+            const evPol = String(props.policia || "").trim();
+            const evEmp = String(props.empresa || "").trim();
+            const evTur = String(props.turno || "").trim();
+
+            if (evFecha === cleanFecha &&
+                (!cleanPolicia || evPol.toLowerCase() === cleanPolicia.toLowerCase()) &&
+                (!cleanEmpresa || evEmp.toLowerCase() === cleanEmpresa.toLowerCase()) &&
+                (!cleanTurno || evTur === cleanTurno)) {
+                ev.remove();
+                removedCount++;
+            }
+        });
+    }
+
+    // 2. Eliminar directamente del arreglo persistido en localStorage ("eventos")
+    const storedEvs = safeParse("eventos", []);
+    if (Array.isArray(storedEvs)) {
+        const filteredEvs = storedEvs.filter(ev => {
+            const evFecha = String(ev.start || ev.fecha || "").split("T")[0].trim();
+            const props = ev.extendedProps || ev;
+            const evPol = String(props.policia || "").trim();
+            const evEmp = String(props.empresa || "").trim();
+            const evTur = String(props.turno || "").trim();
+            const isTarget = evFecha === cleanFecha &&
+                (!cleanPolicia || evPol.toLowerCase() === cleanPolicia.toLowerCase()) &&
+                (!cleanEmpresa || evEmp.toLowerCase() === cleanEmpresa.toLowerCase()) &&
+                (!cleanTurno || evTur === cleanTurno);
+            if (isTarget) removedCount++;
+            return !isTarget;
+        });
+        Storage.saveEventos(filteredEvs);
+    } else if (calendar) {
+        guardarEventosLocal();
+    }
+
+    // 3. Limpiar también la celda en la planilla local de Precartón si existía
+    if (cleanEmpresa && /^\d{4}-\d{2}-\d{2}$/.test(cleanFecha) && typeof localStorage !== 'undefined') {
+        try {
+            const [yStr, mStr, dStr] = cleanFecha.split("-");
+            const anioNum = parseInt(yStr, 10);
+            const mesIdx = parseInt(mStr, 10) - 1;
+            const diaNum = parseInt(dStr, 10);
+            const clavePlan = `planilla_${cleanEmpresa}_${anioNum}_${mesIdx}`;
+            const planData = safeParse(clavePlan, null);
+            if (planData && typeof planData === 'object') {
+                let modifiedPlan = false;
+                Object.keys(planData).forEach(cellKey => {
+                    if (cellKey.startsWith(`${diaNum}_`) && String(planData[cellKey] || "").toLowerCase() === cleanPolicia.toLowerCase()) {
+                        delete planData[cellKey];
+                        modifiedPlan = true;
+                    }
+                });
+                if (modifiedPlan) {
+                    localStorage.setItem(clavePlan, JSON.stringify(planData));
+                }
+            }
+        } catch (_) {}
+    }
+
+    // 4. Actualizar Tabla de Historial, Gráficos y KPIs inmediatamente
+    actualizarTodo();
+
+    // 5. Sincronizar eliminación con Google Sheets
+    if (cleanPolicia && cleanEmpresa && cleanFecha && CloudSync && typeof CloudSync.eliminarServicioCloud === 'function') {
+        CloudSync.eliminarServicioCloud(cleanPolicia, cleanEmpresa, cleanTurno, cleanFecha)
+            .then(() => actualizarEstadoBaseDatosUI());
+    }
+
+    return { removedCount };
+}
+
+function solicitarConfirmacionEliminarServicio({ fecha, policia, empresa, turno, labelPolicia, labelHorario }) {
+    _servicioPendienteEliminar = { fecha, policia, empresa, turno };
+    const modal = document.getElementById("modalConfirmarEliminarServicio");
+    const txt = document.getElementById("textoConfirmarEliminarServicio");
+
+    const descPol = labelPolicia || policia || "Efectivo";
+    const descHor = labelHorario || formatearTurno(turno);
+    const msg = `¿Eliminar el turno adicional de ${descPol} en ${empresa} (${descHor}) del día ${fecha}?`;
+
+    if (modal) {
+        if (txt) txt.textContent = msg;
+        abrirModal("modalConfirmarEliminarServicio");
+        return;
+    }
+
+    // Fallback si no existe el modal en el DOM
+    if (typeof confirm === 'function' ? confirm(msg) : true) {
+        ejecutarEliminacionServicioConfirmada();
+    }
+}
+
+function ejecutarEliminacionServicioConfirmada() {
+    if (!_servicioPendienteEliminar) return;
+    const target = _servicioPendienteEliminar;
+    _servicioPendienteEliminar = null;
+    cerrarModal("modalConfirmarEliminarServicio");
+    eliminarServicioDeListaYCalendario(target);
+    mostrarNotificacion(`🗑️ Turno de ${target.policia} en ${target.empresa} (${target.fecha}) eliminado`, "var(--danger)");
+}
 
 function nombresPolicias() {
     return policias.map(policiaItem => policiaItem.nombre);
@@ -489,8 +653,8 @@ function initCalendar() {
             center: 'title',
             right: 'dayGridMonth,dayGridWeek'
         },
-        height: 'auto',
-        contentHeight: 'auto',
+        height: '100%',
+        contentHeight: '100%',
         editable: !platform.isMobileViewport,
         dayMaxEvents: false,
         events: eventosGuardados,
@@ -533,23 +697,24 @@ function initCalendar() {
             abrirModal('modalServicio');
         },
         eventClick: function (info) {
-            const evInfo = extractStructuredEventInfo(info.event);
-            if (confirm(`¿Eliminar turno de ${evInfo.policiaLargo} en ${evInfo.empresa} (${evInfo.horarioLargo})?`)) {
-                let props = info.event.extendedProps || {};
-                let policia = props.policia || "";
-                let empresa = props.empresa || evInfo.empresa;
-                let turno = props.turno || "";
-                let fecha = info.event.startStr || "";
-
-                info.event.remove();
-                guardarEventosLocal();
-                actualizarTodo();
-
-                if (policia && empresa && fecha) {
-                    CloudSync.eliminarServicioCloud(policia, empresa, turno, fecha)
-                        .then(() => actualizarEstadoBaseDatosUI());
-                }
+            if (info && info.jsEvent && typeof info.jsEvent.stopPropagation === 'function') {
+                info.jsEvent.stopPropagation();
             }
+            const evInfo = extractStructuredEventInfo(info.event);
+            const props = info.event.extendedProps || {};
+            const policia = props.policia || evInfo.policiaLargo;
+            const empresa = props.empresa || evInfo.empresa;
+            const turno = props.turno || "";
+            const fecha = info.event.startStr ? String(info.event.startStr).split("T")[0] : getLocalYMD(info.event.start);
+
+            solicitarConfirmacionEliminarServicio({
+                fecha,
+                policia,
+                empresa,
+                turno,
+                labelPolicia: evInfo.policiaLargo,
+                labelHorario: evInfo.horarioLargo
+            });
         }
     });
     calendar.render();
@@ -637,6 +802,7 @@ function guardarEvento() {
     };
 
     calendar.addEvent(nuevoEv);
+    clearDeletedServiceTombstone(window.fechaSeleccionada, p, e, t);
     guardarEventosLocal();
     actualizarTodo();
     cerrarModal('modalServicio');
@@ -779,6 +945,8 @@ function actualizarTabla() {
 
         const safeFecha = escapeHTML(fechaIso);
         const safeEmp = escapeHTML(empNombre);
+        const safePol = escapeHTML(polNombre);
+        const safeTurnoRaw = escapeHTML(String(p.turno || ""));
         const safeTurno = escapeHTML(Utils.formatearTurnoCorto ? Utils.formatearTurnoCorto(p.turno) : formatearTurno(p.turno));
         const safeCosto = escapeHTML((Number.isFinite(costVal) ? costVal : 0).toLocaleString('es-AR'));
 
@@ -788,6 +956,13 @@ function actualizarTabla() {
             <td>${safeTurno}</td>
             <td>${catBadge}</td>
             <td class="font-weight-600">$${safeCosto}</td>
+            <td style="text-align:center;">
+                <button type="button" class="btn-danger" style="min-height:28px !important; padding:3px 8px !important; font-size:0.72rem !important;"
+                        title="Eliminar turno de ${safePol}"
+                        onclick="solicitarConfirmacionEliminarServicio({ fecha: '${safeFecha}', policia: '${safePol}', empresa: '${safeEmp}', turno: '${safeTurnoRaw}' })">
+                    🗑️
+                </button>
+            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -1454,11 +1629,15 @@ async function cargarServiciosDesdeCloud() {
 function procesarYMostrarServiciosCloud(serviciosList) {
     if (!Array.isArray(serviciosList)) return;
     let eventosFinales = [];
+    const deletedTombstones = getDeletedServicesTombstones();
 
     serviciosList.forEach(item => {
         const validation = Utils.validateServicioRecord(item);
         if (!validation.valid || !validation.record) return;
         const r = validation.record;
+        const delKey = buildDeletedServiceKey(r.fecha, r.policia, r.empresa, r.turno);
+        if (deletedTombstones.has(delKey)) return;
+
         eventosFinales.push({
             title: `${r.policia}\n${r.empresa} (${formatearTurno(r.turno)})`,
             start: r.fecha,
@@ -1477,6 +1656,35 @@ function procesarYMostrarServiciosCloud(serviciosList) {
             }
         });
     });
+
+    // Preservar también los turnos locales recién agendados que aún no hayan sido devueltos por Google Sheets
+    const localSaved = safeParse("eventos", []);
+    if (Array.isArray(localSaved)) {
+        localSaved.forEach(localEv => {
+            const v = Utils.validateServicioRecord(localEv);
+            if (!v.valid || !v.record) return;
+            const r = v.record;
+            const delKey = buildDeletedServiceKey(r.fecha, r.policia, r.empresa, r.turno);
+            if (deletedTombstones.has(delKey)) return;
+            eventosFinales.push({
+                title: `${r.policia}\n${r.empresa} (${formatearTurno(r.turno)})`,
+                start: r.fecha,
+                allDay: true,
+                backgroundColor: Utils.ensureDistinctEventColor ? Utils.ensureDistinctEventColor(coloresPolicia[r.policia], r.policia) : '#0d9488',
+                borderColor: 'transparent',
+                extendedProps: {
+                    policia: r.policia,
+                    empresa: r.empresa,
+                    turno: r.turno,
+                    cat: r.cat,
+                    cost: r.cost,
+                    h: r.h,
+                    vh: r.vh,
+                    detail: r.detail
+                }
+            });
+        });
+    }
 
     const vistosSet = new Set();
     const eventosUnicos = eventosFinales.filter(ev => {
@@ -1599,6 +1807,9 @@ if (typeof module !== 'undefined' && module.exports) {
         extractStructuredEventInfo,
         computeWeekdayBarStats,
         obtenerPoliciaTitularPredefinido,
+        eliminarServicioDeListaYCalendario,
+        solicitarConfirmacionEliminarServicio,
+        ejecutarEliminacionServicioConfirmada,
         capturarYCompartirCalendarioWhatsApp,
         getActivePlatformHandler,
         defaultServiciosRaw,

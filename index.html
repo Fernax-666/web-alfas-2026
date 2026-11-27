@@ -36,17 +36,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=22">
-  <script src="js/utils/helpers.js?v=22"></script>
-  <script src="js/services/calculator.js?v=22"></script>
-  <script src="js/services/database.js?v=22"></script>
-  <script src="js/services/storage.js?v=22"></script>
-  <script src="js/services/cloudSync.js?v=22"></script>
-  <script src="js/services/exporter.js?v=22"></script>
-  <script src="js/services/platformPc.js?v=22"></script>
-  <script src="js/services/platformApk.js?v=22"></script>
-  <script src="js/services/notifications.js?v=22"></script>
-  <script src="js/scripts.js?v=22"></script>
+  <link rel="stylesheet" href="css/styles.css?v=23">
+  <script src="js/utils/helpers.js?v=23"></script>
+  <script src="js/services/calculator.js?v=23"></script>
+  <script src="js/services/database.js?v=23"></script>
+  <script src="js/services/storage.js?v=23"></script>
+  <script src="js/services/cloudSync.js?v=23"></script>
+  <script src="js/services/exporter.js?v=23"></script>
+  <script src="js/services/platformPc.js?v=23"></script>
+  <script src="js/services/platformApk.js?v=23"></script>
+  <script src="js/services/notifications.js?v=23"></script>
+  <script src="js/scripts.js?v=23"></script>
 </head>
 
 <body data-mobile-tab="agenda">
@@ -271,6 +271,7 @@
               <th>Turno</th>
               <th>Categoría</th>
               <th>Costo</th>
+              <th style="text-align:center;">Acción</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -283,26 +284,26 @@
   <button type="button" class="mobile-fab-whatsapp" id="btnFabCapturaWhatsapp" onclick="capturarYCompartirCalendarioWhatsApp()" title="Capturar Calendario y Compartir por WhatsApp" aria-label="Capturar Calendario y Compartir por WhatsApp">📸</button>
   <button type="button" class="mobile-fab-add" onclick="abrirNuevoServicioRapido()" title="Registrar Nuevo Servicio" aria-label="Registrar Nuevo Servicio">+</button>
 
-  <!-- BARRA DE NAVEGACIÓN INFERIOR EXCLUSIVA MÓVIL (CENTRADA Y SIN ÍCONOS DE IMAGEN COMO ESTABA ANTES) -->
+  <!-- BARRA DE NAVEGACIÓN INFERIOR CON LOS 5 ÍCONOS PERSONALIZADOS SEGÚN SU CARÁTULA (AGENDA, GRÁFICOS, HISTORIAL, PRECARTÓN, CONFIG.) -->
   <nav class="mobile-bottom-nav" aria-label="Navegación principal móvil">
     <button type="button" class="mobile-nav-btn active" data-tab="agenda" onclick="cambiarTabMovil('agenda')">
-      <span class="nav-icon">📅</span>
+      <img src="img/icons/p1_icon_1.png" alt="Agenda" class="nav-custom-icon" data-cover-nav-icon="agenda">
       <span>Agenda</span>
     </button>
     <button type="button" class="mobile-nav-btn" data-tab="resumen" onclick="cambiarTabMovil('resumen')">
-      <span class="nav-icon">📊</span>
+      <img src="img/icons/p1_icon_4.png" alt="Gráficos" class="nav-custom-icon" data-cover-nav-icon="resumen">
       <span>Gráficos</span>
     </button>
     <button type="button" class="mobile-nav-btn" data-tab="historial" onclick="cambiarTabMovil('historial')">
-      <span class="nav-icon">📋</span>
+      <img src="img/icons/p1_icon_3.png" alt="Historial" class="nav-custom-icon" data-cover-nav-icon="app">
       <span>Historial</span>
     </button>
     <a href="Precarton_Adcionales.html" class="mobile-nav-btn">
-      <span class="nav-icon">🗂️</span>
+      <img src="img/icons/p1_icon_2.png" alt="Precartón" class="nav-custom-icon" data-cover-nav-icon="precarton">
       <span>Precartón</span>
     </a>
     <a href="Configuraciones.html" class="mobile-nav-btn">
-      <span class="nav-icon">⚙️</span>
+      <img src="img/icons/p1_icon_5.png" alt="Config." class="nav-custom-icon" data-cover-nav-icon="config">
       <span>Config.</span>
     </a>
   </nav>
@@ -340,7 +341,22 @@
           <option value="HO">Cat. HO</option>
         </select>
       </div>
-      <button type="button" class="btn-primary btn-full-sm" onclick="guardarEvento()">Guardar Servicio</button>
+      <button type="button" class="btn-primary btn-full-sm" onclick="guardarEvento()">💾 Guardar Servicio</button>
+    </div>
+  </div>
+
+  <!-- MODAL DE CONFIRMACIÓN DE ELIMINACIÓN DE TURNO ADICIONAL (COMPATIBLE 100% CON ANDROID APK Y WINDOWS PC) -->
+  <div id="modalConfirmarEliminarServicio" class="modal-overlay">
+    <div class="modal" style="max-width:380px; text-align:center;">
+      <span class="close-modal" onclick="cerrarModal('modalConfirmarEliminarServicio')">&times;</span>
+      <h3 class="mb-10" style="color:var(--danger);">🗑️ Eliminar Turno Adicional</h3>
+      <p id="textoConfirmarEliminarServicio" style="font-size:0.88rem; margin-bottom:16px; line-height:1.45;">
+        ¿Confirma que desea eliminar este servicio adicional de la lista y del calendario?
+      </p>
+      <div class="grid-2col">
+        <button type="button" class="btn-outline" onclick="cerrarModal('modalConfirmarEliminarServicio')">Cancelar</button>
+        <button type="button" class="btn-danger" id="btnConfirmarEliminarServicioDefinitivo" onclick="ejecutarEliminacionServicioConfirmada()">🗑️ Sí, Eliminar</button>
+      </div>
     </div>
   </div>
 

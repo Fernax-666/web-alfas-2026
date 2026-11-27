@@ -346,8 +346,30 @@
             cargarEstadoCuentaGmailUI();
             actualizarEstadoBaseDatosUI();
             mostrarNotificacion(res.message, "var(--secondary)");
+            // Abrir Google Drive / Google Sheets por única vez para visualizar y verificar el archivo creado
+            abrirArchivoEnGoogleDrive(false);
         } else {
             mostrarNotificacion(res.message || "No se pudo verificar la estructura", "var(--danger)");
+        }
+    }
+
+    /**
+     * Abre Google Drive o la planilla creada en Google Sheets para verificar visualmente el archivo en la nube.
+     * Si `forzarApertura` es `false`, solo se abre automáticamente por única vez tras crear/verificar.
+     * @param {boolean} [forzarApertura=true]
+     */
+    function abrirArchivoEnGoogleDrive(forzarApertura = true) {
+        if (!CloudSync || typeof CloudSync.abrirArchivoSheetEnGoogleDrive !== 'function') return;
+        const acc = CloudSync.getLinkedGmailAccount ? CloudSync.getLinkedGmailAccount() : null;
+        if (!acc || !acc.email) {
+            if (forzarApertura) {
+                mostrarNotificacion("Primero vincule su correo de Gmail para abrir el archivo en Google Drive", "var(--warning)");
+            }
+            return;
+        }
+        const openRes = CloudSync.abrirArchivoSheetEnGoogleDrive({ forceOpen: Boolean(forzarApertura) });
+        if (openRes && openRes.opened) {
+            mostrarNotificacion(`📂 Abriendo Google Drive para visualizar "${acc.sheetName}"...`, "var(--primary)");
         }
     }
 
@@ -400,6 +422,8 @@
                 await Notifications.scheduleServiceReminders(evs, { policiaTitular });
             }
             mostrarNotificacion(`${res.message} Policía predefinido en calendario y alertas: ${policiaTitular}`, "var(--secondary)");
+            // Abrir Google Drive / Google Sheets por única vez para visualizar el archivo creado en la cuenta
+            abrirArchivoEnGoogleDrive(false);
         } else {
             mostrarNotificacion(res.message || "Error al vincular cuenta Gmail", "var(--danger)");
         }
@@ -981,6 +1005,7 @@
         window.guardarConfiguracionTarifas = guardarConfiguracionTarifas;
         window.vincularCuentaGmailYCrearSheet = vincularCuentaGmailYCrearSheet;
         window.verificarYCrearEstructuraSheetGmail = verificarYCrearEstructuraSheetGmail;
+        window.abrirArchivoEnGoogleDrive = abrirArchivoEnGoogleDrive;
         window.onCambioSelectorPoliciaTitular = onCambioSelectorPoliciaTitular;
         window.desvincularCuentaGmail = desvincularCuentaGmail;
         window.activarYProbarNotificaciones = activarYProbarNotificaciones;
@@ -1006,6 +1031,7 @@
         seleccionarPortadaApp,
         vincularCuentaGmailYCrearSheet,
         verificarYCrearEstructuraSheetGmail,
+        abrirArchivoEnGoogleDrive,
         ensureTitularPoliceOnGmailLink,
         guardarConfiguracionTarifas,
         recalcularEventosGuardados,

@@ -72,9 +72,11 @@
             email: cleanEmail,
             sheetName: accountData.sheetName || `Web_Alfas_2026_${cleanEmail.split('@')[0]}`,
             sheetUrl: accountData.sheetUrl || '',
+            driveSearchUrl: accountData.driveSearchUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(accountData.sheetName || `Web_Alfas_2026_${cleanEmail.split('@')[0]}`)}`,
             policiaTitular: accountData.policiaTitular || '',
             isActive: accountData.isActive !== undefined ? Boolean(accountData.isActive) : true,
             structureVerified: accountData.structureVerified !== undefined ? Boolean(accountData.structureVerified) : true,
+            openedInDriveOnce: accountData.openedInDriveOnce !== undefined ? Boolean(accountData.openedInDriveOnce) : false,
             tabsCreated: accountData.tabsCreated || Object.keys(SHEET_STRUCTURE_SCHEMA),
             headersSchema: SHEET_STRUCTURE_SCHEMA,
             verifiedAt: accountData.verifiedAt || new Date().toISOString(),
@@ -205,9 +207,25 @@
                     schemaHeaders: SHEET_STRUCTURE_SCHEMA
                 });
                 const encoded = encodeURIComponent(JSON.stringify(provisionPayload));
+                const targetProvisionUrl = `${getEndpointUrl()}?data=${encoded}`;
                 if (typeof fetch !== 'undefined') {
-                    await fetch(`${getEndpointUrl()}?data=${encoded}`, { mode: "no-cors" });
-                    cloudCreated = true;
+                    try {
+                        // Intentar primero en modo CORS normal para recuperar sheetUrl y sheetId reales creados en Google Drive
+                        const corsRes = await fetch(targetProvisionUrl);
+                        if (corsRes && corsRes.ok) {
+                            const jsonRes = await corsRes.json();
+                            if (jsonRes && jsonRes.sheetUrl) {
+                                sheetUrl = jsonRes.sheetUrl;
+                            }
+                            cloudCreated = true;
+                        } else {
+                            await fetch(targetProvisionUrl, { mode: "no-cors" });
+                            cloudCreated = true;
+                        }
+                    } catch (_) {
+                        await fetch(targetProvisionUrl, { mode: "no-cors" });
+                        cloudCreated = true;
+                    }
                 }
 
                 // Sincronizar snapshot inicial en la nube para esa cuenta (crea las cabeceras de cada solapa aunque las listas estén vacías)
@@ -222,14 +240,55 @@
             if (db) db.enqueueOutboxOperation("createOrBindGmailSheet", { email: cleanEmail, sheetName: sheetTitle });
         }
 
+        const driveSearchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(sheetTitle)}`;
+        const finalAccount = saveLinkedGmailAccount({
+            ...savedAccount,
+            sheetUrl: sheetUrl || savedAccount.sheetUrl || "",
+            driveSearchUrl
+        });
+
         return {
             ok: true,
-            account: savedAccount,
+            account: finalAccount,
+            sheetUrl: finalAccount.sheetUrl || driveSearchUrl,
+            driveSearchUrl,
             cloudCreated,
             structureVerified: true,
             tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
             message: `Cuenta ${cleanEmail} vinculada y activa. Archivo "${sheetTitle}" creado con estructura de 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS).`
         };
+    }
+
+    /**
+     * Abre Google Drive o la URL directa de Google Sheets para visualizar el archivo creado.
+     * Si `forceOpen` es `false`, lo abre por única vez (`openedInDriveOnce`) inmediatamente después de crearlo/verificarlo.
+     * @param {{forceOpen?: boolean}} [opts]
+     * @returns {{opened: boolean, url: string, alreadyOpenedOnce: boolean}}
+     */
+    function abrirArchivoSheetEnGoogleDrive({ forceOpen = false } = {}) {
+        const acc = getLinkedGmailAccount();
+        const sheetName = (acc && acc.sheetName) ? acc.sheetName : "Web_Alfas_2026";
+        const targetUrl = (acc && acc.sheetUrl)
+            ? acc.sheetUrl
+            : `https://drive.google.com/drive/search?q=${encodeURIComponent(sheetName)}`;
+
+        if (!forceOpen && acc && acc.openedInDriveOnce) {
+            return { opened: false, url: targetUrl, alreadyOpenedOnce: true };
+        }
+
+        if (acc) {
+            saveLinkedGmailAccount({
+                ...acc,
+                openedInDriveOnce: true
+            });
+        }
+
+        if (typeof window !== 'undefined' && typeof window.open === 'function') {
+            window.open(targetUrl, '_blank');
+            return { opened: true, url: targetUrl, alreadyOpenedOnce: false };
+        }
+
+        return { opened: true, url: targetUrl, alreadyOpenedOnce: false };
     }
 
     /**
@@ -266,6 +325,7 @@
             : (existingAcc ? existingAcc.policiaTitular : "");
 
         let remoteVerified = false;
+        let detectedSheetUrl = existingAcc ? existingAcc.sheetUrl : "";
         try {
             if (typeof navigator === 'undefined' || navigator.onLine !== false) {
                 const verifyPayload = sanitizePayloadForSheets({
@@ -277,9 +337,22 @@
                     schemaHeaders: SHEET_STRUCTURE_SCHEMA
                 });
                 const encoded = encodeURIComponent(JSON.stringify(verifyPayload));
+                const verifyUrl = `${getEndpointUrl()}?data=${encoded}`;
                 if (typeof fetch !== 'undefined') {
-                    await fetch(`${getEndpointUrl()}?data=${encoded}`, { mode: "no-cors" });
-                    remoteVerified = true;
+                    try {
+                        const corsRes = await fetch(verifyUrl);
+                        if (corsRes && corsRes.ok) {
+                            const jsonRes = await corsRes.json();
+                            if (jsonRes && jsonRes.sheetUrl) detectedSheetUrl = jsonRes.sheetUrl;
+                            remoteVerified = true;
+                        } else {
+                            await fetch(verifyUrl, { mode: "no-cors" });
+                            remoteVerified = true;
+                        }
+                    } catch (_) {
+                        await fetch(verifyUrl, { mode: "no-cors" });
+                        remoteVerified = true;
+                    }
                 }
             }
         } catch (err) {
@@ -287,13 +360,16 @@
             if (db) db.enqueueOutboxOperation("verifyOrInitEmptySheetStructure", { email: cleanEmail, sheetName: sheetTitle });
         }
 
+        const driveSearchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(sheetTitle)}`;
         const verifiedAccount = saveLinkedGmailAccount({
             email: cleanEmail,
             sheetName: sheetTitle,
-            sheetUrl: existingAcc ? existingAcc.sheetUrl : "",
+            sheetUrl: detectedSheetUrl,
+            driveSearchUrl,
             policiaTitular,
             isActive: true,
             structureVerified: true,
+            openedInDriveOnce: existingAcc ? Boolean(existingAcc.openedInDriveOnce) : false,
             tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
             verifiedAt: new Date().toISOString()
         });
@@ -304,6 +380,8 @@
             structureVerified: true,
             remoteVerified,
             sheetName: sheetTitle,
+            sheetUrl: detectedSheetUrl || driveSearchUrl,
+            driveSearchUrl,
             tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
             headersSchema: SHEET_STRUCTURE_SCHEMA,
             account: verifiedAccount,
@@ -498,6 +576,7 @@
         unlinkGmailAccount,
         vincularGmailYCrearSheet,
         verificarYCrearEstructuraSheetCloud,
+        abrirArchivoSheetEnGoogleDrive,
         sanitizePayloadForSheets,
         sincronizarTarifasCloud,
         sincronizarPoliciasCloud,
