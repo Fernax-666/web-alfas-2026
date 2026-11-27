@@ -36,17 +36,17 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <!-- Custom Styles & Modular Scripts -->
-  <link rel="stylesheet" href="css/styles.css?v=23">
-  <script src="js/utils/helpers.js?v=23"></script>
-  <script src="js/services/calculator.js?v=23"></script>
-  <script src="js/services/database.js?v=23"></script>
-  <script src="js/services/storage.js?v=23"></script>
-  <script src="js/services/cloudSync.js?v=23"></script>
-  <script src="js/services/exporter.js?v=23"></script>
-  <script src="js/services/platformPc.js?v=23"></script>
-  <script src="js/services/platformApk.js?v=23"></script>
-  <script src="js/services/notifications.js?v=23"></script>
-  <script src="js/scripts.js?v=23"></script>
+  <link rel="stylesheet" href="css/styles.css?v=24">
+  <script src="js/utils/helpers.js?v=24"></script>
+  <script src="js/services/calculator.js?v=24"></script>
+  <script src="js/services/database.js?v=24"></script>
+  <script src="js/services/storage.js?v=24"></script>
+  <script src="js/services/cloudSync.js?v=24"></script>
+  <script src="js/services/exporter.js?v=24"></script>
+  <script src="js/services/platformPc.js?v=24"></script>
+  <script src="js/services/platformApk.js?v=24"></script>
+  <script src="js/services/notifications.js?v=24"></script>
+  <script src="js/scripts.js?v=24"></script>
 </head>
 
 <body data-mobile-tab="agenda">
@@ -131,12 +131,16 @@
       </div>
 
       <div class="grid">
-        <!-- N° 1: Gráfico Circular diferenciando Distintos Grupos Horarios -->
+        <!-- N° 1: Gráfico Circular diferenciando Distintos Grupos Horarios (con Filtro de Mes y Empresa) -->
         <div class="card">
           <div class="chart-card-header">
             <div>
               <h3>1. Distribución por Grupos Horarios (Circular)</h3>
               <span id="subtituloGraficoHorarios" class="badge badge-ho">Grupos Horarios</span>
+            </div>
+            <div class="flex-center-gap-10">
+              <select id="filtroMesHorariosDashboard" title="Filtrar Distribución de Grupos Horarios por Mes" class="select-auto" style="min-width:130px;" onchange="calcularResumen()"></select>
+              <select id="filtroEmpresaHorariosDashboard" title="Filtrar Distribución de Grupos Horarios por Empresa" class="select-auto" style="min-width:130px;" onchange="calcularResumen()"></select>
             </div>
           </div>
           <div class="chart-wrapper">
@@ -271,7 +275,6 @@
               <th>Turno</th>
               <th>Categoría</th>
               <th>Costo</th>
-              <th style="text-align:center;">Acción</th>
             </tr>
           </thead>
           <tbody></tbody>

@@ -454,6 +454,7 @@ function inicializarSelects() {
     const cEmp = document.getElementById("filtroCalEmpresa");
     const sEmp = document.getElementById("selEmpresa");
     const fEmp = document.getElementById("filtroEmpresa");
+    const fEmpHorarios = document.getElementById("filtroEmpresaHorariosDashboard");
 
     [
         { el: sPol, first: "-- Seleccione Policía --" },
@@ -479,7 +480,8 @@ function inicializarSelects() {
     [
         { el: sEmp, data: Object.keys(empresas), first: "-- Seleccione Empresa --" },
         { el: fEmp, data: Object.keys(empresas), first: "Todas las Empresas" },
-        { el: cEmp, data: Object.keys(empresas), first: "Empresas: Todas" }
+        { el: cEmp, data: Object.keys(empresas), first: "Empresas: Todas" },
+        { el: fEmpHorarios, data: Object.keys(empresas), first: "Empresas: Todas" }
     ].forEach(s => {
         if (!s.el) return;
         s.el.innerHTML = "";
@@ -853,10 +855,12 @@ function guardarEventosLocal() {
 
 function popularFiltroMeses() {
     let selectDash = document.getElementById("filtroMesDashboard");
+    let selectHorariosMes = document.getElementById("filtroMesHorariosDashboard");
     let selectAnioDash = document.getElementById("filtroAnioDashboard");
     let selectHist = document.getElementById("filtroMesHistorial");
 
     let valDash = selectDash ? selectDash.value : "";
+    let valHorariosMes = selectHorariosMes ? selectHorariosMes.value : "";
     let valAnio = selectAnioDash ? selectAnioDash.value : "";
     let valHist = selectHist ? selectHist.value : "";
 
@@ -895,6 +899,12 @@ function popularFiltroMeses() {
     if (selectDash) {
         selectDash.innerHTML = optionsHTML;
         selectDash.value = valDash || todayYyyyMm;
+    }
+    if (selectHorariosMes) {
+        selectHorariosMes.innerHTML = optionsHTML;
+        selectHorariosMes.value = (selectHorariosMes.dataset.userChanged && valHorariosMes !== undefined)
+            ? valHorariosMes
+            : (valHorariosMes || todayYyyyMm);
     }
     if (selectHist) {
         selectHist.innerHTML = optionsHTML;
@@ -945,8 +955,6 @@ function actualizarTabla() {
 
         const safeFecha = escapeHTML(fechaIso);
         const safeEmp = escapeHTML(empNombre);
-        const safePol = escapeHTML(polNombre);
-        const safeTurnoRaw = escapeHTML(String(p.turno || ""));
         const safeTurno = escapeHTML(Utils.formatearTurnoCorto ? Utils.formatearTurnoCorto(p.turno) : formatearTurno(p.turno));
         const safeCosto = escapeHTML((Number.isFinite(costVal) ? costVal : 0).toLocaleString('es-AR'));
 
@@ -956,13 +964,6 @@ function actualizarTabla() {
             <td>${safeTurno}</td>
             <td>${catBadge}</td>
             <td class="font-weight-600">$${safeCosto}</td>
-            <td style="text-align:center;">
-                <button type="button" class="btn-danger" style="min-height:28px !important; padding:3px 8px !important; font-size:0.72rem !important;"
-                        title="Eliminar turno de ${safePol}"
-                        onclick="solicitarConfirmacionEliminarServicio({ fecha: '${safeFecha}', policia: '${safePol}', empresa: '${safeEmp}', turno: '${safeTurnoRaw}' })">
-                    🗑️
-                </button>
-            </td>
         `;
         tbody.appendChild(tr);
     });
@@ -1078,7 +1079,7 @@ function limpiarFiltros() {
     aplicarPeriodoRapidoHistorial('todos');
 }
 
-function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMonth = "") {
+function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMonth = "", targetHorariosYM = undefined, targetHorariosEmpresa = "") {
     const mensualPorDia = [0, 0, 0, 0, 0, 0, 0];
     let totalTurnosMes = 0;
     let totalCostoMes = 0;
@@ -1092,6 +1093,9 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMon
     const porGrupoHorarioAnual = {};
     const porPoliciaMes = {};
     const porPoliciaAnual = {};
+
+    const effectiveHorariosYM = targetHorariosYM !== undefined ? targetHorariosYM : targetYM;
+    const cleanHorariosEmp = String(targetHorariosEmpresa || "").trim();
 
     const filterAnualMonthIdx = (targetAnualMonth && /^\d{2}$/.test(String(targetAnualMonth)))
         ? parseInt(String(targetAnualMonth), 10) - 1
@@ -1112,8 +1116,16 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMon
         const rawCost = (p.cost !== undefined) ? Number(p.cost) : (p.costo !== undefined ? Number(p.costo) : 0);
         const costVal = Number.isFinite(rawCost) ? rawCost : 0;
         const polNombre = String(p.policia || p.Policia || "Desconocido");
+        const empNombre = String(p.empresa || p.Empresa || "").trim();
         const turnoRaw = String(p.turno || p.Turno || "07-15").trim();
         const grupoHorarioLabel = Utils.formatearTurnoCorto ? Utils.formatearTurnoCorto(turnoRaw) : formatearTurno(turnoRaw);
+
+        // Gráfico N° 1 (Distribución por Grupos Horarios con filtro propio de Mes y Empresa)
+        const matchHorarioMes = !effectiveHorariosYM || ym === effectiveHorariosYM;
+        const matchHorarioEmp = !cleanHorariosEmp || empNombre === cleanHorariosEmp;
+        if (matchHorarioMes && matchHorarioEmp) {
+            porGrupoHorarioMes[grupoHorarioLabel] = (porGrupoHorarioMes[grupoHorarioLabel] || 0) + 1;
+        }
 
         // Gráfico 2 (Anual / Comparativo con soporte de filtro por Mes y Año) y Tabla de Resumen por Policía
         if (yr === targetYear && (filterAnualMonthIdx === -1 || monthIdx === filterAnualMonthIdx)) {
@@ -1129,13 +1141,11 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMon
             porPoliciaAnual[polNombre].total += costVal;
         }
 
-        // Gráfico 1 (Mensual) y Gráfico N° 1 (Distribución por Grupos Horarios)
+        // Gráfico 1 (Mensual)
         if (!targetYM || ym === targetYM) {
             mensualPorDia[dayOfWeek]++;
             totalTurnosMes++;
             totalCostoMes += costVal;
-
-            porGrupoHorarioMes[grupoHorarioLabel] = (porGrupoHorarioMes[grupoHorarioLabel] || 0) + 1;
 
             if (!porPoliciaMes[polNombre]) porPoliciaMes[polNombre] = { turnos: 0, total: 0 };
             porPoliciaMes[polNombre].turnos++;
@@ -1166,6 +1176,8 @@ function computeWeekdayBarStats(eventsList, targetYM, targetYear, targetAnualMon
 function calcularResumen() {
     if (!calendar) return;
     const mesFiltroElem = document.getElementById("filtroMesDashboard");
+    const mesHorariosElem = document.getElementById("filtroMesHorariosDashboard");
+    const empHorariosElem = document.getElementById("filtroEmpresaHorariosDashboard");
     const mesAnualFiltroElem = document.getElementById("filtroMesAnualDashboard");
     const anioFiltroElem = document.getElementById("filtroAnioDashboard");
     const refDate = obtenerFechaReferenciaActiva();
@@ -1180,6 +1192,18 @@ function calcularResumen() {
         }
     }
 
+    let mesHorariosFiltro = (mesHorariosElem && mesHorariosElem.value !== undefined)
+        ? mesHorariosElem.value
+        : mesFiltro;
+    if (mesHorariosElem && !mesHorariosElem.dataset.userChanged) {
+        const hasInHorariosMonth = allEvents.some(e => e.start && getLocalYM(e.start) === mesHorariosFiltro);
+        if (!hasInHorariosMonth && allEvents.length > 0) {
+            mesHorariosFiltro = getLocalYM(refDate);
+            mesHorariosElem.value = mesHorariosFiltro;
+        }
+    }
+    const empHorariosFiltro = (empHorariosElem && empHorariosElem.value) ? empHorariosElem.value : "";
+
     let activeYear = refDate.getFullYear();
     if (anioFiltroElem && anioFiltroElem.value) {
         activeYear = parseInt(anioFiltroElem.value, 10);
@@ -1190,20 +1214,19 @@ function calcularResumen() {
 
     const mesAnualVal = (mesAnualFiltroElem && mesAnualFiltroElem.value) ? mesAnualFiltroElem.value : "";
 
-    const stats = computeWeekdayBarStats(allEvents, mesFiltro, activeYear, mesAnualVal);
+    const stats = computeWeekdayBarStats(allEvents, mesFiltro, activeYear, mesAnualVal, mesHorariosFiltro, empHorariosFiltro);
 
     const statTurnos = document.getElementById("stat-turnos");
     const statCosto = document.getElementById("stat-costo");
     if (statTurnos) statTurnos.textContent = stats.totalTurnosMes;
     if (statCosto) statCosto.textContent = `$${stats.totalCostoMes.toLocaleString('es-AR')}`;
 
-    // Resumen de Grupos Horarios (Gráfico N° 1 Circular)
-    const mapaHorarios = Object.keys(stats.porGrupoHorarioMes).length > 0
-        ? stats.porGrupoHorarioMes
-        : stats.porGrupoHorarioAnual;
+    // Resumen de Grupos Horarios (Gráfico N° 1 Circular con filtro de Mes y Empresa)
+    const mapaHorarios = stats.porGrupoHorarioMes;
     const totalHorarios = Object.values(mapaHorarios).reduce((a, b) => a + b, 0);
     const subHorarios = document.getElementById("subtituloGraficoHorarios");
-    if (subHorarios) subHorarios.textContent = `${Object.keys(mapaHorarios).length} grupos horarios (${mesFiltro || activeYear})`;
+    const labelFiltroHorarios = `${empHorariosFiltro || 'Todas las Empresas'} • ${mesHorariosFiltro || 'Todos los meses'}`;
+    if (subHorarios) subHorarios.textContent = `${Object.keys(mapaHorarios).length} grupos (${labelFiltroHorarios})`;
     const footerHorarios = document.getElementById("footerTotalHorarios");
     if (footerHorarios) {
         const desgloseHorarios = Object.entries(mapaHorarios).map(([k, v]) => {
@@ -1735,6 +1758,12 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         if (mesFiltroElem) {
             mesFiltroElem.addEventListener('change', () => {
                 mesFiltroElem.dataset.userChanged = "true";
+            });
+        }
+        const mesHorariosElem = document.getElementById("filtroMesHorariosDashboard");
+        if (mesHorariosElem) {
+            mesHorariosElem.addEventListener('change', () => {
+                mesHorariosElem.dataset.userChanged = "true";
             });
         }
 

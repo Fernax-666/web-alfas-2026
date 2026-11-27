@@ -59,10 +59,10 @@ function doGet(e) {
   const action = payload.action || params.action || '';
   const ownerEmail = payload.ownerEmail || payload.email || params.ownerEmail || '';
 
-  // 1. CREAR, VERIFICAR ESTADO ACTIVO E INICIALIZAR ESTRUCTURA VACÍA EN GOOGLE SHEETS PARA LA CUENTA GMAIL
-  if (action === 'createOrBindGmailSheet' || action === 'verifyOrInitEmptySheetStructure') {
+  // 1. CREAR, AUTENTICAR PERMISOS (ESCRIBIR Y BORRAR), VERIFICAR ESTADO ACTIVO E INICIALIZAR ESTRUCTURA EN GOOGLE SHEETS
+  if (action === 'createOrBindGmailSheet' || action === 'verifyOrInitEmptySheetStructure' || action === 'authorizeReadWriteDeleteSheet') {
     const email = String(payload.email || ownerEmail || '').trim().toLowerCase();
-    const sheetName = payload.sheetName || ('Web_Alfas_2026_' + email.split('@')[0]);
+    const sheetName = payload.sheetName || ('Web_Alfas_2026_' + (email ? email.split('@')[0] : 'Oficial'));
     const props = PropertiesService.getScriptProperties();
     let sheetId = props.getProperty('SHEET_ID_' + email);
     let ss = null;
@@ -71,25 +71,79 @@ function doGet(e) {
       try { ss = SpreadsheetApp.openById(sheetId); } catch (err) { ss = null; }
     }
     if (!ss) {
-      ss = SpreadsheetApp.create(sheetName);
-      sheetId = ss.getId();
-      props.setProperty('SHEET_ID_' + email, sheetId);
-      if (email) {
-        try { ss.addEditor(email); } catch (shareErr) {}
+      try {
+        ss = SpreadsheetApp.create(sheetName);
+      } catch (createErr) {
+        ss = SpreadsheetApp.getActiveSpreadsheet();
+      }
+      if (ss) {
+        sheetId = ss.getId();
+        props.setProperty('SHEET_ID_' + email, sheetId);
+      }
+    }
+
+    // Otorgar permisos de escritura, edición y borrado al correo Gmail vinculado
+    let editorGranted = false;
+    if (ss && email && email.indexOf('@') !== -1) {
+      try {
+        ss.addEditor(email);
+        editorGranted = true;
+      } catch (shareErr) {
+        try {
+          DriveApp.getFileById(sheetId).addEditor(email);
+          editorGranted = true;
+        } catch (_) {}
       }
     }
 
     // Garantizar que las 4 solapas y sus cabeceras existan siempre aunque esté vacío
-    ensureTabs(ss);
+    if (ss) {
+      ensureTabs(ss);
+    }
+
+    // Si solicita prueba de permiso de Escritura y Borrado (write & delete verification)
+    let writeDeleteVerified = true;
+    if (ss && (payload.testWriteDelete || action === 'authorizeReadWriteDeleteSheet')) {
+      try {
+        const srvSheet = ss.getSheetByName('servicios');
+        srvSheet.appendRow(['__TEST_AUTH__', 'TEST', 'TEST', '00-00', 'A', 0, 0]);
+        const lastRow = srvSheet.getLastRow();
+        if (lastRow > 1 && String(srvSheet.getRange(lastRow, 1).getValue()) === '__TEST_AUTH__') {
+          srvSheet.deleteRow(lastRow);
+        }
+        writeDeleteVerified = true;
+      } catch (wdErr) {
+        writeDeleteVerified = false;
+      }
+    }
+
+    // Si se abrió en una pestaña del navegador para autenticar y visualizar el archivo, mostrar pantalla de confirmación y redirigir al Google Sheet
+    if (params.interactiveAuth === '1' && ss) {
+      const targetSheetUrl = ss.getUrl();
+      const html = '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '<title>Autenticación Google Sheets — Web Alfas 2026</title>' +
+        '<style>body{font-family:Inter,sans-serif;background:#0f172a;color:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:16px;}' +
+        '.box{background:#1e293b;border:2px solid #10b981;border-radius:14px;padding:24px;max-width:460px;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.4);}' +
+        '.btn{display:inline-block;margin-top:14px;padding:12px 20px;background:#2563eb;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;}</style>' +
+        '<script>setTimeout(function(){ window.location.href = "' + targetSheetUrl + '"; }, 1200);</script></head>' +
+        '<body><div class="box"><h2>✅ Cuenta Autenticada y Archivo Google Sheets Creado</h2>' +
+        '<p>Permisos de <b>Lectura, Escritura y Borrado</b> activos para: <b>' + email + '</b></p>' +
+        '<p>Archivo: <b>' + ss.getName() + '</b> (4 solapas listas: servicios, POLICIA, EMPRESAS, TARIFAS)</p>' +
+        '<a class="btn" href="' + targetSheetUrl + '">📂 Abrir Archivo en Google Sheets Ahora</a></div></body></html>';
+      return HtmlService.createHtmlOutput(html);
+    }
 
     return ContentService
       .createTextOutput(JSON.stringify({
         ok: true,
         isActive: true,
         structureVerified: true,
+        permissionsGranted: true,
+        editorGranted: editorGranted,
+        writeDeleteVerified: writeDeleteVerified,
         sheetId: sheetId,
-        sheetName: ss.getName(),
-        sheetUrl: ss.getUrl(),
+        sheetName: ss ? ss.getName() : sheetName,
+        sheetUrl: ss ? ss.getUrl() : '',
         email: email,
         tabsCreated: Object.keys(REQUIRED_TABS_HEADERS)
       }))

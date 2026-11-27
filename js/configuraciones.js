@@ -110,6 +110,21 @@
     }
 
     /**
+     * Contrae todas las secciones numeradas (1 a 5) de Configuraciones para que al abrir la solapa
+     * todas se encuentren contraídas por defecto.
+     */
+    function contraerTodasLasSeccionesConfig() {
+        const cards = document.querySelectorAll(".accordion-card[data-acc-section]");
+        cards.forEach(card => {
+            card.classList.remove("active");
+            const btn = card.querySelector(".accordion-trigger-btn");
+            const chev = card.querySelector(".accordion-chevron");
+            if (btn) btn.setAttribute("aria-expanded", "false");
+            if (chev) chev.textContent = "▶";
+        });
+    }
+
+    /**
      * Abre la sección numerada seleccionada (1 a 5) y contrae automáticamente las demás secciones.
      * @param {number|string} sectionNumber - Número de la sección a expandir.
      */
@@ -239,6 +254,13 @@
                 lblPolTitular.textContent = foundPol
                     ? (foundPol.jerarquia ? `${foundPol.jerarquia} ${foundPol.nombre}` : foundPol.nombre)
                     : (acc.policiaTitular || "Sin asignar");
+            }
+            const lblPermisos = document.getElementById("lblPermisosEscrituraBorradoSheet");
+            if (lblPermisos) {
+                const hasWriteDelete = acc.permissionsGranted !== false && acc.canWrite !== false && acc.canDelete !== false;
+                lblPermisos.textContent = hasWriteDelete
+                    ? "✅ ACTIVO (Permisos de Lectura, Escritura y Borrado Otorgados)"
+                    : "⚠️ Pendiente de Autorización";
             }
             if (banner) banner.style.display = "block";
             if (btnDesvincular) btnDesvincular.classList.remove("display-none");
@@ -405,14 +427,32 @@
             inicializarListasEntidades();
         }
 
-        mostrarNotificacion(`Vinculando ${email} con Policía Predefinido "${policiaTitular}" y creando Google Sheets...`, "var(--primary)");
+        mostrarNotificacion(`Vinculando ${email}, autenticando permisos (escribir/borrar) y creando Google Sheets...`, "var(--primary)");
+
+        const inputOAuthId = document.getElementById("inputGoogleOAuthClientId");
+        const inputCustomUrl = document.getElementById("inputCustomAppsScriptUrl");
+        const oauthClientId = inputOAuthId ? inputOAuthId.value.trim() : "";
+        const customEndpoint = inputCustomUrl ? inputCustomUrl.value.trim() : "";
 
         const evs = safeParse("eventos", []);
         const res = await CloudSync.vincularGmailYCrearSheet({
             email,
             policiaTitular,
+            customEndpoint,
             snapshot: { config, policias, empresas, eventos: evs }
         });
+
+        // Autenticar permisos de Escritura y Borrado y abrir consentimiento por única vez para garantizar que el archivo se cree en Google Drive
+        if (CloudSync && typeof CloudSync.autenticarYOtorgarPermisosGoogleCloud === 'function') {
+            await CloudSync.autenticarYOtorgarPermisosGoogleCloud({
+                email,
+                policiaTitular,
+                oauthClientId,
+                customEndpoint,
+                openInteractivePopup: true,
+                forceInteractivePopup: false
+            });
+        }
 
         if (res.ok) {
             cargarEstadoCuentaGmailUI();
@@ -421,11 +461,53 @@
             if (Notifications && typeof Notifications.scheduleServiceReminders === 'function') {
                 await Notifications.scheduleServiceReminders(evs, { policiaTitular });
             }
-            mostrarNotificacion(`${res.message} Policía predefinido en calendario y alertas: ${policiaTitular}`, "var(--secondary)");
-            // Abrir Google Drive / Google Sheets por única vez para visualizar el archivo creado en la cuenta
-            abrirArchivoEnGoogleDrive(false);
+            mostrarNotificacion(`${res.message} Permisos de escritura/borrado activos. Policía predefinido: ${policiaTitular}`, "var(--secondary)");
         } else {
             mostrarNotificacion(res.message || "Error al vincular cuenta Gmail", "var(--danger)");
+        }
+    }
+
+    async function autenticarYOtorgarPermisosGoogleSheets() {
+        const inputEmail = document.getElementById("inputGmailCuenta");
+        const selTitular = document.getElementById("selPoliciaTitular");
+        const inputNuevoPol = document.getElementById("inputNuevoPoliciaTitularGmail");
+        const selJerTitular = document.getElementById("selJerarquiaTitularGmail");
+        const inputOAuthId = document.getElementById("inputGoogleOAuthClientId");
+        const inputCustomUrl = document.getElementById("inputCustomAppsScriptUrl");
+
+        const email = inputEmail ? inputEmail.value.trim() : "";
+        if (!Utils.isValidGmailAddress(email)) {
+            return mostrarNotificacion("Ingrese su correo de Gmail primero para autenticar los permisos de escritura y borrado", "var(--danger)");
+        }
+
+        const titularRes = ensureTitularPoliceOnGmailLink({
+            selectedPolicia: selTitular ? selTitular.value : "",
+            nuevoNombre: inputNuevoPol ? inputNuevoPol.value.trim() : "",
+            nuevaJerarquia: selJerTitular ? selJerTitular.value : "Sgto. Ayte."
+        });
+        const policiaTitular = titularRes.ok ? titularRes.policiaTitular : "";
+
+        mostrarNotificacion(`🔐 Autenticando cuenta ${email} para otorgar permisos de escritura y borrado en Google Sheets...`, "var(--primary)");
+
+        const authRes = await CloudSync.autenticarYOtorgarPermisosGoogleCloud({
+            email,
+            policiaTitular,
+            oauthClientId: inputOAuthId ? inputOAuthId.value.trim() : "",
+            customEndpoint: inputCustomUrl ? inputCustomUrl.value.trim() : "",
+            openInteractivePopup: true,
+            forceInteractivePopup: true
+        });
+
+        if (authRes.ok) {
+            // Sincronizar inmediatamente Tarifas, Policías y Empresas ahora que los permisos están otorgados
+            await CloudSync.sincronizarTarifasCloud(config);
+            await CloudSync.sincronizarPoliciasCloud(policias);
+            await CloudSync.sincronizarEmpresasCloud(empresas);
+            cargarEstadoCuentaGmailUI();
+            actualizarEstadoBaseDatosUI();
+            mostrarNotificacion(authRes.message, "var(--secondary)");
+        } else {
+            mostrarNotificacion(authRes.message || "No se pudo completar la autenticación", "var(--danger)");
         }
     }
 
@@ -990,6 +1072,8 @@
             Utils.applySplashCoverIconTheme(savedCover);
         }
         actualizarTarjetasPortadaUI(savedCover);
+        // Todas las opciones numeradas de Configuraciones inician contraídas por defecto
+        contraerTodasLasSeccionesConfig();
         initInputsTarifas();
         inicializarListasEntidades();
         cargarEstadoCuentaGmailUI();
@@ -998,12 +1082,14 @@
 
     if (typeof window !== 'undefined') {
         window.toggleSeccionConfig = toggleSeccionConfig;
+        window.contraerTodasLasSeccionesConfig = contraerTodasLasSeccionesConfig;
         window.seleccionarTemaApp = seleccionarTemaApp;
         window.seleccionarPortadaApp = seleccionarPortadaApp;
         window.previsualizarPortadaActiva = previsualizarPortadaActiva;
         window.cerrarPreviewPortada = cerrarPreviewPortada;
         window.guardarConfiguracionTarifas = guardarConfiguracionTarifas;
         window.vincularCuentaGmailYCrearSheet = vincularCuentaGmailYCrearSheet;
+        window.autenticarYOtorgarPermisosGoogleSheets = autenticarYOtorgarPermisosGoogleSheets;
         window.verificarYCrearEstructuraSheetGmail = verificarYCrearEstructuraSheetGmail;
         window.abrirArchivoEnGoogleDrive = abrirArchivoEnGoogleDrive;
         window.onCambioSelectorPoliciaTitular = onCambioSelectorPoliciaTitular;
@@ -1027,9 +1113,11 @@
 
     return {
         toggleSeccionConfig,
+        contraerTodasLasSeccionesConfig,
         seleccionarTemaApp,
         seleccionarPortadaApp,
         vincularCuentaGmailYCrearSheet,
+        autenticarYOtorgarPermisosGoogleSheets,
         verificarYCrearEstructuraSheetGmail,
         abrirArchivoEnGoogleDrive,
         ensureTitularPoliceOnGmailLink,

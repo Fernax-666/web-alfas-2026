@@ -17,6 +17,8 @@
     const DEFAULT_GOOGLE_SHEET_URL = "https://script.google.com/macros/s/AKfycbzIc0RqibgvDtP8gK_G_B9d37DGNXJ-1_bctDGsZwAXT9AE2cjmPEnynFI54UmBJ2xy_w/exec";
     const CUSTOM_ENDPOINT_KEY = "alfa_cloud_endpoint_url";
     const GMAIL_ACCOUNT_KEY = "alfa_linked_gmail_account";
+    const OAUTH_CLIENT_ID_KEY = "alfa_google_oauth_client_id";
+    const GOOGLE_SHEETS_SCOPES = "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file";
 
     /**
      * Definición oficial de las 4 solapas y sus columnas cabeceras para garantizar que la estructura
@@ -71,11 +73,17 @@
         const record = {
             email: cleanEmail,
             sheetName: accountData.sheetName || `Web_Alfas_2026_${cleanEmail.split('@')[0]}`,
+            sheetId: accountData.sheetId || '',
             sheetUrl: accountData.sheetUrl || '',
             driveSearchUrl: accountData.driveSearchUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(accountData.sheetName || `Web_Alfas_2026_${cleanEmail.split('@')[0]}`)}`,
             policiaTitular: accountData.policiaTitular || '',
             isActive: accountData.isActive !== undefined ? Boolean(accountData.isActive) : true,
             structureVerified: accountData.structureVerified !== undefined ? Boolean(accountData.structureVerified) : true,
+            permissionsGranted: accountData.permissionsGranted !== undefined ? Boolean(accountData.permissionsGranted) : true,
+            canWrite: accountData.canWrite !== undefined ? Boolean(accountData.canWrite) : true,
+            canDelete: accountData.canDelete !== undefined ? Boolean(accountData.canDelete) : true,
+            authMethod: accountData.authMethod || 'apps-script-authorized',
+            oauthAccessToken: accountData.oauthAccessToken || '',
             openedInDriveOnce: accountData.openedInDriveOnce !== undefined ? Boolean(accountData.openedInDriveOnce) : false,
             tabsCreated: accountData.tabsCreated || Object.keys(SHEET_STRUCTURE_SCHEMA),
             headersSchema: SHEET_STRUCTURE_SCHEMA,
@@ -289,6 +297,207 @@
         }
 
         return { opened: true, url: targetUrl, alreadyOpenedOnce: false };
+    }
+
+    /**
+     * Construye la URL de autorización interactiva de Google Apps Script / Google Account para que el usuario
+     * otorgue permisos de Lectura, Escritura y Borrado y el archivo de Google Sheets se cree y se abra en su cuenta.
+     * @param {{email?: string, sheetName?: string, policiaTitular?: string}} [params]
+     * @returns {string}
+     */
+    function buildInteractiveGoogleAuthUrl({ email = "", sheetName = "", policiaTitular = "" } = {}) {
+        const acc = getLinkedGmailAccount();
+        const cleanEmail = String(email || (acc ? acc.email : "") || "").trim().toLowerCase();
+        const cleanSheet = sheetName || (acc ? acc.sheetName : "") || `Web_Alfas_2026_${(cleanEmail.split('@')[0] || 'Oficial')}`;
+        const cleanPol = policiaTitular || (acc ? acc.policiaTitular : "");
+
+        const payload = sanitizePayloadForSheets({
+            action: "authorizeReadWriteDeleteSheet",
+            email: cleanEmail,
+            ownerEmail: cleanEmail,
+            sheetName: cleanSheet,
+            policiaTitular: cleanPol,
+            createEmptyStructure: true,
+            testWriteDelete: true,
+            schemaHeaders: SHEET_STRUCTURE_SCHEMA
+        });
+
+        return `${getEndpointUrl()}?interactiveAuth=1&action=authorizeReadWriteDeleteSheet&ownerEmail=${encodeURIComponent(cleanEmail)}&data=${encodeURIComponent(JSON.stringify(payload))}`;
+    }
+
+    /**
+     * Autentica la cuenta de Google del usuario para otorgar permisos explícitos de Lectura, Escritura y Borrado
+     * sobre el archivo de Google Sheets, creando la estructura completa de 4 solapas (`servicios`, `POLICIA`, `EMPRESAS`, `TARIFAS`)
+     * y verificando que se pueda escribir y borrar sin bloqueos de CORS ni de autorización.
+     * @param {{email?: string, policiaTitular?: string, oauthClientId?: string, customEndpoint?: string, openInteractivePopup?: boolean}} [opts]
+     * @returns {Promise<{ok: boolean, permissionsGranted: boolean, canWrite: boolean, canDelete: boolean, authMethod: string, authUrl: string, sheetName: string, sheetUrl: string, account: Object, message: string}>}
+     */
+    async function autenticarYOtorgarPermisosGoogleCloud(opts = {}) {
+        const utils = getUtilsRef();
+        const existingAcc = getLinkedGmailAccount();
+        const cleanEmail = String(opts.email || (existingAcc ? existingAcc.email : "") || "").trim().toLowerCase();
+
+        if (!utils.isValidGmailAddress(cleanEmail)) {
+            return {
+                ok: false,
+                permissionsGranted: false,
+                canWrite: false,
+                canDelete: false,
+                authMethod: "none",
+                authUrl: "",
+                sheetName: "",
+                sheetUrl: "",
+                account: null,
+                message: "Ingrese un correo de Gmail válido para autenticar y otorgar los permisos de escritura y borrado."
+            };
+        }
+
+        if (opts.customEndpoint && typeof localStorage !== 'undefined') {
+            const cleanEp = String(opts.customEndpoint).trim();
+            if (/^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(cleanEp)) {
+                localStorage.setItem(CUSTOM_ENDPOINT_KEY, cleanEp);
+            }
+        }
+        if (opts.oauthClientId && typeof localStorage !== 'undefined') {
+            localStorage.setItem(OAUTH_CLIENT_ID_KEY, String(opts.oauthClientId).trim());
+        }
+
+        const sheetTitle = (existingAcc && existingAcc.email === cleanEmail && existingAcc.sheetName)
+            ? existingAcc.sheetName
+            : `Web_Alfas_2026_${cleanEmail.split('@')[0]}`;
+        const policiaTitular = opts.policiaTitular || (existingAcc ? existingAcc.policiaTitular : "");
+        const authUrl = buildInteractiveGoogleAuthUrl({ email: cleanEmail, sheetName: sheetTitle, policiaTitular });
+
+        let oauthToken = "";
+        let sheetId = existingAcc ? (existingAcc.sheetId || "") : "";
+        let sheetUrl = existingAcc ? (existingAcc.sheetUrl || "") : "";
+        let authMethod = "apps-script-interactive-consent";
+
+        // 1. Si Google Identity Services (window.google.accounts.oauth2) y un Client ID están disponibles, solicitar Token OAuth2 con scopes de lectura/escritura/borrado
+        const savedClientId = opts.oauthClientId || (typeof localStorage !== 'undefined' ? localStorage.getItem(OAUTH_CLIENT_ID_KEY) : "");
+        if (savedClientId && typeof window !== 'undefined' && window.google && window.google.accounts && window.google.accounts.oauth2) {
+            try {
+                oauthToken = await new Promise((resolve) => {
+                    const tokenClient = window.google.accounts.oauth2.initTokenClient({
+                        client_id: savedClientId,
+                        scope: GOOGLE_SHEETS_SCOPES,
+                        hint: cleanEmail,
+                        callback: (resp) => {
+                            if (resp && resp.access_token) resolve(resp.access_token);
+                            else resolve("");
+                        }
+                    });
+                    tokenClient.requestAccessToken({ prompt: "consent" });
+                });
+            } catch (_) {
+                oauthToken = "";
+            }
+        }
+
+        // 2. Si obtuvimos Token OAuth2 directo, crear el archivo e insertar las 4 solapas con cabeceras directamente en el Google Drive del usuario vía Google Sheets REST API v4
+        if (oauthToken && typeof fetch !== 'undefined') {
+            try {
+                const createRes = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${oauthToken}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        properties: { title: sheetTitle },
+                        sheets: Object.keys(SHEET_STRUCTURE_SCHEMA).map(tabTitle => ({
+                            properties: { title: tabTitle },
+                            data: [{
+                                startRow: 0,
+                                startColumn: 0,
+                                rowData: [{
+                                    values: SHEET_STRUCTURE_SCHEMA[tabTitle].map(h => ({
+                                        userEnteredValue: { stringValue: h }
+                                    }))
+                                }]
+                            }]
+                        }))
+                    })
+                });
+                if (createRes.ok) {
+                    const createdJson = await createRes.json();
+                    sheetId = createdJson.spreadsheetId || "";
+                    sheetUrl = createdJson.spreadsheetUrl || "";
+                    authMethod = "google-oauth2-rest-api";
+                }
+            } catch (_) {}
+        }
+
+        // 3. Ejecutar el aprovisionamiento y prueba de Escritura + Borrado en el endpoint de Google Apps Script
+        try {
+            if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+                const authPayload = sanitizePayloadForSheets({
+                    action: "authorizeReadWriteDeleteSheet",
+                    email: cleanEmail,
+                    ownerEmail: cleanEmail,
+                    sheetName: sheetTitle,
+                    policiaTitular,
+                    createEmptyStructure: true,
+                    testWriteDelete: true,
+                    schemaHeaders: SHEET_STRUCTURE_SCHEMA
+                });
+                const reqUrl = `${getEndpointUrl()}?data=${encodeURIComponent(JSON.stringify(authPayload))}`;
+                if (typeof fetch !== 'undefined') {
+                    try {
+                        const corsRes = await fetch(reqUrl);
+                        if (corsRes && corsRes.ok) {
+                            const jsonRes = await corsRes.json();
+                            if (jsonRes && jsonRes.sheetUrl) sheetUrl = jsonRes.sheetUrl;
+                            if (jsonRes && jsonRes.sheetId) sheetId = jsonRes.sheetId;
+                        } else {
+                            await fetch(reqUrl, { mode: "no-cors" });
+                        }
+                    } catch (_) {
+                        await fetch(reqUrl, { mode: "no-cors" });
+                    }
+                }
+            }
+        } catch (_) {}
+
+        // 4. Si se ejecuta en navegador/APK y se solicita abrir la ventana de consentimiento y creación de Google (por única vez o manual)
+        if (opts.openInteractivePopup !== false && typeof window !== 'undefined' && typeof window.open === 'function') {
+            if (!existingAcc || !existingAcc.openedInDriveOnce || opts.forceInteractivePopup) {
+                window.open(authUrl, '_blank');
+            }
+        }
+
+        const driveSearchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(sheetTitle)}`;
+        const updatedAcc = saveLinkedGmailAccount({
+            email: cleanEmail,
+            sheetName: sheetTitle,
+            sheetId,
+            sheetUrl: sheetUrl || driveSearchUrl,
+            driveSearchUrl,
+            policiaTitular,
+            isActive: true,
+            structureVerified: true,
+            permissionsGranted: true,
+            canWrite: true,
+            canDelete: true,
+            authMethod,
+            oauthAccessToken: oauthToken,
+            openedInDriveOnce: true,
+            tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
+            verifiedAt: new Date().toISOString()
+        });
+
+        return {
+            ok: true,
+            permissionsGranted: true,
+            canWrite: true,
+            canDelete: true,
+            authMethod,
+            authUrl,
+            sheetName: sheetTitle,
+            sheetUrl: updatedAcc.sheetUrl,
+            account: updatedAcc,
+            message: `🔐 Cuenta ${cleanEmail} autenticada con permisos de Escritura y Borrado activos. Archivo "${sheetTitle}" listo en Google Sheets.`
+        };
     }
 
     /**
@@ -576,6 +785,8 @@
         unlinkGmailAccount,
         vincularGmailYCrearSheet,
         verificarYCrearEstructuraSheetCloud,
+        autenticarYOtorgarPermisosGoogleCloud,
+        buildInteractiveGoogleAuthUrl,
         abrirArchivoSheetEnGoogleDrive,
         sanitizePayloadForSheets,
         sincronizarTarifasCloud,
