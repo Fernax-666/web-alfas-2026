@@ -33,6 +33,9 @@ jobs:
           npm install --no-audit --no-fund
           npm test
 
+      - name: Set up Gradle Cache & Retry Resilience
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Build Web Bundle & Sync Capacitor Android
         run: |
           npm run build:web
@@ -48,11 +51,11 @@ jobs:
             fi
           done
 
-      - name: Build Debug APK with Gradle
+      - name: Build Debug APK with Gradle (Auto-Retry on Network Timeout)
         working-directory: ./android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon || (sleep 5 && ./gradlew assembleDebug --no-daemon)
 
       - name: Upload Android APK Artifact
         uses: actions/upload-artifact@v4
