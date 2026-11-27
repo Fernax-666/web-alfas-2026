@@ -13,19 +13,19 @@
 
   <link rel="icon" href="img/icons/p1_icon_3.png" data-cover-favicon>
   <link rel="apple-touch-icon" href="img/icons/p1_icon_3.png">
-  <!-- Google Identity Services OAuth2 para autenticar y otorgar permisos de Lectura/Escritura/Borrado en Google Sheets y Drive -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <link rel="stylesheet" href="css/styles.css?v=24">
-  <script src="js/utils/helpers.js?v=24"></script>
-  <script src="js/services/calculator.js?v=24"></script>
-  <script src="js/services/database.js?v=24"></script>
-  <script src="js/services/storage.js?v=24"></script>
-  <script src="js/services/cloudSync.js?v=24"></script>
-  <script src="js/services/exporter.js?v=24"></script>
-  <script src="js/services/platformPc.js?v=24"></script>
-  <script src="js/services/platformApk.js?v=24"></script>
-  <script src="js/services/notifications.js?v=24"></script>
-  <script src="js/configuraciones.js?v=24"></script>
+  <!-- SheetJS (XLSX) para generar el archivo físico de 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS) compatible con Google Sheets / Drive -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="css/styles.css?v=25">
+  <script src="js/utils/helpers.js?v=25"></script>
+  <script src="js/services/calculator.js?v=25"></script>
+  <script src="js/services/database.js?v=25"></script>
+  <script src="js/services/storage.js?v=25"></script>
+  <script src="js/services/cloudSync.js?v=25"></script>
+  <script src="js/services/exporter.js?v=25"></script>
+  <script src="js/services/platformPc.js?v=25"></script>
+  <script src="js/services/platformApk.js?v=25"></script>
+  <script src="js/services/notifications.js?v=25"></script>
+  <script src="js/configuraciones.js?v=25"></script>
 </head>
 
 <body>
@@ -234,29 +234,26 @@
           </div>
 
           <div class="flex-gap-10">
-            <button type="button" class="btn-primary flex-1" onclick="vincularCuentaGmailYCrearSheet()">🔗 1. Vincular Gmail, Autenticar Permisos (Escribir/Borrar) y Crear Sheets</button>
-            <button type="button" class="btn-indigo flex-1" id="btnAutenticarPermisosGoogle" onclick="autenticarYOtorgarPermisosGoogleSheets()">🔐 2. Autenticar Cuenta Google (Dar Permisos de Escritura y Borrado)</button>
+            <button type="button" class="btn-primary flex-1" onclick="vincularCuentaGmailYCrearSheet()">🔗 1. Vincular Gmail, Fijar Policía Predefinido y Sincronizar 4 Solapas en Sheets</button>
+            <button type="button" class="btn-indigo flex-1" id="btnAutenticarPermisosGoogle" onclick="autenticarYOtorgarPermisosGoogleSheets()">🔐 2. Autenticar y Verificar Conexión Real con Google Sheets (Sin Errores)</button>
           </div>
           <div class="flex-gap-10">
-            <button type="button" class="btn-secondary flex-1" onclick="verificarYCrearEstructuraSheetGmail()">✅ 3. Chequear Archivo Activo y Crear Estructura (Escribir y Borrar Test)</button>
-            <button type="button" class="btn-outline flex-1" id="btnAbrirGoogleDriveSheet" onclick="abrirArchivoEnGoogleDrive(true)">📂 4. Abrir Google Drive / Visualizar Archivo Creado</button>
+            <button type="button" class="btn-secondary flex-1" onclick="verificarYCrearEstructuraSheetGmail()">✅ 3. Chequear Servidor Activo y Crear/Sincronizar Estructura (4 Solapas)</button>
+            <button type="button" class="btn-outline flex-1" id="btnExportarArchivoSheetDrive" onclick="exportarYGuardarArchivoGoogleSheets4Solapas()">📊 4. Generar y Guardar Archivo `Web_Alfas_2026.xlsx` (4 Solapas) en Google Drive / Dispositivo</button>
+          </div>
+          <div class="flex-gap-10">
+            <button type="button" class="btn-outline flex-1" id="btnAbrirGoogleDriveSheet" onclick="abrirArchivoEnGoogleDrive(true)">📂 5. Abrir Google Drive / Pegar Link de tu Google Sheet</button>
             <button type="button" id="btnDesvincularGmail" class="btn-outline display-none" onclick="desvincularCuentaGmail()">Desvincular</button>
           </div>
 
-          <!-- Opcional Avanzado: Token OAuth2 o URL WebApp Propia para cuentas con políticas de seguridad restrictivas -->
-          <details class="mt-10" style="font-size:0.76rem; color:var(--text-muted);">
-            <summary style="cursor:pointer; font-weight:600; color:var(--primary);">⚙️ Opciones Avanzadas de Autenticación OAuth2 / WebApp de Google Sheets</summary>
-            <div class="grid-2col mt-10">
-              <div class="form-group mb-6">
-                <label for="inputGoogleOAuthClientId">Google OAuth2 Client ID (Opcional - Creación Directa en Drive)</label>
-                <input type="text" id="inputGoogleOAuthClientId" placeholder="xxxx.apps.googleusercontent.com">
-              </div>
-              <div class="form-group mb-6">
-                <label for="inputCustomAppsScriptUrl">URL de Google Apps Script WebApp (`/exec`)</label>
-                <input type="url" id="inputCustomAppsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec">
-              </div>
+          <!-- Panel Práctico: Pegar link directo de tu archivo Google Sheets y Código de Apps Script por si deseas actualizar tu backend -->
+          <div class="gmail-sync-box mt-10" style="background:var(--bg-card);">
+            <label for="inputDirectGoogleSheetUrl" style="font-size:0.78rem; color:var(--primary);">🔗 Link Directo a tu Planilla de Google Sheets (Opcional — si pegas aquí el enlace `https://docs.google.com/spreadsheets/d/...`, el botón "Abrir" abrirá tu hoja directamente):</label>
+            <div class="flex-gap-10" style="margin-top:4px;">
+              <input type="url" id="inputDirectGoogleSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/..." style="flex:1; font-size:0.78rem;">
+              <button type="button" class="btn-outline" style="white-space:nowrap;" onclick="guardarUrlDirectaGoogleSheet()">💾 Guardar Link</button>
             </div>
-          </details>
+          </div>
         </div>
 
         <div class="gmail-sync-box mb-14">

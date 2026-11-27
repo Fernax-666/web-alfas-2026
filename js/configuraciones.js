@@ -259,8 +259,12 @@
             if (lblPermisos) {
                 const hasWriteDelete = acc.permissionsGranted !== false && acc.canWrite !== false && acc.canDelete !== false;
                 lblPermisos.textContent = hasWriteDelete
-                    ? "✅ ACTIVO (Permisos de Lectura, Escritura y Borrado Otorgados)"
+                    ? "✅ ACTIVO (Conexión y Sincronización con Google Sheets Verificada)"
                     : "⚠️ Pendiente de Autorización";
+            }
+            const inputDirectUrl = document.getElementById("inputDirectGoogleSheetUrl");
+            if (inputDirectUrl && acc.sheetUrl && acc.sheetUrl.includes("docs.google.com/spreadsheets")) {
+                inputDirectUrl.value = acc.sheetUrl;
             }
             if (banner) banner.style.display = "block";
             if (btnDesvincular) btnDesvincular.classList.remove("display-none");
@@ -358,20 +362,160 @@
             return mostrarNotificacion("Ingrese un correo de Gmail válido para chequear y crear la estructura del archivo", "var(--danger)");
         }
 
-        mostrarNotificacion(`Verificando estado activo y creando estructura de Google Sheets para ${email}...`, "var(--primary)");
+        mostrarNotificacion(`Verificando servidor Google Sheets activo y sincronizando estructura de 4 solapas para ${email}...`, "var(--primary)");
+        const evs = safeParse("eventos", []);
         const res = await CloudSync.verificarYCrearEstructuraSheetCloud({
             email,
-            policiaTitular
+            policiaTitular,
+            snapshot: { config, policias, empresas, eventos: evs }
         });
 
         if (res.ok) {
             cargarEstadoCuentaGmailUI();
             actualizarEstadoBaseDatosUI();
             mostrarNotificacion(res.message, "var(--secondary)");
-            // Abrir Google Drive / Google Sheets por única vez para visualizar y verificar el archivo creado
-            abrirArchivoEnGoogleDrive(false);
         } else {
             mostrarNotificacion(res.message || "No se pudo verificar la estructura", "var(--danger)");
+        }
+    }
+
+    /**
+     * Guarda un link directo de Google Sheets (`https://docs.google.com/spreadsheets/d/...`) pegado por el usuario.
+     */
+    function guardarUrlDirectaGoogleSheet() {
+        const inputDirectUrl = document.getElementById("inputDirectGoogleSheetUrl");
+        const rawUrl = inputDirectUrl ? inputDirectUrl.value.trim() : "";
+        if (!rawUrl || !rawUrl.includes("docs.google.com/spreadsheets")) {
+            return mostrarNotificacion("Pegue un link válido de Google Sheets (https://docs.google.com/spreadsheets/d/...)", "var(--warning)");
+        }
+        const acc = CloudSync.getLinkedGmailAccount ? CloudSync.getLinkedGmailAccount() : null;
+        const inputEmail = document.getElementById("inputGmailCuenta");
+        const email = (acc && acc.email) ? acc.email : (inputEmail ? inputEmail.value.trim() : "usuario@gmail.com");
+        CloudSync.saveLinkedGmailAccount({
+            ...(acc || {}),
+            email,
+            sheetUrl: rawUrl
+        });
+        cargarEstadoCuentaGmailUI();
+        mostrarNotificacion("✅ Link directo de Google Sheets guardado. Ahora el botón Abrir irá directo a su planilla.", "var(--secondary)");
+    }
+
+    /**
+     * Construye la matriz de las 4 solapas oficiales (`servicios`, `POLICIA`, `EMPRESAS`, `TARIFAS`)
+     * incluso si alguna lista está vacía (incluye siempre la fila de cabeceras) y genera/comparte
+     * el archivo `.xlsx` (`Web_Alfas_2026_<usuario>.xlsx`) compatible al 100% con Google Sheets y Google Drive.
+     */
+    function buildFourTabsWorkbookMatrices() {
+        const sanitize = Utils.sanitizeForSpreadsheet || (v => v);
+        const evs = safeParse("eventos", []);
+
+        const serviciosRows = [['Fecha', 'Empresa', 'Policia', 'Turno', 'Categoria', 'Hora', 'Costo']];
+        (Array.isArray(evs) ? evs : []).forEach(ev => {
+            const p = ev.extendedProps || ev;
+            const fecha = String(ev.start || p.fecha || '').split('T')[0];
+            if (!fecha) return;
+            serviciosRows.push([
+                sanitize(fecha),
+                sanitize(p.empresa || ''),
+                sanitize(p.policia || ''),
+                sanitize(p.turno || ''),
+                sanitize(p.cat || p.categoria || 'A'),
+                Number(p.h || p.hora || 8),
+                Number(p.cost || p.costo || 0)
+            ]);
+        });
+
+        const policiaRows = [['Nombre Completo', 'Jerarquía']];
+        (Array.isArray(policias) ? policias : []).forEach(pol => {
+            const nombre = typeof pol === 'object' ? (pol.nombre || '') : String(pol);
+            const jer = typeof pol === 'object' ? (pol.jerarquia || '') : '';
+            if (nombre) policiaRows.push([sanitize(nombre), sanitize(jer)]);
+        });
+
+        const empresasRows = [['Nombre', 'Turnos', 'Cat.Sem', 'Cat.Fin', 'N°Serv', 'Tel', 'Dom', 'Barrio', 'Referente', 'Tel.Ref', 'Pol.Enc', 'Tel.PolEnc']];
+        Object.entries(empresas || {}).forEach(([empName, emp]) => {
+            const e = emp || {};
+            empresasRows.push([
+                sanitize(empName),
+                sanitize(Array.isArray(e.turnos) ? e.turnos.join(', ') : String(e.turnos || '')),
+                sanitize(e.catSemana || 'A'),
+                sanitize(e.catFinde || 'AP'),
+                sanitize(e.nroServicio || ''),
+                sanitize(e.telefono || ''),
+                sanitize(e.domicilio || ''),
+                sanitize(e.barrio || ''),
+                sanitize(e.referente || ''),
+                sanitize(e.telReferente || ''),
+                sanitize(e.policiaEnc || ''),
+                sanitize(e.telPoliciaEnc || '')
+            ]);
+        });
+
+        const tarifasRows = [['Categoría', 'Valor Hora']];
+        Object.entries(config || {}).forEach(([catKey, val]) => {
+            tarifasRows.push([sanitize(catKey), Number(val) || 0]);
+        });
+
+        return {
+            servicios: serviciosRows,
+            POLICIA: policiaRows,
+            EMPRESAS: empresasRows,
+            TARIFAS: tarifasRows
+        };
+    }
+
+    async function exportarYGuardarArchivoGoogleSheets4Solapas() {
+        try {
+            const acc = CloudSync.getLinkedGmailAccount ? CloudSync.getLinkedGmailAccount() : null;
+            const inputEmail = document.getElementById("inputGmailCuenta");
+            const email = (acc && acc.email) ? acc.email : (inputEmail ? inputEmail.value.trim() : "");
+            const baseTitle = (acc && acc.sheetName)
+                ? acc.sheetName
+                : (email && email.includes('@') ? `Web_Alfas_2026_${email.split('@')[0]}` : 'Web_Alfas_2026_GoogleSheets');
+            const fileName = `${baseTitle.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
+
+            const matrices = buildFourTabsWorkbookMatrices();
+
+            if (typeof XLSX === 'undefined') {
+                mostrarNotificacion("La librería SheetJS no está cargada en este entorno", "var(--warning)");
+                return { saved: false, fileName, matrices };
+            }
+
+            const wb = XLSX.utils.book_new();
+            Object.entries(matrices).forEach(([tabName, aoa]) => {
+                const ws = XLSX.utils.aoa_to_sheet(aoa);
+                XLSX.utils.book_append_sheet(wb, ws, tabName);
+            });
+
+            const ctx = Utils.detectPlatformContext ? Utils.detectPlatformContext() : { isNativeAPK: false, isMobileViewport: false };
+            if (ctx.isNativeAPK || ctx.isMobileViewport) {
+                const base64Xlsx = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+                const fileRes = await PlatformAPK.writeNativeFileAndroid(fileName, base64Xlsx);
+                const { Share } = PlatformAPK.getCapacitorPlugins ? PlatformAPK.getCapacitorPlugins() : {};
+                if (fileRes.saved && Share && typeof Share.share === 'function' && fileRes.uri) {
+                    try {
+                        await Share.share({
+                            title: fileName,
+                            text: `📊 Planilla Completa (${fileName}) con las 4 solapas: servicios, POLICIA, EMPRESAS, TARIFAS — Lista para guardar en Google Drive / Google Sheets`,
+                            url: fileRes.uri,
+                            files: [fileRes.uri],
+                            dialogTitle: 'Guardar Planilla de 4 Solapas en Google Drive / Google Sheets'
+                        });
+                    } catch (_) {}
+                } else {
+                    XLSX.writeFile(wb, fileName);
+                }
+                mostrarNotificacion(`📊 Archivo "${fileName}" (4 solapas) creado y listo para subir a Google Drive`, "var(--secondary)");
+                return { saved: true, fileName, matrices };
+            }
+
+            XLSX.writeFile(wb, fileName);
+            mostrarNotificacion(`📊 Archivo "${fileName}" (4 solapas: servicios, POLICIA, EMPRESAS, TARIFAS) descargado`, "var(--secondary)");
+            return { saved: true, fileName, matrices };
+        } catch (err) {
+            console.error("Error generando archivo de 4 solapas para Google Sheets:", err);
+            mostrarNotificacion("No se pudo generar el archivo de 4 solapas", "var(--danger)");
+            return { saved: false };
         }
     }
 
@@ -427,30 +571,36 @@
             inicializarListasEntidades();
         }
 
-        mostrarNotificacion(`Vinculando ${email}, autenticando permisos (escribir/borrar) y creando Google Sheets...`, "var(--primary)");
+        mostrarNotificacion(`Vinculando ${email}, fijando Policía Predefinido "${policiaTitular}" y sincronizando las 4 solapas con Google Sheets...`, "var(--primary)");
 
-        const inputOAuthId = document.getElementById("inputGoogleOAuthClientId");
-        const inputCustomUrl = document.getElementById("inputCustomAppsScriptUrl");
-        const oauthClientId = inputOAuthId ? inputOAuthId.value.trim() : "";
-        const customEndpoint = inputCustomUrl ? inputCustomUrl.value.trim() : "";
+        const inputDirectUrl = document.getElementById("inputDirectGoogleSheetUrl");
+        const directSheetUrl = (inputDirectUrl && inputDirectUrl.value.trim().includes("docs.google.com/spreadsheets"))
+            ? inputDirectUrl.value.trim()
+            : "";
 
         const evs = safeParse("eventos", []);
         const res = await CloudSync.vincularGmailYCrearSheet({
             email,
             policiaTitular,
-            customEndpoint,
             snapshot: { config, policias, empresas, eventos: evs }
         });
 
-        // Autenticar permisos de Escritura y Borrado y abrir consentimiento por única vez para garantizar que el archivo se cree en Google Drive
+        if (directSheetUrl) {
+            CloudSync.saveLinkedGmailAccount({
+                ...(res.account || {}),
+                email,
+                policiaTitular,
+                sheetUrl: directSheetUrl
+            });
+        }
+
+        // Autenticar y verificar conexión de lectura y escritura contra el servidor activo (sin abrir pestañas con acciones no reconocidas)
         if (CloudSync && typeof CloudSync.autenticarYOtorgarPermisosGoogleCloud === 'function') {
             await CloudSync.autenticarYOtorgarPermisosGoogleCloud({
                 email,
                 policiaTitular,
-                oauthClientId,
-                customEndpoint,
-                openInteractivePopup: true,
-                forceInteractivePopup: false
+                snapshot: { config, policias, empresas, eventos: evs },
+                openInteractivePopup: false
             });
         }
 
@@ -461,7 +611,7 @@
             if (Notifications && typeof Notifications.scheduleServiceReminders === 'function') {
                 await Notifications.scheduleServiceReminders(evs, { policiaTitular });
             }
-            mostrarNotificacion(`${res.message} Permisos de escritura/borrado activos. Policía predefinido: ${policiaTitular}`, "var(--secondary)");
+            mostrarNotificacion(`✅ ${res.message} Policía predefinido: ${policiaTitular}`, "var(--secondary)");
         } else {
             mostrarNotificacion(res.message || "Error al vincular cuenta Gmail", "var(--danger)");
         }
@@ -472,12 +622,10 @@
         const selTitular = document.getElementById("selPoliciaTitular");
         const inputNuevoPol = document.getElementById("inputNuevoPoliciaTitularGmail");
         const selJerTitular = document.getElementById("selJerarquiaTitularGmail");
-        const inputOAuthId = document.getElementById("inputGoogleOAuthClientId");
-        const inputCustomUrl = document.getElementById("inputCustomAppsScriptUrl");
 
         const email = inputEmail ? inputEmail.value.trim() : "";
         if (!Utils.isValidGmailAddress(email)) {
-            return mostrarNotificacion("Ingrese su correo de Gmail primero para autenticar los permisos de escritura y borrado", "var(--danger)");
+            return mostrarNotificacion("Ingrese su correo de Gmail primero para autenticar y verificar la conexión con Google Sheets", "var(--danger)");
         }
 
         const titularRes = ensureTitularPoliceOnGmailLink({
@@ -486,28 +634,23 @@
             nuevaJerarquia: selJerTitular ? selJerTitular.value : "Sgto. Ayte."
         });
         const policiaTitular = titularRes.ok ? titularRes.policiaTitular : "";
+        const evs = safeParse("eventos", []);
 
-        mostrarNotificacion(`🔐 Autenticando cuenta ${email} para otorgar permisos de escritura y borrado en Google Sheets...`, "var(--primary)");
+        mostrarNotificacion(`🔐 Verificando permisos de Lectura y Escritura en Google Sheets para ${email}...`, "var(--primary)");
 
         const authRes = await CloudSync.autenticarYOtorgarPermisosGoogleCloud({
             email,
             policiaTitular,
-            oauthClientId: inputOAuthId ? inputOAuthId.value.trim() : "",
-            customEndpoint: inputCustomUrl ? inputCustomUrl.value.trim() : "",
-            openInteractivePopup: true,
-            forceInteractivePopup: true
+            snapshot: { config, policias, empresas, eventos: evs },
+            openInteractivePopup: false
         });
 
         if (authRes.ok) {
-            // Sincronizar inmediatamente Tarifas, Policías y Empresas ahora que los permisos están otorgados
-            await CloudSync.sincronizarTarifasCloud(config);
-            await CloudSync.sincronizarPoliciasCloud(policias);
-            await CloudSync.sincronizarEmpresasCloud(empresas);
             cargarEstadoCuentaGmailUI();
             actualizarEstadoBaseDatosUI();
             mostrarNotificacion(authRes.message, "var(--secondary)");
         } else {
-            mostrarNotificacion(authRes.message || "No se pudo completar la autenticación", "var(--danger)");
+            mostrarNotificacion(authRes.message || "No se pudo completar la verificación", "var(--danger)");
         }
     }
 
@@ -1091,6 +1234,8 @@
         window.vincularCuentaGmailYCrearSheet = vincularCuentaGmailYCrearSheet;
         window.autenticarYOtorgarPermisosGoogleSheets = autenticarYOtorgarPermisosGoogleSheets;
         window.verificarYCrearEstructuraSheetGmail = verificarYCrearEstructuraSheetGmail;
+        window.exportarYGuardarArchivoGoogleSheets4Solapas = exportarYGuardarArchivoGoogleSheets4Solapas;
+        window.guardarUrlDirectaGoogleSheet = guardarUrlDirectaGoogleSheet;
         window.abrirArchivoEnGoogleDrive = abrirArchivoEnGoogleDrive;
         window.onCambioSelectorPoliciaTitular = onCambioSelectorPoliciaTitular;
         window.desvincularCuentaGmail = desvincularCuentaGmail;
@@ -1119,6 +1264,9 @@
         vincularCuentaGmailYCrearSheet,
         autenticarYOtorgarPermisosGoogleSheets,
         verificarYCrearEstructuraSheetGmail,
+        buildFourTabsWorkbookMatrices,
+        exportarYGuardarArchivoGoogleSheets4Solapas,
+        guardarUrlDirectaGoogleSheet,
         abrirArchivoEnGoogleDrive,
         ensureTitularPoliceOnGmailLink,
         guardarConfiguracionTarifas,

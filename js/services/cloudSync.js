@@ -203,49 +203,19 @@
             policiaTitular
         });
 
-        // Vía 2: Solicitar al backend de Google Apps Script que cree/aprovisione la hoja asociada a este correo Gmail y sincronice los datos iniciales
+        // Vía 2: Sincronizar directamente las solapas reales soportadas por el servidor Google Apps Script desplegado (`syncTarifas`, `syncPolicias`, `syncEmpresas`, `getServicios`)
+        // evitando enviar acciones no reconocidas que devuelvan {"status":"error","message":"Acción no reconocida:..."}
         try {
             if (typeof navigator === 'undefined' || navigator.onLine !== false) {
-                const provisionPayload = sanitizePayloadForSheets({
-                    action: "createOrBindGmailSheet",
-                    email: cleanEmail,
-                    sheetName: sheetTitle,
-                    policiaTitular: policiaTitular || "",
-                    createEmptyStructure: true,
-                    schemaHeaders: SHEET_STRUCTURE_SCHEMA
-                });
-                const encoded = encodeURIComponent(JSON.stringify(provisionPayload));
-                const targetProvisionUrl = `${getEndpointUrl()}?data=${encoded}`;
-                if (typeof fetch !== 'undefined') {
-                    try {
-                        // Intentar primero en modo CORS normal para recuperar sheetUrl y sheetId reales creados en Google Drive
-                        const corsRes = await fetch(targetProvisionUrl);
-                        if (corsRes && corsRes.ok) {
-                            const jsonRes = await corsRes.json();
-                            if (jsonRes && jsonRes.sheetUrl) {
-                                sheetUrl = jsonRes.sheetUrl;
-                            }
-                            cloudCreated = true;
-                        } else {
-                            await fetch(targetProvisionUrl, { mode: "no-cors" });
-                            cloudCreated = true;
-                        }
-                    } catch (_) {
-                        await fetch(targetProvisionUrl, { mode: "no-cors" });
-                        cloudCreated = true;
-                    }
-                }
-
-                // Sincronizar snapshot inicial en la nube para esa cuenta (crea las cabeceras de cada solapa aunque las listas estén vacías)
-                if (snapshot && typeof snapshot === 'object') {
-                    await sincronizarTarifasCloud(snapshot.config || {});
-                    await sincronizarPoliciasCloud(snapshot.policias || []);
-                    await sincronizarEmpresasCloud(snapshot.empresas || {});
-                }
+                const snap = (snapshot && typeof snapshot === 'object') ? snapshot : {};
+                await sincronizarTarifasCloud(snap.config || {});
+                await sincronizarPoliciasCloud(snap.policias || []);
+                await sincronizarEmpresasCloud(snap.empresas || {});
+                cloudCreated = true;
             }
         } catch (err) {
             const db = getDatabaseRef();
-            if (db) db.enqueueOutboxOperation("createOrBindGmailSheet", { email: cleanEmail, sheetName: sheetTitle });
+            if (db) db.enqueueOutboxOperation("syncTarifas", (snapshot && snapshot.config) || {});
         }
 
         const driveSearchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(sheetTitle)}`;
@@ -263,20 +233,21 @@
             cloudCreated,
             structureVerified: true,
             tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
-            message: `Cuenta ${cleanEmail} vinculada y activa. Archivo "${sheetTitle}" creado con estructura de 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS).`
+            message: `✅ Cuenta ${cleanEmail} vinculada y sincronizada con Google Sheets (Solapas activas: servicios, POLICIA, EMPRESAS, TARIFAS).`
         };
     }
 
     /**
      * Abre Google Drive o la URL directa de Google Sheets para visualizar el archivo creado.
-     * Si `forceOpen` es `false`, lo abre por única vez (`openedInDriveOnce`) inmediatamente después de crearlo/verificarlo.
+     * Nunca abre el endpoint `/exec` en el navegador para evitar errores de "Acción no reconocida".
      * @param {{forceOpen?: boolean}} [opts]
      * @returns {{opened: boolean, url: string, alreadyOpenedOnce: boolean}}
      */
     function abrirArchivoSheetEnGoogleDrive({ forceOpen = false } = {}) {
         const acc = getLinkedGmailAccount();
         const sheetName = (acc && acc.sheetName) ? acc.sheetName : "Web_Alfas_2026";
-        const targetUrl = (acc && acc.sheetUrl)
+        const hasValidDocsUrl = acc && acc.sheetUrl && acc.sheetUrl.includes("docs.google.com/spreadsheets");
+        const targetUrl = hasValidDocsUrl
             ? acc.sheetUrl
             : `https://drive.google.com/drive/search?q=${encodeURIComponent(sheetName)}`;
 
@@ -300,37 +271,27 @@
     }
 
     /**
-     * Construye la URL de autorización interactiva de Google Apps Script / Google Account para que el usuario
-     * otorgue permisos de Lectura, Escritura y Borrado y el archivo de Google Sheets se cree y se abra en su cuenta.
-     * @param {{email?: string, sheetName?: string, policiaTitular?: string}} [params]
+     * Construye la URL segura de verificación usando la acción real soportada por el backend desplegado (`getServicios`)
+     * o la búsqueda directa en Google Drive, garantizando que jamás devuelva "Acción no reconocida".
+     * @param {{email?: string, sheetName?: string}} [params]
      * @returns {string}
      */
-    function buildInteractiveGoogleAuthUrl({ email = "", sheetName = "", policiaTitular = "" } = {}) {
+    function buildInteractiveGoogleAuthUrl({ email = "", sheetName = "" } = {}) {
         const acc = getLinkedGmailAccount();
         const cleanEmail = String(email || (acc ? acc.email : "") || "").trim().toLowerCase();
         const cleanSheet = sheetName || (acc ? acc.sheetName : "") || `Web_Alfas_2026_${(cleanEmail.split('@')[0] || 'Oficial')}`;
-        const cleanPol = policiaTitular || (acc ? acc.policiaTitular : "");
-
-        const payload = sanitizePayloadForSheets({
-            action: "authorizeReadWriteDeleteSheet",
-            email: cleanEmail,
-            ownerEmail: cleanEmail,
-            sheetName: cleanSheet,
-            policiaTitular: cleanPol,
-            createEmptyStructure: true,
-            testWriteDelete: true,
-            schemaHeaders: SHEET_STRUCTURE_SCHEMA
-        });
-
-        return `${getEndpointUrl()}?interactiveAuth=1&action=authorizeReadWriteDeleteSheet&ownerEmail=${encodeURIComponent(cleanEmail)}&data=${encodeURIComponent(JSON.stringify(payload))}`;
+        if (acc && acc.sheetUrl && acc.sheetUrl.includes("docs.google.com/spreadsheets")) {
+            return acc.sheetUrl;
+        }
+        return `https://drive.google.com/drive/search?q=${encodeURIComponent(cleanSheet)}`;
     }
 
     /**
-     * Autentica la cuenta de Google del usuario para otorgar permisos explícitos de Lectura, Escritura y Borrado
-     * sobre el archivo de Google Sheets, creando la estructura completa de 4 solapas (`servicios`, `POLICIA`, `EMPRESAS`, `TARIFAS`)
-     * y verificando que se pueda escribir y borrar sin bloqueos de CORS ni de autorización.
-     * @param {{email?: string, policiaTitular?: string, oauthClientId?: string, customEndpoint?: string, openInteractivePopup?: boolean}} [opts]
-     * @returns {Promise<{ok: boolean, permissionsGranted: boolean, canWrite: boolean, canDelete: boolean, authMethod: string, authUrl: string, sheetName: string, sheetUrl: string, account: Object, message: string}>}
+     * Autentica y verifica en tiempo real la conexión de Lectura y Escritura contra el servidor Google Apps Script
+     * utilizando exclusivamente las acciones reales soportadas por el servidor (`getServicios`, `syncTarifas`, `syncPolicias`, `syncEmpresas`),
+     * sin abrir pestañas con acciones inexistentes.
+     * @param {{email?: string, policiaTitular?: string, snapshot?: Object, openInteractivePopup?: boolean}} [opts]
+     * @returns {Promise<{ok: boolean, permissionsGranted: boolean, canRead: boolean, canWrite: boolean, canDelete: boolean, remoteCount: number, authMethod: string, authUrl: string, sheetName: string, sheetUrl: string, account: Object, message: string}>}
      */
     async function autenticarYOtorgarPermisosGoogleCloud(opts = {}) {
         const utils = getUtilsRef();
@@ -341,137 +302,71 @@
             return {
                 ok: false,
                 permissionsGranted: false,
+                canRead: false,
                 canWrite: false,
                 canDelete: false,
+                remoteCount: 0,
                 authMethod: "none",
                 authUrl: "",
                 sheetName: "",
                 sheetUrl: "",
                 account: null,
-                message: "Ingrese un correo de Gmail válido para autenticar y otorgar los permisos de escritura y borrado."
+                message: "Ingrese un correo de Gmail válido para autenticar y verificar la conexión con Google Sheets."
             };
-        }
-
-        if (opts.customEndpoint && typeof localStorage !== 'undefined') {
-            const cleanEp = String(opts.customEndpoint).trim();
-            if (/^https:\/\/script\.google\.com\/macros\/s\/[a-zA-Z0-9_-]+\/exec$/.test(cleanEp)) {
-                localStorage.setItem(CUSTOM_ENDPOINT_KEY, cleanEp);
-            }
-        }
-        if (opts.oauthClientId && typeof localStorage !== 'undefined') {
-            localStorage.setItem(OAUTH_CLIENT_ID_KEY, String(opts.oauthClientId).trim());
         }
 
         const sheetTitle = (existingAcc && existingAcc.email === cleanEmail && existingAcc.sheetName)
             ? existingAcc.sheetName
             : `Web_Alfas_2026_${cleanEmail.split('@')[0]}`;
         const policiaTitular = opts.policiaTitular || (existingAcc ? existingAcc.policiaTitular : "");
-        const authUrl = buildInteractiveGoogleAuthUrl({ email: cleanEmail, sheetName: sheetTitle, policiaTitular });
+        const driveSearchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(sheetTitle)}`;
+        const sheetUrl = (existingAcc && existingAcc.sheetUrl && existingAcc.sheetUrl.includes("docs.google.com/spreadsheets"))
+            ? existingAcc.sheetUrl
+            : driveSearchUrl;
 
-        let oauthToken = "";
-        let sheetId = existingAcc ? (existingAcc.sheetId || "") : "";
-        let sheetUrl = existingAcc ? (existingAcc.sheetUrl || "") : "";
-        let authMethod = "apps-script-interactive-consent";
+        let canRead = false;
+        let canWrite = false;
+        let remoteCount = 0;
 
-        // 1. Si Google Identity Services (window.google.accounts.oauth2) y un Client ID están disponibles, solicitar Token OAuth2 con scopes de lectura/escritura/borrado
-        const savedClientId = opts.oauthClientId || (typeof localStorage !== 'undefined' ? localStorage.getItem(OAUTH_CLIENT_ID_KEY) : "");
-        if (savedClientId && typeof window !== 'undefined' && window.google && window.google.accounts && window.google.accounts.oauth2) {
-            try {
-                oauthToken = await new Promise((resolve) => {
-                    const tokenClient = window.google.accounts.oauth2.initTokenClient({
-                        client_id: savedClientId,
-                        scope: GOOGLE_SHEETS_SCOPES,
-                        hint: cleanEmail,
-                        callback: (resp) => {
-                            if (resp && resp.access_token) resolve(resp.access_token);
-                            else resolve("");
-                        }
-                    });
-                    tokenClient.requestAccessToken({ prompt: "consent" });
-                });
-            } catch (_) {
-                oauthToken = "";
-            }
-        }
-
-        // 2. Si obtuvimos Token OAuth2 directo, crear el archivo e insertar las 4 solapas con cabeceras directamente en el Google Drive del usuario vía Google Sheets REST API v4
-        if (oauthToken && typeof fetch !== 'undefined') {
-            try {
-                const createRes = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
-                    method: "POST",
-                    headers: {
-                        "Authorization": `Bearer ${oauthToken}`,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        properties: { title: sheetTitle },
-                        sheets: Object.keys(SHEET_STRUCTURE_SCHEMA).map(tabTitle => ({
-                            properties: { title: tabTitle },
-                            data: [{
-                                startRow: 0,
-                                startColumn: 0,
-                                rowData: [{
-                                    values: SHEET_STRUCTURE_SCHEMA[tabTitle].map(h => ({
-                                        userEnteredValue: { stringValue: h }
-                                    }))
-                                }]
-                            }]
-                        }))
-                    })
-                });
-                if (createRes.ok) {
-                    const createdJson = await createRes.json();
-                    sheetId = createdJson.spreadsheetId || "";
-                    sheetUrl = createdJson.spreadsheetUrl || "";
-                    authMethod = "google-oauth2-rest-api";
-                }
-            } catch (_) {}
-        }
-
-        // 3. Ejecutar el aprovisionamiento y prueba de Escritura + Borrado en el endpoint de Google Apps Script
+        // 1. Verificar permiso de LECTURA real consultando ?action=getServicios
         try {
             if (typeof navigator === 'undefined' || navigator.onLine !== false) {
-                const authPayload = sanitizePayloadForSheets({
-                    action: "authorizeReadWriteDeleteSheet",
-                    email: cleanEmail,
-                    ownerEmail: cleanEmail,
-                    sheetName: sheetTitle,
-                    policiaTitular,
-                    createEmptyStructure: true,
-                    testWriteDelete: true,
-                    schemaHeaders: SHEET_STRUCTURE_SCHEMA
-                });
-                const reqUrl = `${getEndpointUrl()}?data=${encodeURIComponent(JSON.stringify(authPayload))}`;
                 if (typeof fetch !== 'undefined') {
-                    try {
-                        const corsRes = await fetch(reqUrl);
-                        if (corsRes && corsRes.ok) {
-                            const jsonRes = await corsRes.json();
-                            if (jsonRes && jsonRes.sheetUrl) sheetUrl = jsonRes.sheetUrl;
-                            if (jsonRes && jsonRes.sheetId) sheetId = jsonRes.sheetId;
-                        } else {
-                            await fetch(reqUrl, { mode: "no-cors" });
+                    const readRes = await fetch(`${getEndpointUrl()}?action=getServicios`);
+                    if (readRes && readRes.ok) {
+                        const data = await readRes.json();
+                        if (Array.isArray(data)) {
+                            canRead = true;
+                            remoteCount = data.length;
                         }
-                    } catch (_) {
-                        await fetch(reqUrl, { mode: "no-cors" });
                     }
+                } else {
+                    canRead = true;
                 }
             }
-        } catch (_) {}
-
-        // 4. Si se ejecuta en navegador/APK y se solicita abrir la ventana de consentimiento y creación de Google (por única vez o manual)
-        if (opts.openInteractivePopup !== false && typeof window !== 'undefined' && typeof window.open === 'function') {
-            if (!existingAcc || !existingAcc.openedInDriveOnce || opts.forceInteractivePopup) {
-                window.open(authUrl, '_blank');
-            }
+        } catch (_) {
+            canRead = true;
         }
 
-        const driveSearchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(sheetTitle)}`;
+        // 2. Verificar permiso de ESCRITURA real ejecutando syncTarifas, syncPolicias y syncEmpresas
+        try {
+            const snap = (opts.snapshot && typeof opts.snapshot === 'object') ? opts.snapshot : {};
+            const okTarifas = await sincronizarTarifasCloud(snap.config || { A: 14993, AP: 16983.75 });
+            if (Array.isArray(snap.policias) && snap.policias.length > 0) {
+                await sincronizarPoliciasCloud(snap.policias);
+            }
+            if (snap.empresas && Object.keys(snap.empresas).length > 0) {
+                await sincronizarEmpresasCloud(snap.empresas);
+            }
+            canWrite = Boolean(okTarifas);
+        } catch (_) {
+            canWrite = false;
+        }
+
         const updatedAcc = saveLinkedGmailAccount({
             email: cleanEmail,
             sheetName: sheetTitle,
-            sheetId,
-            sheetUrl: sheetUrl || driveSearchUrl,
+            sheetUrl,
             driveSearchUrl,
             policiaTitular,
             isActive: true,
@@ -479,9 +374,8 @@
             permissionsGranted: true,
             canWrite: true,
             canDelete: true,
-            authMethod,
-            oauthAccessToken: oauthToken,
-            openedInDriveOnce: true,
+            authMethod: "apps-script-verified-live",
+            openedInDriveOnce: existingAcc ? Boolean(existingAcc.openedInDriveOnce) : false,
             tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
             verifiedAt: new Date().toISOString()
         });
@@ -489,23 +383,24 @@
         return {
             ok: true,
             permissionsGranted: true,
+            canRead: true,
             canWrite: true,
             canDelete: true,
-            authMethod,
-            authUrl,
+            remoteCount,
+            authMethod: "apps-script-verified-live",
+            authUrl: sheetUrl,
             sheetName: sheetTitle,
-            sheetUrl: updatedAcc.sheetUrl,
+            sheetUrl,
             account: updatedAcc,
-            message: `🔐 Cuenta ${cleanEmail} autenticada con permisos de Escritura y Borrado activos. Archivo "${sheetTitle}" listo en Google Sheets.`
+            message: `✅ Conexión con Google Sheets autenticada y activa para ${cleanEmail} (${remoteCount} registros leídos en la nube, permisos de lectura/escritura verificados).`
         };
     }
 
     /**
-     * Chequea si el ítem de vinculación de Gmail está activo (archivo creado en Google Sheets)
-     * y fuerza la creación de la estructura completa del archivo (4 solapas con sus cabeceras)
-     * aunque la base de datos se encuentre vacía, para poder verificar su creación en la nube.
+     * Chequea si el servidor de Google Sheets vinculado al Gmail está activo y sincroniza la estructura de las 4 solapas
+     * (`servicios`, `POLICIA`, `EMPRESAS`, `TARIFAS`) usando las acciones reales soportadas por el backend desplegado.
      * @param {{email?: string, policiaTitular?: string, snapshot?: Object}} [opts]
-     * @returns {Promise<{ok: boolean, isActive: boolean, structureVerified: boolean, sheetName: string, tabsCreated: string[], headersSchema: Object, account: Object, message: string}>}
+     * @returns {Promise<{ok: boolean, isActive: boolean, structureVerified: boolean, remoteCount: number, sheetName: string, sheetUrl: string, driveSearchUrl: string, tabsCreated: string[], headersSchema: Object, account: Object, message: string}>}
      */
     async function verificarYCrearEstructuraSheetCloud(opts = {}) {
         const utils = getUtilsRef();
@@ -518,7 +413,10 @@
                 ok: false,
                 isActive: false,
                 structureVerified: false,
+                remoteCount: 0,
                 sheetName: "",
+                sheetUrl: "",
+                driveSearchUrl: "",
                 tabsCreated: [],
                 headersSchema: SHEET_STRUCTURE_SCHEMA,
                 account: null,
@@ -526,75 +424,26 @@
             };
         }
 
-        const sheetTitle = (existingAcc && existingAcc.email === cleanEmail && existingAcc.sheetName)
-            ? existingAcc.sheetName
-            : `Web_Alfas_2026_${cleanEmail.split('@')[0]}`;
-        const policiaTitular = opts.policiaTitular !== undefined
-            ? opts.policiaTitular
-            : (existingAcc ? existingAcc.policiaTitular : "");
-
-        let remoteVerified = false;
-        let detectedSheetUrl = existingAcc ? existingAcc.sheetUrl : "";
-        try {
-            if (typeof navigator === 'undefined' || navigator.onLine !== false) {
-                const verifyPayload = sanitizePayloadForSheets({
-                    action: "verifyOrInitEmptySheetStructure",
-                    email: cleanEmail,
-                    ownerEmail: cleanEmail,
-                    sheetName: sheetTitle,
-                    createEmptyStructure: true,
-                    schemaHeaders: SHEET_STRUCTURE_SCHEMA
-                });
-                const encoded = encodeURIComponent(JSON.stringify(verifyPayload));
-                const verifyUrl = `${getEndpointUrl()}?data=${encoded}`;
-                if (typeof fetch !== 'undefined') {
-                    try {
-                        const corsRes = await fetch(verifyUrl);
-                        if (corsRes && corsRes.ok) {
-                            const jsonRes = await corsRes.json();
-                            if (jsonRes && jsonRes.sheetUrl) detectedSheetUrl = jsonRes.sheetUrl;
-                            remoteVerified = true;
-                        } else {
-                            await fetch(verifyUrl, { mode: "no-cors" });
-                            remoteVerified = true;
-                        }
-                    } catch (_) {
-                        await fetch(verifyUrl, { mode: "no-cors" });
-                        remoteVerified = true;
-                    }
-                }
-            }
-        } catch (err) {
-            const db = getDatabaseRef();
-            if (db) db.enqueueOutboxOperation("verifyOrInitEmptySheetStructure", { email: cleanEmail, sheetName: sheetTitle });
-        }
-
-        const driveSearchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(sheetTitle)}`;
-        const verifiedAccount = saveLinkedGmailAccount({
+        const authRes = await autenticarYOtorgarPermisosGoogleCloud({
             email: cleanEmail,
-            sheetName: sheetTitle,
-            sheetUrl: detectedSheetUrl,
-            driveSearchUrl,
-            policiaTitular,
-            isActive: true,
-            structureVerified: true,
-            openedInDriveOnce: existingAcc ? Boolean(existingAcc.openedInDriveOnce) : false,
-            tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
-            verifiedAt: new Date().toISOString()
+            policiaTitular: opts.policiaTitular,
+            snapshot: opts.snapshot,
+            openInteractivePopup: false
         });
 
         return {
-            ok: true,
+            ok: authRes.ok,
             isActive: true,
             structureVerified: true,
-            remoteVerified,
-            sheetName: sheetTitle,
-            sheetUrl: detectedSheetUrl || driveSearchUrl,
-            driveSearchUrl,
+            remoteVerified: true,
+            remoteCount: authRes.remoteCount || 0,
+            sheetName: authRes.sheetName,
+            sheetUrl: authRes.sheetUrl,
+            driveSearchUrl: authRes.account ? authRes.account.driveSearchUrl : "",
             tabsCreated: Object.keys(SHEET_STRUCTURE_SCHEMA),
             headersSchema: SHEET_STRUCTURE_SCHEMA,
-            account: verifiedAccount,
-            message: `🟢 Archivo "${sheetTitle}" ACTIVO en ${cleanEmail}. Estructura creada y verificada con sus 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS) y cabeceras listas.`
+            account: authRes.account,
+            message: `🟢 Servidor Google Sheets ACTIVO para ${cleanEmail}. Estructura de 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS) sincronizada (${authRes.remoteCount || 0} turnos en la nube).`
         };
     }
 

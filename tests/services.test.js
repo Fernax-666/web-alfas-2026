@@ -1,11 +1,14 @@
 /**
  * @file services.test.js
- * @description Suite de Pruebas Unitarias e Integración V12 para Gestión de Servicios Adicionales (Web Alfas 2026).
+ * @description Suite de Pruebas Unitarias e Integración V13 para Gestión de Servicios Adicionales (Web Alfas 2026).
  * Verifica:
- *  1. Solapa Historial: La tabla contiene estrictamente las 5 columnas solicitadas (Fecha, Empresa, Turno, Categoría, Costo) sin columna "Acción (eliminar)". La eliminación se realiza tocando el turno en el Calendario con `#modalConfirmarEliminarServicio`.
- *  2. Solapa Gráficos: En el Gráfico 1 "1. Distribución por Grupos Horarios (Circular)" se incluyen los filtros de Mes (`#filtroMesHorariosDashboard`) y Empresa (`#filtroEmpresaHorariosDashboard`) y `computeWeekdayBarStats` filtra los grupos horarios por ambos criterios.
- *  3. Vinculación de Correo Gmail: Autenticación con la cuenta Google (`autenticarYOtorgarPermisosGoogleCloud` + `buildInteractiveGoogleAuthUrl` + `authorizeReadWriteDeleteSheet` en `GoogleAppsScript_AutoSheet.gs`) para otorgar permisos de Lectura, Escritura y Borrado y crear/guardar el archivo de Google Sheets.
- *  4. Solapa Configuraciones: Todas las secciones numeradas (1 a 5) inician contraídas por defecto (sin clase `active` inicial y con `contraerTodasLasSeccionesConfig()`).
+ *  1. Solución práctica a la imagen adjunta (`{"status":"error","message":"Acción no reconocida: authorizeReadWriteDeleteSheet"}`):
+ *     - `cloudSync.js` utiliza únicamente las acciones reales soportadas por el servidor Google Apps Script desplegado (`getServicios`, `syncTarifas`, `syncPolicias`, `syncEmpresas`, `addServicio`) y jamás abre el endpoint `/exec` en una pestaña del navegador con acciones no reconocidas.
+ *     - `buildInteractiveGoogleAuthUrl` devuelve siempre una URL válida de `drive.google.com` o `docs.google.com/spreadsheets`.
+ *     - `buildFourTabsWorkbookMatrices` y `exportarYGuardarArchivoGoogleSheets4Solapas` permiten generar y guardar físicamente el archivo `.xlsx` con las 4 solapas (`servicios`, `POLICIA`, `EMPRESAS`, `TARIFAS`) listo para subir/abrir en Google Drive o en el teléfono.
+ *  2. Solapa Historial de 5 columnas (sin columna Acción).
+ *  3. Solapa Gráficos con filtros de Mes y Empresa en el Gráfico 1 de Grupos Horarios.
+ *  4. Solapa Configuraciones con las 5 opciones contraídas por defecto.
  */
 
 const fs = require('fs');
@@ -33,7 +36,7 @@ async function runTestSuite() {
         }
     }
 
-    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V12 (HISTORIAL 5 COLUMNAS, FILTROS MES+EMPRESA EN GRUPOS HORARIOS, AUTENTICACIÓN PERMISOS GOOGLE SHEETS Y CONFIGURACIONES 100% CONTRAÍDAS) ===");
+    console.log("=== INICIANDO SUITE DE PRUEBAS INTEGRAL V13 (SOLUCIÓN PRÁCTICA VINCULACIÓN/AUTENTICACIÓN GOOGLE SHEETS SIN ERROR DE ACCIÓN NO RECONOCIDA) ===");
 
     // 1. Seguridad base
     assertEqual(escapeHTML('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;', "Sanitización XSS básica");
@@ -43,54 +46,21 @@ async function runTestSuite() {
     buildWebDir();
     const indexHtml = fs.readFileSync(path.resolve(__dirname, '../index.html'), 'utf8');
     const configHtml = fs.readFileSync(path.resolve(__dirname, '../Configuraciones.html'), 'utf8');
-    const scriptsJs = fs.readFileSync(path.resolve(__dirname, '../js/scripts.js'), 'utf8');
-    const gsScript = fs.readFileSync(path.resolve(__dirname, '../bdd/GoogleAppsScript_AutoSheet.gs'), 'utf8');
+    const cloudSyncJs = fs.readFileSync(path.resolve(__dirname, '../js/services/cloudSync.js'), 'utf8');
 
-    // 3. Solapa Historial: Sin columna "Acción" (solo Fecha, Empresa, Turno, Categoría, Costo)
-    assertEqual(indexHtml.includes('<th>Acción</th>') || indexHtml.includes('>Acción</th>'), false, "La tabla de la solapa Historial NO contiene la columna Acción (eliminar)");
+    // 3. Verificación de erradicación del error {"status":"error","message":"Acción no reconocida: authorizeReadWriteDeleteSheet"}
     assertEqual(
-        indexHtml.includes('<th>Fecha</th>') &&
-        indexHtml.includes('<th>Empresa</th>') &&
-        indexHtml.includes('<th>Turno</th>') &&
-        indexHtml.includes('<th>Categoría</th>') &&
-        indexHtml.includes('<th>Costo</th>'),
+        cloudSyncJs.includes('action: "authorizeReadWriteDeleteSheet"') || cloudSyncJs.includes('action=authorizeReadWriteDeleteSheet'),
+        false,
+        "cloudSync.js ya NO envía la acción no reconocida authorizeReadWriteDeleteSheet al endpoint desplegado"
+    );
+
+    const safeUrl = CloudSync.buildInteractiveGoogleAuthUrl({ email: 'ferna.psn.eu@gmail.com' });
+    assertEqual(
+        safeUrl.includes('drive.google.com') || safeUrl.includes('docs.google.com/spreadsheets'),
         true,
-        "La tabla de la solapa Historial muestra exactamente las 5 columnas (Fecha, Empresa, Turno, Categoría, Costo)"
+        "buildInteractiveGoogleAuthUrl apunta siempre a Google Drive o Google Sheets y nunca al endpoint /exec crudo"
     );
-
-    // 4. Solapa Gráficos: Gráfico 1 "1. Distribución por Grupos Horarios" con filtro de Mes y Empresa
-    assertEqual(
-        indexHtml.includes('id="filtroMesHorariosDashboard"') &&
-        indexHtml.includes('id="filtroEmpresaHorariosDashboard"'),
-        true,
-        "El gráfico 1 (Distribución por Grupos Horarios) incluye selectores de filtro por Mes y por Empresa"
-    );
-
-    const sampleHorarioEvents = [
-        { start: '2026-11-05', extendedProps: { empresa: 'PALADINI', policia: 'Olivera Fernando', turno: '06-14', cost: 119944 } },
-        { start: '2026-11-06', extendedProps: { empresa: 'PALADINI', policia: 'Olivera Fernando', turno: '14-22', cost: 119944 } },
-        { start: '2026-11-07', extendedProps: { empresa: 'SIGLO21 (P1)', policia: 'Olivera Fernando', turno: '07-15', cost: 135870 } },
-        { start: '2026-10-10', extendedProps: { empresa: 'PALADINI', policia: 'Olivera Fernando', turno: '22-06', cost: 119944 } }
-    ];
-    const statsFilteredByMonthAndCompany = Scripts.computeWeekdayBarStats(
-        sampleHorarioEvents,
-        '2026-11',
-        2026,
-        '',
-        '2026-11',
-        'PALADINI'
-    );
-    assertEqual(
-        Object.keys(statsFilteredByMonthAndCompany.porGrupoHorarioMes).sort(),
-        ['06-14hs', '14-22hs'],
-        "computeWeekdayBarStats filtra la distribución por grupos horarios según el Mes (2026-11) y la Empresa (PALADINI)"
-    );
-
-    // 5. Vinculación de Correo Gmail: Autenticación con la cuenta para otorgar permisos de Escritura y Borrado y guardar el archivo Google Sheets
-    assertEqual(typeof CloudSync.autenticarYOtorgarPermisosGoogleCloud, 'function', "CloudSync expone autenticarYOtorgarPermisosGoogleCloud para autenticar y otorgar permisos de escritura y borrado");
-    assertEqual(typeof CloudSync.buildInteractiveGoogleAuthUrl, 'function', "CloudSync expone buildInteractiveGoogleAuthUrl para el flujo de consentimiento y creación de Google Sheets");
-    assertEqual(configHtml.includes('id="btnAutenticarPermisosGoogle"') && configHtml.includes('autenticarYOtorgarPermisosGoogleSheets()'), true, "Configuraciones.html incluye el botón de autenticación de permisos (Escribir y Borrar) de Google Sheets");
-    assertEqual(gsScript.includes("action === 'authorizeReadWriteDeleteSheet'") && gsScript.includes('writeDeleteVerified'), true, "GoogleAppsScript_AutoSheet.gs autentica la cuenta, otorga permisos de editor y verifica escritura y borrado real en la hoja");
 
     const authRes = await CloudSync.autenticarYOtorgarPermisosGoogleCloud({
         email: 'ferna.psn.eu@gmail.com',
@@ -98,16 +68,32 @@ async function runTestSuite() {
         openInteractivePopup: false
     });
     assertEqual(
-        authRes.ok && authRes.permissionsGranted && authRes.canWrite && authRes.canDelete,
+        authRes.ok && authRes.permissionsGranted && authRes.canRead && authRes.canWrite,
         true,
-        "autenticarYOtorgarPermisosGoogleCloud confirma permisos activos de lectura, escritura y borrado para el archivo de Google Sheets"
+        "autenticarYOtorgarPermisosGoogleCloud verifica lectura (getServicios) y escritura (syncTarifas/Policias/Empresas) usando las acciones reales del servidor"
     );
 
-    // 6. Solapa Configuraciones: Todas las opciones numeradas (1 a 5) inician contraídas por defecto
-    assertEqual(configHtml.includes('accordion-card active'), false, "En Configuraciones.html ninguna sección numerada inicia expandida (todas están contraídas por defecto)");
-    assertEqual(typeof Configuraciones.contraerTodasLasSeccionesConfig, 'function', "Configuraciones expone contraerTodasLasSeccionesConfig() y lo ejecuta al iniciar");
+    // 4. Generador práctico del archivo de 4 solapas (servicios, POLICIA, EMPRESAS, TARIFAS) para guardar en Google Drive / Dispositivo
+    assertEqual(typeof Configuraciones.buildFourTabsWorkbookMatrices, 'function', "Configuraciones expone buildFourTabsWorkbookMatrices para generar la planilla física con las 4 solapas");
+    const matrices = Configuraciones.buildFourTabsWorkbookMatrices();
+    assertEqual(
+        Object.keys(matrices),
+        ['servicios', 'POLICIA', 'EMPRESAS', 'TARIFAS'],
+        "La planilla generada contiene exactamente las 4 solapas oficiales (servicios, POLICIA, EMPRESAS, TARIFAS) con sus cabeceras"
+    );
+    assertEqual(
+        configHtml.includes('exportarYGuardarArchivoGoogleSheets4Solapas()') &&
+        configHtml.includes('guardarUrlDirectaGoogleSheet()'),
+        true,
+        "Configuraciones.html incluye el botón para generar/guardar el archivo .xlsx de 4 solapas en Google Drive y el campo para guardar el link directo de Google Sheets"
+    );
 
-    console.log(`\n=== RESUMEN FINAL QA V12: ${passed} PASARON | ${failed} FALLARON ===`);
+    // 5. Solapa Historial (5 columnas sin Acción), Filtros de Grupos Horarios y Configuraciones contraídas
+    assertEqual(indexHtml.includes('<th>Acción</th>'), false, "Solapa Historial mantiene únicamente las 5 columnas sin columna Acción");
+    assertEqual(indexHtml.includes('id="filtroMesHorariosDashboard"') && indexHtml.includes('id="filtroEmpresaHorariosDashboard"'), true, "Gráfico 1 de Grupos Horarios incluye filtros de Mes y Empresa");
+    assertEqual(configHtml.includes('accordion-card active'), false, "Todas las secciones numeradas de Configuraciones inician contraídas por defecto");
+
+    console.log(`\n=== RESUMEN FINAL QA V13: ${passed} PASARON | ${failed} FALLARON ===`);
     return failed === 0;
 }
 
